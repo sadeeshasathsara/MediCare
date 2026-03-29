@@ -67,13 +67,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up kubectl
-        uses: azure/k8s-set-context@v3
-        with:
-          method: kubeconfig
-          kubeconfig: ${{ secrets.KUBE_CONFIG }} # Optional: only if you want to test against a real cluster
-        continue-on-error: true
-
       - name: Validate Kubernetes Manifests (Dry Run)
         run: |
-          kubectl apply --dry-run=client -f k8s/
+          # Syntax-only validation (doesn't require a live cluster connection)
+          kubectl apply --dry-run=client --validate=false -f k8s/
