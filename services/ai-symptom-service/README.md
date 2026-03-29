@@ -14,5 +14,9 @@ Takes parsed natural-language inputs from patients querying potential conditions
 ```bash
 ./mvnw clean spring-boot:run
 ```
-*Note: It is generally recommended to run this within the fully deployed Docker Compose macro-system.*
+*Note: For the full platform, it is recommended to run this within the **Minikube** cluster:*
+```bash
+kubectl apply -f ../../k8s/ai-symptom-deployment.yaml
+kubectl logs -f deployment/ai-symptom-service
+```
 *(Also available through the global gateway at `http://localhost:8080/api/ai/`)*

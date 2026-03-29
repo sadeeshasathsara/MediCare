@@ -14,5 +14,9 @@ Coordinates video link sessions, webRTC signaling token dispensation, and remote
 ```bash
 ./mvnw clean spring-boot:run
 ```
-*Note: It is generally recommended to run this within the fully deployed Docker Compose macro-system.*
+*Note: For the full platform, it is recommended to run this within the **Minikube** cluster:*
+```bash
+kubectl apply -f ../../k8s/telemedicine-deployment.yaml
+kubectl logs -f deployment/telemedicine-service
+```
 *(Also available through the global gateway at `http://localhost:8080/api/telemedicine/`)*

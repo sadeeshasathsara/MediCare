@@ -33,15 +33,47 @@ A production-grade **NGINX** gateway sits in front of the microservices. It hand
 
 ### Prerequisites
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) (Start the Docker Daemon first)
+- [Minikube](https://minikube.sigs.k8s.io/docs/start/) (For local Kubernetes orchestration)
 - [Node.js](https://nodejs.org/) (For running the frontend)
 
-### Step 1: Spin up the Backend Stack
-From the root directory of the repository, execute:
+### Option 1: One-Click Setup (PowerShell)
+This is the **fastest and easiest** way to get started. It automatically checks for pre-requisites, downloads missing tools (Minikube/Kubectl), and configures your environment.
+
+1. **Run the setup script:**
+   ```powershell
+   .\setup-medicare.ps1
+   ```
+   *Note: On the first run, this script permanently adds the `.bin` folder to your Path so you can use `minikube` or `kubectl` from any terminal later.*
+
+---
+
+### Option 2: Manual Kubernetes Setup (Minikube)
+If you prefer to run the commands manually:
+
+1. **Start Minikube:**
+   ```bash
+   .\minikube.exe start --driver=docker
+   ```
+2. **Deploy the Platform:**
+   ```bash
+   kubectl apply -f k8s/
+   ```
+3. **Access the API Gateway:**
+   ```bash
+   .\minikube.exe service api-gateway --url
+   ```
+For more detailed Kubernetes commands and troubleshooting, see the [KUBERNETES_GUIDE.md](file:///c:/Users/sadee/OneDrive/Documents/MediCare/KUBERNETES_GUIDE.md).
+
+---
+
+### Alternative Setup: Docker Compose (Legacy)
+If you prefer to run the containers without Kubernetes, you can still use Docker Compose:
 ```bash
 docker compose up --build -d
 ```
-Docker will compile all 8 Maven/Spring Boot projects natively using Eclipse Temurin images, build the NGINX gateway, and spin up an isolated network container for each. To verify, run `docker compose ps`. 
-The entire backend API is now accessible via `http://localhost:8080`.
+The entire backend API will then be accessible via `http://localhost:8080`.
+
+---
 
 ### Step 2: Spin up the Dashboard Frontend
 Open a new terminal session and navigate into the `web-client` directory. Install the dependencies and initiate the Vite dev server:
@@ -53,6 +85,13 @@ npm run dev
 
 ### Step 3: Access the System
 Navigate to the localhost port provided by Vite in Step 2 (e.g., `http://localhost:5173`) in your web browser. You will see the MediCare dashboard.
+
+---
+
+## 🚀 CI/CD Integration
+The platform is integrated with **GitHub Actions**. Every push to the `main` branch:
+1. Builds and pushes microservice images to **GitHub Container Registry (GHCR)**.
+2. Validates Kubernetes manifests in the `k8s/` directory.
 
 ---
 

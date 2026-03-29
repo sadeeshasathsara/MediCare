@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: appointment-service
-          image: appointment-service:latest
+          image: ghcr.io/sadeeshasathsara/medicare/appointment-service:latest
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 3004

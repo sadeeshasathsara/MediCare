@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: doctor-service
-          image: doctor-service:latest
+          image: ghcr.io/sadeeshasathsara/medicare/doctor-service:latest
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 3003

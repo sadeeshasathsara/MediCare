@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: telemedicine-service
-          image: telemedicine-service:latest
+          image: ghcr.io/sadeeshasathsara/medicare/telemedicine-service:latest
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 3005
