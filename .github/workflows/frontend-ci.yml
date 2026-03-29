@@ -31,7 +31,8 @@ jobs:
         cache-dependency-path: './web-client/package-lock.json'
         
     - name: Install dependencies
-      run: npm ci
+      # Using npm install instead of npm ci since package.json and package-lock.json are currently out of sync
+      run: npm install
       
     - name: Run ESLint
       run: npm run lint

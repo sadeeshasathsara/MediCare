@@ -42,5 +42,7 @@ jobs:
         
     - name: Build and Package with Maven (Skipping Tests)
       working-directory: ./services/${{ matrix.service }}
-      # -DskipTests is used to drastically speed up CI execution if you aren't strictly writing Unit tests
-      run: ./mvnw clean package -DskipTests
+      # We add execute permissions to the wrapper before running in the Ubuntu VM
+      run: |
+        chmod +x ./mvnw
+        ./mvnw clean package -DskipTests
