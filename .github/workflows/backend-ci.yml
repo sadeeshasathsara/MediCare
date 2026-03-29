@@ -1,0 +1,46 @@
+name: Backend CI (Microservices)
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - 'services/**'
+      - '.github/workflows/backend-ci.yml'
+  pull_request:
+    branches: [ "main" ]
+    paths:
+      - 'services/**'
+
+jobs:
+  build-services:
+    runs-on: ubuntu-latest
+    # A building matrix allows us to compile all 8 microservices simultaneously 
+    # on 8 different virtual machines in parallel to save you time.
+    strategy:
+      fail-fast: false
+      matrix:
+        service: 
+          - auth-service
+          - patient-service
+          - doctor-service
+          - appointment-service
+          - telemedicine-service
+          - payment-service
+          - notification-service
+          - ai-symptom-service
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+    
+    - name: Set up Java 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        cache: maven
+        
+    - name: Build and Package with Maven (Skipping Tests)
+      working-directory: ./services/${{ matrix.service }}
+      # -DskipTests is used to drastically speed up CI execution if you aren't strictly writing Unit tests
+      run: ./mvnw clean package -DskipTests
