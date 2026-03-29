@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useState, useEffect } from 'react'
 
 const AuthContext = createContext(null)
@@ -12,6 +13,7 @@ export function AuthProvider({ children }) {
       // Decode JWT payload to get user info
       try {
         const payload = JSON.parse(atob(token.split('.')[1]))
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setUser(payload)
       } catch {
         setToken(null)

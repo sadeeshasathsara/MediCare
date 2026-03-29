@@ -32,17 +32,17 @@ import LoginPage from '@/features/auth/pages/LoginPage'
 // import SymptomChecker from '@/features/ai-symptom/pages/SymptomChecker'
 
 // --- Navigation Links for Top Nav ---
-const patientLinks = [
-  { label: 'My Dashboard', path: '/patient/dashboard' },
-  { label: 'My Appointments', path: '/patient/appointments' },
-  { label: 'My Records', path: '/patient/records' },
-]
+// const patientLinks = [
+//   { label: 'My Dashboard', path: '/patient/dashboard' },
+//   { label: 'My Appointments', path: '/patient/appointments' },
+//   { label: 'My Records', path: '/patient/records' },
+// ]
 
-const doctorLinks = [
-  { label: 'Doctor Dashboard', path: '/doctor/dashboard' },
-  { label: 'Schedule', path: '/doctor/schedule' },
-  { label: 'Patients', path: '/doctor/patients' },
-]
+// const doctorLinks = [
+//   { label: 'Doctor Dashboard', path: '/doctor/dashboard' },
+//   { label: 'Schedule', path: '/doctor/schedule' },
+//   { label: 'Patients', path: '/doctor/patients' },
+// ]
 
 export default function AppRoutes() {
   return (
