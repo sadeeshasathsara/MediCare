@@ -2,7 +2,7 @@ name: Docker Publisher (CD)
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "dev" ]
     paths:
       - 'services/**'
       - '.github/workflows/docker-publish.yml'

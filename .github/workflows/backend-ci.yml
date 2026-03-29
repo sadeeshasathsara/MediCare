@@ -2,12 +2,12 @@ name: Backend CI (Microservices)
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "dev" ]
     paths:
       - 'services/**'
       - '.github/workflows/backend-ci.yml'
   pull_request:
-    branches: [ "main" ]
+    branches: [ "main", "dev" ]
     paths:
       - 'services/**'
 
