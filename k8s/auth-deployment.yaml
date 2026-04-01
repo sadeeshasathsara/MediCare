@@ -26,6 +26,38 @@ spec:
                 secretKeyRef:
                   name: medicare-secrets
                   key: JWT_SECRET
+
+            - name: JWT_ACCESS_TTL_MS
+              value: "900000"
+
+            - name: JWT_REFRESH_TTL_MS
+              value: "604800000"
+
+            - name: CORS_ALLOWED_ORIGINS
+              value: "http://localhost:5173,http://localhost:3000"
+
+            # Optional: bootstrap initial ADMIN user (disabled by default)
+            - name: ADMIN_BOOTSTRAP_ENABLED
+              valueFrom:
+                secretKeyRef:
+                  name: medicare-secrets
+                  key: ADMIN_BOOTSTRAP_ENABLED
+            - name: ADMIN_BOOTSTRAP_EMAIL
+              valueFrom:
+                secretKeyRef:
+                  name: medicare-secrets
+                  key: ADMIN_BOOTSTRAP_EMAIL
+            - name: ADMIN_BOOTSTRAP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: medicare-secrets
+                  key: ADMIN_BOOTSTRAP_PASSWORD
+            - name: ADMIN_BOOTSTRAP_FULL_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: medicare-secrets
+                  key: ADMIN_BOOTSTRAP_FULL_NAME
+
             # Update the MongoDB URI below manually
             - name: SPRING_DATA_MONGODB_URI
               valueFrom:

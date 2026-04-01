@@ -1,41 +1,105 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useContext, useState, useEffect } from 'react'
+import { createContext, useContext, useMemo, useState } from 'react'
+import api from '@/services/api'
 
 const AuthContext = createContext(null)
 
+function safeJsonParse(value) {
+  if (!value) return null
+  try {
+    return JSON.parse(value)
+  } catch {
+    return null
+  }
+}
+
+function decodeJwtPayload(token) {
+  try {
+    const parts = token.split('.')
+    if (parts.length < 2) return null
+    return JSON.parse(atob(parts[1]))
+  } catch {
+    return null
+  }
+}
+
+function getValidAccessTokenFromStorage() {
+  const token = localStorage.getItem('accessToken')
+  if (!token) return null
+  const payload = decodeJwtPayload(token)
+  if (!payload) {
+    localStorage.removeItem('accessToken')
+    return null
+  }
+  return token
+}
+
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null)
-  const [token, setToken] = useState(localStorage.getItem('token'))
-  const [loading, setLoading] = useState(true)
+  const [user, setUser] = useState(() => safeJsonParse(localStorage.getItem('user')))
+  const [accessToken, setAccessToken] = useState(() => getValidAccessTokenFromStorage())
+  const [refreshToken, setRefreshToken] = useState(localStorage.getItem('refreshToken'))
 
-  useEffect(() => {
-    if (token) {
-      // Decode JWT payload to get user info
-      try {
-        const payload = JSON.parse(atob(token.split('.')[1]))
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        setUser(payload)
-      } catch {
-        setToken(null)
-        localStorage.removeItem('token')
-      }
+  const effectiveUser = useMemo(() => {
+    const existing = user || {}
+
+    if (!accessToken) {
+      return existing
     }
-    setLoading(false)
-  }, [token])
 
-  const login = (newToken) => {
-    localStorage.setItem('token', newToken)
-    setToken(newToken)
+    const payload = decodeJwtPayload(accessToken)
+    if (!payload) {
+      return existing
+    }
+
+    const email = payload.email
+    const role = payload.role
+    const verified = payload.verified
+    const name = existing.name || (email ? String(email).split('@')[0] : undefined)
+
+    return {
+      ...existing,
+      email: email ?? existing.email,
+      role: role ?? existing.role,
+      doctorVerified: verified ?? existing.doctorVerified,
+      name,
+    }
+  }, [accessToken, user])
+
+  const loading = false
+
+  const login = ({ accessToken: newAccessToken, refreshToken: newRefreshToken, user: newUser }) => {
+    localStorage.setItem('accessToken', newAccessToken)
+    localStorage.setItem('refreshToken', newRefreshToken)
+    localStorage.setItem('user', JSON.stringify(newUser))
+
+    setAccessToken(newAccessToken)
+    setRefreshToken(newRefreshToken)
+    setUser(newUser)
   }
 
-  const logout = () => {
-    localStorage.removeItem('token')
-    setToken(null)
+  const clearSession = () => {
+    localStorage.removeItem('accessToken')
+    localStorage.removeItem('refreshToken')
+    localStorage.removeItem('user')
+    setAccessToken(null)
+    setRefreshToken(null)
     setUser(null)
   }
 
+  const logout = async () => {
+    const currentRefreshToken = refreshToken || localStorage.getItem('refreshToken')
+    if (currentRefreshToken) {
+      try {
+        await api.post('/auth/logout', { refreshToken: currentRefreshToken })
+      } catch {
+        // Ignore logout failures; we still clear local session.
+      }
+    }
+    clearSession()
+  }
+
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, logout }}>
+    <AuthContext.Provider value={{ user: effectiveUser, accessToken, refreshToken, loading, login, logout }}>
       {children}
     </AuthContext.Provider>
   )
