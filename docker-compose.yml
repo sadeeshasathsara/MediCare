@@ -5,8 +5,8 @@ services:
   # ── SERVICES ──────────────────────────────────────────
   auth-service:
     build: ./services/auth-service
-    ports:
-      - "3001:3001"
+    expose:
+      - "3001"
     environment:
       JWT_SECRET: ${JWT_SECRET}
       JWT_ACCESS_TTL_MS: ${JWT_ACCESS_TTL_MS}
@@ -20,50 +20,50 @@ services:
 
   patient-service:
     build: ./services/patient-service
-    ports:
-      - "3002:3002"
+    expose:
+      - "3002"
     environment:
       SPRING_DATA_MONGODB_URI: ${MONGO_URI_PATIENT}
 
   doctor-service:
     build: ./services/doctor-service
-    ports:
-      - "3003:3003"
+    expose:
+      - "3003"
     environment:
       SPRING_DATA_MONGODB_URI: ${MONGO_URI_DOCTOR}
 
   appointment-service:
     build: ./services/appointment-service
-    ports:
-      - "3004:3004"
+    expose:
+      - "3004"
     environment:
       SPRING_DATA_MONGODB_URI: ${MONGO_URI_APPOINTMENT}
 
   telemedicine-service:
     build: ./services/telemedicine-service
-    ports:
-      - "3005:3005"
+    expose:
+      - "3005"
     environment:
       SPRING_DATA_MONGODB_URI: ${MONGO_URI_TELEMEDICINE}
 
   payment-service:
     build: ./services/payment-service
-    ports:
-      - "3006:3006"
+    expose:
+      - "3006"
     environment:
       SPRING_DATA_MONGODB_URI: ${MONGO_URI_PAYMENT}
 
   notification-service:
     build: ./services/notification-service
-    ports:
-      - "3007:3007"
+    expose:
+      - "3007"
     environment:
       SPRING_DATA_MONGODB_URI: ${MONGO_URI_NOTIFICATION}
 
   ai-symptom-service:
     build: ./services/ai-symptom-service
-    ports:
-      - "3008:3008"
+    expose:
+      - "3008"
     environment:
       SPRING_DATA_MONGODB_URI: ${MONGO_URI_AI}
 

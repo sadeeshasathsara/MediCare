@@ -34,6 +34,10 @@ You can run it from anywhere (it anchors itself to the repo root). It handles:
 
 ## ✅ Commands Cheat Sheet
 
+> [!NOTE]
+> **Only the API Gateway is public.** Microservices are internal-only (Docker network / Kubernetes ClusterIP).
+> Clients should call the gateway URL and paths under `/api/*`.
+
 ### 1) First-time setup (Minikube)
 
 Run these from the repo root:
@@ -213,8 +217,6 @@ kubectl rollout restart -n default deployment/auth-service
 ---
 
 ## 🚀 CI/CD Integration
-
-Your project is now fully integrated with **GitHub Actions**.
 
 - **Image Registry:** Images are automatically built and pushed to `ghcr.io/sadeeshasathsara/medicare/`.
 - **Manifest Validation:** Every time you push to the `main` branch, a new job verifies that your Kubernetes manifests in `k8s/` are valid.
