@@ -13,6 +13,7 @@ import {
   ChevronRight,
 } from 'lucide-react'
 import { useMobile } from '@/hooks/useMobile'
+import { useAuth } from '@/context/AuthContext'
 
 const navItems = [
   { label: 'Dashboard', icon: LayoutDashboard, path: '/' },
@@ -23,12 +24,14 @@ const navItems = [
   { label: 'Payments', icon: CreditCard, path: '/payments' },
   { label: 'Notifications', icon: Bell, path: '/notifications' },
   { label: 'AI Symptom', icon: BrainCircuit, path: '/symptom-checker' },
+  { label: 'Pending Doctors', icon: Stethoscope, path: '/admin/pending-doctors', adminOnly: true },
+  { label: 'Create Admin', icon: Users, path: '/admin/create-admin', adminOnly: true },
 ]
 
 export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobileOpen }) {
   const isMobile = useMobile()
 
-  const sidebarWidth = collapsed ? 'w-[72px]' : 'w-[260px]'
+  const sidebarWidth = collapsed ? 'w-[72px]' : 'w-65'
 
   // Mobile overlay
   if (isMobile) {
@@ -44,9 +47,8 @@ export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobile
 
         {/* Drawer */}
         <aside
-          className={`fixed top-0 left-0 z-50 h-full w-[260px] border-r transition-transform duration-300 ${
-            mobileOpen ? 'translate-x-0' : '-translate-x-full'
-          }`}
+          className={`fixed top-0 left-0 z-50 h-full w-65 border-r transition-transform duration-300 ${mobileOpen ? 'translate-x-0' : '-translate-x-full'
+            }`}
           style={{
             backgroundColor: 'hsl(var(--sidebar))',
             borderColor: 'hsl(var(--sidebar-border))',
@@ -87,6 +89,9 @@ export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobile
 }
 
 function SidebarContent({ collapsed, onNavigate }) {
+  const { user } = useAuth()
+  const items = navItems.filter((i) => !i.adminOnly || user?.role === 'ADMIN')
+
   return (
     <div className="flex flex-col h-full">
       {/* Logo */}
@@ -101,14 +106,13 @@ function SidebarContent({ collapsed, onNavigate }) {
 
       {/* Navigation */}
       <nav className="flex-1 py-4 px-3 space-y-1 overflow-y-auto">
-        {navItems.map((item) => (
+        {items.map((item) => (
           <NavLink
             key={item.path}
             to={item.path}
             onClick={onNavigate}
             className={({ isActive }) =>
-              `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                collapsed ? 'justify-center' : ''
+              `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${collapsed ? 'justify-center' : ''
               } ${isActive ? 'sidebar-link-active' : 'sidebar-link'}`
             }
             style={({ isActive }) => ({

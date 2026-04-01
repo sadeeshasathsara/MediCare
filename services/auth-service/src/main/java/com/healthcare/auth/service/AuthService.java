@@ -92,6 +92,46 @@ public class AuthService {
                 toDoctorProfileDto(saved.getDoctorProfile()));
     }
 
+    public RegisterResponse createAdmin(CreateAdminRequest request) {
+        String email = normalizeEmail(request.getEmail());
+        if (email.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "email is required");
+        }
+        if (request.getPassword() == null || request.getPassword().isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "password is required");
+        }
+        if (request.getFullName() == null || request.getFullName().isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "fullName is required");
+        }
+
+        if (userRepository.findByEmail(email).isPresent()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "email already exists");
+        }
+
+        Instant now = Instant.now();
+
+        User user = new User();
+        user.setEmail(email);
+        user.setFullName(request.getFullName().trim());
+        user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
+        user.setRole(Role.ADMIN);
+        user.setDoctorProfile(null);
+        user.setDoctorVerified(true);
+        user.setDoctorVerificationStatus(null);
+        user.setStatus(UserStatus.ACTIVE);
+        user.setCreatedAt(now);
+        user.setUpdatedAt(now);
+
+        User saved = userRepository.save(user);
+        return new RegisterResponse(
+                saved.getId(),
+                saved.getEmail(),
+                saved.getFullName(),
+                saved.getRole(),
+                saved.isDoctorVerified(),
+                toDoctorProfileDto(saved.getDoctorProfile()));
+    }
+
     public LoginResponse login(LoginRequest request) {
         String email = normalizeEmail(request.getEmail());
 

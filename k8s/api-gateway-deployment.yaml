@@ -9,9 +9,39 @@ data:
         worker_connections 4096;
     }
     http {
+      # Allow CORS only from dev frontend origins.
+      map $http_origin $cors_origin {
+        default "";
+        "http://localhost:5173" $http_origin;
+        "http://127.0.0.1:5173" $http_origin;
+      }
+
       limit_req_zone $binary_remote_addr zone=auth_limit:10m rate=2r/s;
         server {
             listen 8080;
+
+          # Ensure the gateway is the single source of truth for CORS headers.
+          # Some upstream services (e.g., Spring) may also emit CORS headers,
+          # which causes browsers to reject responses with duplicated
+          # `Access-Control-Allow-Origin`.
+          proxy_hide_header Access-Control-Allow-Origin;
+          proxy_hide_header Access-Control-Allow-Methods;
+          proxy_hide_header Access-Control-Allow-Headers;
+          proxy_hide_header Access-Control-Allow-Credentials;
+          proxy_hide_header Access-Control-Max-Age;
+          proxy_hide_header Access-Control-Expose-Headers;
+
+            # CORS (preflight + headers)
+            # Browsers send OPTIONS preflight when using Authorization header.
+            add_header 'Access-Control-Allow-Origin' $cors_origin always;
+            add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, PATCH, DELETE, OPTIONS' always;
+            add_header 'Access-Control-Allow-Headers' 'Authorization, Content-Type' always;
+            add_header 'Access-Control-Max-Age' 86400 always;
+            add_header 'Vary' 'Origin' always;
+
+            if ($request_method = OPTIONS) {
+              return 204;
+            }
 
         location = /_auth {
           internal;

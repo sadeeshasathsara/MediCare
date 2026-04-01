@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useContext, useState, useEffect } from 'react'
+import { createContext, useContext, useMemo, useState } from 'react'
 import api from '@/services/api'
 
 const AuthContext = createContext(null)
@@ -23,38 +23,49 @@ function decodeJwtPayload(token) {
   }
 }
 
+function getValidAccessTokenFromStorage() {
+  const token = localStorage.getItem('accessToken')
+  if (!token) return null
+  const payload = decodeJwtPayload(token)
+  if (!payload) {
+    localStorage.removeItem('accessToken')
+    return null
+  }
+  return token
+}
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => safeJsonParse(localStorage.getItem('user')))
-  const [accessToken, setAccessToken] = useState(localStorage.getItem('accessToken'))
+  const [accessToken, setAccessToken] = useState(() => getValidAccessTokenFromStorage())
   const [refreshToken, setRefreshToken] = useState(localStorage.getItem('refreshToken'))
-  const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    if (accessToken) {
-      const payload = decodeJwtPayload(accessToken)
-      if (payload) {
-        const email = payload.email
-        const role = payload.role
-        const verified = payload.verified
+  const effectiveUser = useMemo(() => {
+    const existing = user || {}
 
-        setUser((prev) => {
-          const existing = prev || {}
-          const name = existing.name || (email ? String(email).split('@')[0] : undefined)
-          return {
-            ...existing,
-            email: email ?? existing.email,
-            role: role ?? existing.role,
-            doctorVerified: verified ?? existing.doctorVerified,
-            name,
-          }
-        })
-      } else {
-        setAccessToken(null)
-        localStorage.removeItem('accessToken')
-      }
+    if (!accessToken) {
+      return existing
     }
-    setLoading(false)
-  }, [accessToken])
+
+    const payload = decodeJwtPayload(accessToken)
+    if (!payload) {
+      return existing
+    }
+
+    const email = payload.email
+    const role = payload.role
+    const verified = payload.verified
+    const name = existing.name || (email ? String(email).split('@')[0] : undefined)
+
+    return {
+      ...existing,
+      email: email ?? existing.email,
+      role: role ?? existing.role,
+      doctorVerified: verified ?? existing.doctorVerified,
+      name,
+    }
+  }, [accessToken, user])
+
+  const loading = false
 
   const login = ({ accessToken: newAccessToken, refreshToken: newRefreshToken, user: newUser }) => {
     localStorage.setItem('accessToken', newAccessToken)
@@ -88,7 +99,7 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, accessToken, refreshToken, loading, login, logout }}>
+    <AuthContext.Provider value={{ user: effectiveUser, accessToken, refreshToken, loading, login, logout }}>
       {children}
     </AuthContext.Provider>
   )

@@ -358,7 +358,7 @@ if (-not $SkipBuild) {
         }
 
         Write-Host "   - Loading $($S.Name)..." -ForegroundColor Gray
-        & $MKB image load $FullName
+        & $MKB image load $FullName --overwrite=true
     }
 }
 

@@ -2,11 +2,13 @@ import { Routes, Route, Navigate } from 'react-router-dom'
 import AdminLayout from '@/components/layout/AdminLayout'
 import TopNavLayout from '@/components/layout/TopNavLayout'
 import DashboardPage from '@/pages/DashboardPage'
+import CreateAdminPage from '@/pages/CreateAdminPage'
+import PendingDoctorsPage from '@/pages/PendingDoctorsPage'
 import { useAuth } from '@/context/AuthContext'
 
 // ── Auth (Member 1) ────────────────────────────────────
 import LoginPage from '@/features/auth/pages/LoginPage'
-// import RegisterPage from '@/features/auth/pages/RegisterPage'
+import RegisterPage from '@/features/auth/pages/RegisterPage'
 
 // ── Patients (Member 1) ────────────────────────────────
 // import PatientDashboard from '@/features/patients/pages/PatientDashboard'
@@ -46,11 +48,21 @@ import LoginPage from '@/features/auth/pages/LoginPage'
 // ]
 
 export default function AppRoutes() {
-  const { loading, accessToken } = useAuth()
+  const { loading, accessToken, user } = useAuth()
 
-  const requireAuth = (element) => {
+  const requireAdmin = (element) => {
     if (loading) return null
     if (!accessToken) return <Navigate to="/login" replace />
+    if (user?.role !== 'ADMIN') {
+      return (
+        <TopNavLayout>
+          <div className="text-center py-20">
+            <h1 className="text-2xl font-semibold">Access denied</h1>
+            <p className="mt-2 opacity-60">Admin access is required.</p>
+          </div>
+        </TopNavLayout>
+      )
+    }
     return element
   }
 
@@ -58,10 +70,12 @@ export default function AppRoutes() {
     <Routes>
       {/* Public Routes */}
       <Route path="/login" element={<LoginPage />} />
-      {/* <Route path="/register" element={<RegisterPage />} /> */}
+      <Route path="/register" element={<RegisterPage />} />
 
       {/* Admin Routes — wrapped in AdminLayout */}
-      <Route path="/" element={requireAuth(<AdminLayout><DashboardPage /></AdminLayout>)} />
+      <Route path="/" element={requireAdmin(<AdminLayout><DashboardPage /></AdminLayout>)} />
+      <Route path="/admin/create-admin" element={requireAdmin(<AdminLayout><CreateAdminPage /></AdminLayout>)} />
+      <Route path="/admin/pending-doctors" element={requireAdmin(<AdminLayout><PendingDoctorsPage /></AdminLayout>)} />
 
       {/* Patient Routes — wrapped in TopNavLayout */}
       {/* <Route path="/patient/dashboard" element={<TopNavLayout navLinks={patientLinks}><PatientDashboard /></TopNavLayout>} /> */}
