@@ -29,6 +29,14 @@ if (-not $IsAdmin) {
 
 Write-Host "--- Starting MediCare Platform Setup ---" -ForegroundColor Cyan
 
+# If a specific service is targeted, default to building that service image
+# (unless the caller explicitly asked to skip builds). This prevents reloading
+# a stale local image and restarting a deployment without the latest code.
+if (-not $SkipBuild -and -not $BuildImages -and -not $Auto -and -not [string]::IsNullOrWhiteSpace($Service)) {
+    Write-Host "Service '$Service' specified without -BuildImages; defaulting to building the image." -ForegroundColor Gray
+    $BuildImages = $true
+}
+
 # 2. Local Binaries Setup
 if (-not (Test-Path $BinDir)) { 
     New-Item -ItemType Directory -Path $BinDir | Out-Null

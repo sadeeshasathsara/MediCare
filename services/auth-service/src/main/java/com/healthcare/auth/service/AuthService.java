@@ -11,6 +11,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 
 @Service
 public class AuthService {
@@ -244,6 +245,113 @@ public class AuthService {
         return doctors.stream().map(this::toPendingDoctorDto).toList();
     }
 
+    public List<AdminAccountDto> listAdminAccounts() {
+        List<User> admins = userRepository.findByRole(Role.ADMIN);
+        return admins.stream().map(this::toAdminAccountDto).toList();
+    }
+
+    public AdminAccountDto updateAdminAccount(String adminUserId, UpdateAdminRequest request, String actorUserId) {
+        if (adminUserId == null || adminUserId.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "adminUserId is required");
+        }
+
+        User admin = userRepository.findById(adminUserId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "admin not found"));
+
+        if (admin.getRole() != Role.ADMIN) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "admin not found");
+        }
+
+        String email = request == null ? null : request.getEmail();
+        String fullName = request == null ? null : request.getFullName();
+
+        boolean changed = false;
+
+        if (email != null) {
+            String normalized = normalizeEmail(email);
+            if (normalized.isBlank()) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "email is required");
+            }
+
+            if (!Objects.equals(normalized, admin.getEmail())) {
+                if (userRepository.findByEmail(normalized).isPresent()) {
+                    throw new ResponseStatusException(HttpStatus.CONFLICT, "email already exists");
+                }
+                admin.setEmail(normalized);
+                changed = true;
+            }
+        }
+
+        if (fullName != null) {
+            String trimmed = fullName.trim();
+            if (trimmed.isBlank()) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "fullName is required");
+            }
+            if (!Objects.equals(trimmed, admin.getFullName())) {
+                admin.setFullName(trimmed);
+                changed = true;
+            }
+        }
+
+        if (!changed) {
+            return toAdminAccountDto(admin);
+        }
+
+        admin.setUpdatedAt(Instant.now());
+        User saved = userRepository.save(admin);
+        return toAdminAccountDto(saved);
+    }
+
+    public AdminAccountDto setAdminStatus(String adminUserId, SetUserStatusRequest request, String actorUserId) {
+        if (adminUserId == null || adminUserId.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "adminUserId is required");
+        }
+        if (request == null || request.getStatus() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "status is required");
+        }
+        if (actorUserId != null && actorUserId.equals(adminUserId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "cannot change your own status");
+        }
+
+        User admin = userRepository.findById(adminUserId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "admin not found"));
+
+        if (admin.getRole() != Role.ADMIN) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "admin not found");
+        }
+
+        UserStatus status = request.getStatus();
+        if (status != UserStatus.ACTIVE && status != UserStatus.DISABLED) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "status must be ACTIVE or DISABLED");
+        }
+
+        if (admin.getStatus() != status) {
+            admin.setStatus(status);
+            admin.setUpdatedAt(Instant.now());
+            admin = userRepository.save(admin);
+        }
+
+        return toAdminAccountDto(admin);
+    }
+
+    public void deleteAdminAccount(String adminUserId, String actorUserId) {
+        if (adminUserId == null || adminUserId.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "adminUserId is required");
+        }
+        if (actorUserId != null && actorUserId.equals(adminUserId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "cannot delete your own account");
+        }
+
+        User admin = userRepository.findById(adminUserId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "admin not found"));
+
+        if (admin.getRole() != Role.ADMIN) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "admin not found");
+        }
+
+        userRepository.deleteById(adminUserId);
+    }
+
     private static String normalizeEmail(String email) {
         if (email == null) {
             return "";
@@ -279,6 +387,17 @@ public class AuthService {
         dto.setDoctorVerified(user.isDoctorVerified());
         dto.setStatus(user.getStatus());
         dto.setDoctorProfile(toDoctorProfileDto(user.getDoctorProfile()));
+        return dto;
+    }
+
+    private AdminAccountDto toAdminAccountDto(User user) {
+        AdminAccountDto dto = new AdminAccountDto();
+        dto.setId(user.getId());
+        dto.setEmail(user.getEmail());
+        dto.setFullName(user.getFullName());
+        dto.setStatus(user.getStatus());
+        dto.setCreatedAt(user.getCreatedAt());
+        dto.setUpdatedAt(user.getUpdatedAt());
         return dto;
     }
 }

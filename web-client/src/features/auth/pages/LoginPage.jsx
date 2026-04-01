@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { HeartPulse, Lock, Mail, ArrowRight, Loader2, Eye, EyeOff } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import api from '@/services/api'
@@ -59,13 +59,6 @@ export default function LoginPage() {
     } finally {
       setLoading(false)
     }
-  }
-
-  const fillDemo = (type) => {
-    if (type === 'patient') setEmail('patient@medicare.com')
-    else if (type === 'doctor') setEmail('doctor@medicare.com')
-    else setEmail('admin@medicare.com')
-    setPassword('demo123')
   }
 
   return (
@@ -214,16 +207,11 @@ export default function LoginPage() {
             </button>
           </form>
 
-          {/* Development helpers */}
-          <div className="mt-8 pt-6 border-t" style={{ borderColor: 'hsl(var(--border))' }}>
-            <p className="text-xs text-center mb-3" style={{ color: 'hsl(var(--muted-foreground))' }}>
-              Test Accounts (Backend Auth)
-            </p>
-            <div className="flex justify-center gap-2">
-              <button onClick={() => fillDemo('admin')} className="text-xs px-3 py-1.5 rounded-md border transition-colors cursor-pointer" style={{ borderColor: 'hsl(var(--border))', color: 'hsl(var(--foreground))' }} onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'hsl(var(--accent))'} onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}>Admin</button>
-              <button onClick={() => fillDemo('doctor')} className="text-xs px-3 py-1.5 rounded-md border transition-colors cursor-pointer" style={{ borderColor: 'hsl(var(--border))', color: 'hsl(var(--foreground))' }} onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'hsl(var(--accent))'} onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}>Doctor</button>
-              <button onClick={() => fillDemo('patient')} className="text-xs px-3 py-1.5 rounded-md border transition-colors cursor-pointer" style={{ borderColor: 'hsl(var(--border))', color: 'hsl(var(--foreground))' }} onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'hsl(var(--accent))'} onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}>Patient</button>
-            </div>
+          <div className="text-sm text-center" style={{ color: 'hsl(var(--muted-foreground))' }}>
+            Don’t have an account?{' '}
+            <Link to="/register" className="font-medium hover:underline" style={{ color: 'hsl(var(--primary))' }}>
+              Sign up
+            </Link>
           </div>
 
         </div>
