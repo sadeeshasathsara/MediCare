@@ -68,9 +68,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Validate Kubernetes Manifests (Kubeconform)
-        uses: yannh/kubeconform-action@v0.0.12
+        uses: docker://ghcr.io/yannh/kubeconform:latest
         with:
-          validate: k8s/
-          strict: true
-          # We ignore the .env.example or any hidden files
-          ignore_filename_pattern: '.*\.env.*'
+          entrypoint: '/kubeconform'
+          args: "-summary -strict -ignore-filename-pattern '.*\\.env.*' k8s/"
