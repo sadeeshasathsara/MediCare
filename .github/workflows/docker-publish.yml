@@ -67,7 +67,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Validate Kubernetes Manifests (Dry Run)
-        run: |
-          # Syntax-only validation (doesn't require a live cluster connection)
-          kubectl apply --dry-run=client --validate=false -f k8s/
+      - name: Validate Kubernetes Manifests (Kubeconform)
+        uses: yannh/kubeconform-action@v0.0.12
+        with:
+          validate: k8s/
+          strict: true
+          # We ignore the .env.example or any hidden files
+          ignore_filename_pattern: '.*\.env.*'
