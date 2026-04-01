@@ -9,6 +9,7 @@ data:
         worker_connections 4096;
     }
     http {
+      limit_req_zone $binary_remote_addr zone=auth_limit:10m rate=2r/s;
         server {
             listen 8080;
 
@@ -21,6 +22,15 @@ data:
           proxy_set_header X-Original-URI $request_uri;
           proxy_set_header X-Original-Method $request_method;
         }
+
+            location = /api/auth/login {
+              limit_req zone=auth_limit burst=5 nodelay;
+              proxy_pass http://auth-service:3001/auth/login;
+            }
+            location = /api/auth/register {
+              limit_req zone=auth_limit burst=5 nodelay;
+              proxy_pass http://auth-service:3001/auth/register;
+            }
 
             location /api/auth/ {
           proxy_pass http://auth-service:3001/auth/;

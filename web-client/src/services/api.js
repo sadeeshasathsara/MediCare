@@ -7,11 +7,20 @@ const api = axios.create({
   },
 })
 
+const refreshClient = axios.create({
+  baseURL: api.defaults.baseURL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+})
+
+let refreshPromise = null
+
 // Attach JWT token to every request automatically
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token')
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`
+  const accessToken = localStorage.getItem('accessToken')
+  if (accessToken) {
+    config.headers.Authorization = `Bearer ${accessToken}`
   }
   return config
 })
@@ -19,11 +28,51 @@ api.interceptors.request.use((config) => {
 // Handle 401 responses globally
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      localStorage.removeItem('token')
-      window.location.href = '/login'
+  async (error) => {
+    const status = error.response?.status
+    const originalRequest = error.config
+
+    if (status === 401 && originalRequest && !originalRequest._retry) {
+      originalRequest._retry = true
+
+      const refreshToken = localStorage.getItem('refreshToken')
+      if (!refreshToken) {
+        localStorage.removeItem('accessToken')
+        localStorage.removeItem('refreshToken')
+        localStorage.removeItem('user')
+        window.location.href = '/login'
+        return Promise.reject(error)
+      }
+
+      try {
+        if (!refreshPromise) {
+          refreshPromise = refreshClient.post('/auth/refresh', { refreshToken })
+        }
+
+        const refreshResponse = await refreshPromise
+        const { accessToken, refreshToken: newRefreshToken } = refreshResponse.data || {}
+
+        if (!accessToken || !newRefreshToken) {
+          throw new Error('Invalid refresh response')
+        }
+
+        localStorage.setItem('accessToken', accessToken)
+        localStorage.setItem('refreshToken', newRefreshToken)
+
+        originalRequest.headers = originalRequest.headers || {}
+        originalRequest.headers.Authorization = `Bearer ${accessToken}`
+        return api(originalRequest)
+      } catch {
+        localStorage.removeItem('accessToken')
+        localStorage.removeItem('refreshToken')
+        localStorage.removeItem('user')
+        window.location.href = '/login'
+        return Promise.reject(error)
+      } finally {
+        refreshPromise = null
+      }
     }
+
     return Promise.reject(error)
   }
 )
