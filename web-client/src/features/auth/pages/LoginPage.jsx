@@ -36,7 +36,10 @@ export default function LoginPage() {
         user: userProfile,
       })
 
-      navigate('/')
+      if (userProfile.role === 'ADMIN') navigate('/')
+      else if (userProfile.role === 'PATIENT') navigate('/patient/dashboard')
+      else if (userProfile.role === 'DOCTOR') navigate('/doctor/dashboard')
+      else navigate('/')
     } catch (err) {
       const status = err?.response?.status
       const data = err?.response?.data

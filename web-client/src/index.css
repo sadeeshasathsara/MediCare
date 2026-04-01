@@ -60,29 +60,30 @@
 
 /* ── Dark Theme ───────────────────────────────────────── */
 .dark {
-  --background: 222 25% 8%;
+  /* Pure black surfaces (no blue tint) */
+  --background: 0 0% 0%;
   --foreground: 210 20% 95%;
-  --card: 222 25% 11%;
+  --card: 0 0% 6%;
   --card-foreground: 210 20% 95%;
-  --popover: 222 25% 11%;
+  --popover: 0 0% 6%;
   --popover-foreground: 210 20% 95%;
   --primary: 192 80% 45%;
   --primary-foreground: 0 0% 100%;
-  --secondary: 222 20% 16%;
+  --secondary: 0 0% 10%;
   --secondary-foreground: 210 20% 85%;
-  --muted: 222 20% 16%;
+  --muted: 0 0% 10%;
   --muted-foreground: 220 10% 55%;
   --accent: 192 40% 18%;
   --accent-foreground: 192 80% 60%;
   --destructive: 0 62% 45%;
   --destructive-foreground: 0 0% 100%;
-  --border: 222 15% 18%;
-  --input: 222 15% 18%;
+  --border: 0 0% 16%;
+  --input: 0 0% 16%;
   --ring: 192 80% 45%;
-  --sidebar: 222 25% 10%;
+  --sidebar: 0 0% 0%;
   --sidebar-foreground: 210 20% 90%;
-  --sidebar-border: 222 15% 18%;
-  --sidebar-accent: 192 40% 18%;
+  --sidebar-border: 0 0% 16%;
+  --sidebar-accent: 0 0% 10%;
   --sidebar-accent-foreground: 192 80% 60%;
 }
 
@@ -106,13 +107,16 @@
 ::-webkit-scrollbar {
   width: 6px;
 }
+
 ::-webkit-scrollbar-track {
   background: transparent;
 }
+
 ::-webkit-scrollbar-thumb {
   background: hsl(var(--muted-foreground) / 0.3);
   border-radius: 3px;
 }
+
 ::-webkit-scrollbar-thumb:hover {
   background: hsl(var(--muted-foreground) / 0.5);
 }
