@@ -1,7 +1,8 @@
-import { Routes, Route } from 'react-router-dom'
+import { Routes, Route, Navigate } from 'react-router-dom'
 import AdminLayout from '@/components/layout/AdminLayout'
 import TopNavLayout from '@/components/layout/TopNavLayout'
 import DashboardPage from '@/pages/DashboardPage'
+import { useAuth } from '@/context/AuthContext'
 
 // ── Auth (Member 1) ────────────────────────────────────
 import LoginPage from '@/features/auth/pages/LoginPage'
@@ -45,6 +46,14 @@ import LoginPage from '@/features/auth/pages/LoginPage'
 // ]
 
 export default function AppRoutes() {
+  const { loading, accessToken } = useAuth()
+
+  const requireAuth = (element) => {
+    if (loading) return null
+    if (!accessToken) return <Navigate to="/login" replace />
+    return element
+  }
+
   return (
     <Routes>
       {/* Public Routes */}
@@ -52,8 +61,8 @@ export default function AppRoutes() {
       {/* <Route path="/register" element={<RegisterPage />} /> */}
 
       {/* Admin Routes — wrapped in AdminLayout */}
-      <Route path="/" element={<AdminLayout><DashboardPage /></AdminLayout>} />
-      
+      <Route path="/" element={requireAuth(<AdminLayout><DashboardPage /></AdminLayout>)} />
+
       {/* Patient Routes — wrapped in TopNavLayout */}
       {/* <Route path="/patient/dashboard" element={<TopNavLayout navLinks={patientLinks}><PatientDashboard /></TopNavLayout>} /> */}
       {/* <Route path="/patient/profile" element={<TopNavLayout navLinks={patientLinks}><PatientProfile /></TopNavLayout>} /> */}
