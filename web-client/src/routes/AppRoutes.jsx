@@ -4,6 +4,7 @@ import TopNavLayout from '@/components/layout/TopNavLayout'
 import DashboardPage from '@/pages/DashboardPage'
 import CreateAdminPage from '@/pages/CreateAdminPage'
 import PendingDoctorsPage from '@/pages/PendingDoctorsPage'
+import LandingPage from '@/pages/LandingPage'
 import { useAuth } from '@/context/AuthContext'
 
 // ── Auth (Member 1) ────────────────────────────────────
@@ -98,7 +99,7 @@ export default function AppRoutes() {
 
   const roleHome = () => {
     if (loading) return null
-    if (!accessToken) return <Navigate to="/login" replace />
+    if (!accessToken) return <LandingPage />
 
     if (user?.role === 'ADMIN') {
       return (
