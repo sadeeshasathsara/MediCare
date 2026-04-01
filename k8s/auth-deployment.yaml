@@ -38,13 +38,25 @@ spec:
 
             # Optional: bootstrap initial ADMIN user (disabled by default)
             - name: ADMIN_BOOTSTRAP_ENABLED
-              value: "false"
+              valueFrom:
+                secretKeyRef:
+                  name: medicare-secrets
+                  key: ADMIN_BOOTSTRAP_ENABLED
             - name: ADMIN_BOOTSTRAP_EMAIL
-              value: "admin@medicare.com"
+              valueFrom:
+                secretKeyRef:
+                  name: medicare-secrets
+                  key: ADMIN_BOOTSTRAP_EMAIL
             - name: ADMIN_BOOTSTRAP_PASSWORD
-              value: "change_me"
+              valueFrom:
+                secretKeyRef:
+                  name: medicare-secrets
+                  key: ADMIN_BOOTSTRAP_PASSWORD
             - name: ADMIN_BOOTSTRAP_FULL_NAME
-              value: "Admin"
+              valueFrom:
+                secretKeyRef:
+                  name: medicare-secrets
+                  key: ADMIN_BOOTSTRAP_FULL_NAME
 
             # Update the MongoDB URI below manually
             - name: SPRING_DATA_MONGODB_URI

@@ -32,6 +32,17 @@ api.interceptors.response.use(
     const status = error.response?.status
     const originalRequest = error.config
 
+    const requestUrl = originalRequest?.url || ''
+    const isAuthEndpoint =
+      requestUrl.startsWith('/auth/login') ||
+      requestUrl.startsWith('/auth/register') ||
+      requestUrl.startsWith('/auth/refresh')
+
+    // Let auth pages handle their own errors (don’t auto-refresh/redirect on these).
+    if (status === 401 && isAuthEndpoint) {
+      return Promise.reject(error)
+    }
+
     if (status === 401 && originalRequest && !originalRequest._retry) {
       originalRequest._retry = true
 

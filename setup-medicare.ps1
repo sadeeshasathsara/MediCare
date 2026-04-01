@@ -127,6 +127,17 @@ function Assert-RequiredEnv([hashtable]$vars, [string[]]$requiredKeys) {
     }
 }
 
+function Assert-JwtSecretStrength([hashtable]$vars) {
+    if (-not $vars.ContainsKey("JWT_SECRET")) { return }
+    $secret = [string]$vars["JWT_SECRET"]
+    if ([string]::IsNullOrWhiteSpace($secret)) { return }
+
+    $byteCount = [System.Text.Encoding]::UTF8.GetByteCount($secret)
+    if ($byteCount -lt 32) {
+        throw ("JWT_SECRET is too short ({0} bytes). For HS256 it must be at least 32 bytes (256 bits). Update {1} and re-run this script." -f $byteCount, $EnvFile)
+    }
+}
+
 function Ensure-Namespace([string]$ns) {
     & $KBT get namespace $ns *> $null
     if ($LASTEXITCODE -ne 0) {
@@ -138,6 +149,16 @@ function Ensure-Namespace([string]$ns) {
 function Has-DockerImage([string]$imageName) {
     $id = (docker images -q $imageName 2>$null | Select-Object -First 1)
     return -not [string]::IsNullOrWhiteSpace([string]$id)
+}
+
+function Test-MinikubeRunning() {
+    try {
+        $out = (& $MKB status 2>$null | Out-String)
+        if ($LASTEXITCODE -ne 0) { return $false }
+        return ($out -match "host:\s*Running")
+    } catch {
+        return $false
+    }
 }
 
 function Resolve-ServicesToProcess([string]$serviceName) {
@@ -267,7 +288,11 @@ if ($Reset) {
 }
 
 Write-Host "Starting Minikube..." -ForegroundColor Cyan
-& $MKB start --driver=docker
+if (Test-MinikubeRunning) {
+    Write-Host "Minikube is already running. Skipping start." -ForegroundColor Gray
+} else {
+    & $MKB start --driver=docker
+}
 
 Write-Host "Ensuring kubectl context is minikube..." -ForegroundColor Gray
 & $KBT config use-context minikube | Out-Null
@@ -354,6 +379,7 @@ $Required = @(
     "MONGO_URI_AI"
 )
 Assert-RequiredEnv $EnvVars $Required
+Assert-JwtSecretStrength $EnvVars
 
 $SecretArgs = @(
     "create", "secret", "generic", "medicare-secrets",
