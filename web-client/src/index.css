@@ -60,29 +60,30 @@
 
 /* ── Dark Theme ───────────────────────────────────────── */
 .dark {
-  --background: 222 25% 8%;
+  /* Pure black surfaces (no blue tint) */
+  --background: 0 0% 0%;
   --foreground: 210 20% 95%;
-  --card: 222 25% 11%;
+  --card: 0 0% 6%;
   --card-foreground: 210 20% 95%;
-  --popover: 222 25% 11%;
+  --popover: 0 0% 6%;
   --popover-foreground: 210 20% 95%;
   --primary: 192 80% 45%;
   --primary-foreground: 0 0% 100%;
-  --secondary: 222 20% 16%;
+  --secondary: 0 0% 10%;
   --secondary-foreground: 210 20% 85%;
-  --muted: 222 20% 16%;
+  --muted: 0 0% 10%;
   --muted-foreground: 220 10% 55%;
   --accent: 192 40% 18%;
   --accent-foreground: 192 80% 60%;
   --destructive: 0 62% 45%;
   --destructive-foreground: 0 0% 100%;
-  --border: 222 15% 18%;
-  --input: 222 15% 18%;
+  --border: 0 0% 16%;
+  --input: 0 0% 16%;
   --ring: 192 80% 45%;
-  --sidebar: 222 25% 10%;
+  --sidebar: 0 0% 0%;
   --sidebar-foreground: 210 20% 90%;
-  --sidebar-border: 222 15% 18%;
-  --sidebar-accent: 192 40% 18%;
+  --sidebar-border: 0 0% 16%;
+  --sidebar-accent: 0 0% 10%;
   --sidebar-accent-foreground: 192 80% 60%;
 }
 
@@ -106,13 +107,357 @@
 ::-webkit-scrollbar {
   width: 6px;
 }
+
 ::-webkit-scrollbar-track {
   background: transparent;
 }
+
 ::-webkit-scrollbar-thumb {
   background: hsl(var(--muted-foreground) / 0.3);
   border-radius: 3px;
 }
+
 ::-webkit-scrollbar-thumb:hover {
   background: hsl(var(--muted-foreground) / 0.5);
+}
+
+/* ── Motion Utilities (Landing Page) ─────────────────── */
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes floatSlow {
+  0% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-8px);
+  }
+
+  100% {
+    transform: translateY(0);
+  }
+}
+
+@layer utilities {
+  .fade-up {
+    animation: fadeUp 600ms ease both;
+  }
+
+  .fade-in {
+    animation: fadeIn 450ms ease both;
+  }
+
+  .float-slow {
+    animation: floatSlow 8s ease-in-out infinite;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+  .fade-up,
+  .fade-in,
+  .float-slow {
+    animation: none !important;
+  }
+}
+
+/* ── Landing Page (scoped to prevent app-wide bleed) ─── */
+
+@keyframes lp-fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(32px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes lp-fadeIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes lp-floatA {
+
+  0%,
+  100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+
+  50% {
+    transform: translateY(-18px) rotate(3deg);
+  }
+}
+
+@keyframes lp-floatB {
+
+  0%,
+  100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+
+  50% {
+    transform: translateY(-12px) rotate(-2deg);
+  }
+}
+
+@keyframes lp-floatC {
+
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+@keyframes lp-pulse-ring {
+  0% {
+    transform: scale(1);
+    opacity: 0.6;
+  }
+
+  100% {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+}
+
+@keyframes lp-spin-slow {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes lp-marquee {
+  from {
+    transform: translateX(0);
+  }
+
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@layer utilities {
+
+  .landing-page,
+  .landing-page *,
+  .landing-page *::before,
+  .landing-page *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  .landing-page {
+    background: #f8f5f0;
+    color: #1a1510;
+    font-family: 'DM Sans', sans-serif;
+    overflow-x: hidden;
+  }
+
+  .landing-page .serif {
+    font-family: 'Instrument Serif', Georgia, serif;
+  }
+
+  .landing-page .reveal {
+    opacity: 0;
+    transform: translateY(28px);
+    transition: opacity 0.7s ease, transform 0.7s ease;
+  }
+
+  .landing-page .reveal.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .landing-page .reveal-left {
+    opacity: 0;
+    transform: translateX(-40px);
+    transition: opacity 0.8s ease, transform 0.8s ease;
+  }
+
+  .landing-page .reveal-left.visible {
+    opacity: 1;
+    transform: translateX(0);
+  }
+
+  .landing-page .reveal-right {
+    opacity: 0;
+    transform: translateX(40px);
+    transition: opacity 0.8s ease, transform 0.8s ease;
+  }
+
+  .landing-page .reveal-right.visible {
+    opacity: 1;
+    transform: translateX(0);
+  }
+
+  .landing-page .nav-link {
+    position: relative;
+    color: #5a5048;
+    font-size: 0.875rem;
+    font-weight: 500;
+    text-decoration: none;
+    transition: color 0.2s;
+  }
+
+  .landing-page .nav-link::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: 0;
+    width: 0;
+    height: 1.5px;
+    background: #17aacf;
+    transition: width 0.25s;
+  }
+
+  .landing-page .nav-link:hover {
+    color: #1a1510;
+  }
+
+  .landing-page .nav-link:hover::after {
+    width: 100%;
+  }
+
+  .landing-page .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: #17aacf;
+    color: #fff;
+    padding: 14px 28px;
+    border-radius: 100px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    text-decoration: none;
+    border: none;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.2s, box-shadow 0.2s;
+    box-shadow: 0 4px 20px rgba(23, 170, 207, 0.3);
+  }
+
+  .landing-page .btn-primary:hover {
+    background: #17aacf;
+    transform: translateY(-2px);
+    box-shadow: 0 8px 28px rgba(23, 170, 207, 0.38);
+  }
+
+  .landing-page .btn-outline {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: transparent;
+    color: #1a1510;
+    padding: 13px 26px;
+    border-radius: 100px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    text-decoration: none;
+    border: 1.5px solid #c8bfb4;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s, transform 0.2s;
+  }
+
+  .landing-page .btn-outline:hover {
+    border-color: #17aacf;
+    background: rgba(23, 170, 207, 0.05);
+    transform: translateY(-2px);
+  }
+
+  .landing-page .card-hover {
+    transition: transform 0.25s, box-shadow 0.25s;
+  }
+
+  .landing-page .card-hover:hover {
+    transform: translateY(-6px);
+    box-shadow: 0 20px 48px rgba(26, 21, 16, 0.12);
+  }
+
+  .landing-page .marquee-track {
+    display: flex;
+    animation: lp-marquee 22s linear infinite;
+  }
+
+  .landing-page .marquee-track:hover {
+    animation-play-state: paused;
+  }
+
+  .landing-page .stat-num {
+    font-family: 'Instrument Serif', serif;
+    font-size: 3rem;
+    color: #17aacf;
+    background: linear-gradient(135deg, #17aacf, #17aacf);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* Basic responsive safety without changing desktop look */
+  @media (max-width: 1024px) {
+
+    .landing-page .lp-hero-grid,
+    .landing-page .lp-two-col {
+      grid-template-columns: 1fr !important;
+      gap: 48px !important;
+    }
+
+    .landing-page .lp-stats-grid {
+      grid-template-columns: repeat(2, 1fr) !important;
+    }
+
+    .landing-page .lp-cards-3 {
+      grid-template-columns: repeat(2, 1fr) !important;
+    }
+  }
+
+  @media (max-width: 640px) {
+
+    .landing-page .lp-stats-grid,
+    .landing-page .lp-cards-3 {
+      grid-template-columns: 1fr !important;
+    }
+  }
+
+  @media (max-width: 1024px) {
+    .landing-page .hide-mobile {
+      display: none !important;
+    }
+  }
 }
