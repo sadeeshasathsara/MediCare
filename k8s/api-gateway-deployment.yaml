@@ -11,28 +11,109 @@ data:
     http {
         server {
             listen 8080;
+
+        location = /_auth {
+          internal;
+          proxy_pass http://auth-service:3001/auth/validate;
+          proxy_pass_request_body off;
+          proxy_set_header Content-Length "";
+          proxy_set_header Authorization $http_authorization;
+          proxy_set_header X-Original-URI $request_uri;
+          proxy_set_header X-Original-Method $request_method;
+        }
+
             location /api/auth/ {
-                proxy_pass http://auth-service:3001/;
+          proxy_pass http://auth-service:3001/auth/;
+            }
+
+            location = /api/auth/verify-doctor {
+              auth_request /_auth;
+              auth_request_set $user_id $upstream_http_x_user_id;
+              auth_request_set $user_role $upstream_http_x_user_role;
+              auth_request_set $user_verified $upstream_http_x_user_verified;
+              proxy_set_header X-User-Id $user_id;
+              proxy_set_header X-User-Role $user_role;
+              proxy_set_header X-User-Verified $user_verified;
+              proxy_pass http://auth-service:3001/auth/verify-doctor;
+            }
+            location /api/auth/admin/ {
+              auth_request /_auth;
+              auth_request_set $user_id $upstream_http_x_user_id;
+              auth_request_set $user_role $upstream_http_x_user_role;
+              auth_request_set $user_verified $upstream_http_x_user_verified;
+              proxy_set_header X-User-Id $user_id;
+              proxy_set_header X-User-Role $user_role;
+              proxy_set_header X-User-Verified $user_verified;
+              proxy_pass http://auth-service:3001/auth/admin/;
             }
             location /api/patients/ {
+          auth_request /_auth;
+          auth_request_set $user_id $upstream_http_x_user_id;
+          auth_request_set $user_role $upstream_http_x_user_role;
+          auth_request_set $user_verified $upstream_http_x_user_verified;
+          proxy_set_header X-User-Id $user_id;
+          proxy_set_header X-User-Role $user_role;
+          proxy_set_header X-User-Verified $user_verified;
                 proxy_pass http://patient-service:3002/;
             }
             location /api/doctors/ {
+          auth_request /_auth;
+          auth_request_set $user_id $upstream_http_x_user_id;
+          auth_request_set $user_role $upstream_http_x_user_role;
+          auth_request_set $user_verified $upstream_http_x_user_verified;
+          proxy_set_header X-User-Id $user_id;
+          proxy_set_header X-User-Role $user_role;
+          proxy_set_header X-User-Verified $user_verified;
                 proxy_pass http://doctor-service:3003/;
             }
             location /api/appointments/ {
+          auth_request /_auth;
+          auth_request_set $user_id $upstream_http_x_user_id;
+          auth_request_set $user_role $upstream_http_x_user_role;
+          auth_request_set $user_verified $upstream_http_x_user_verified;
+          proxy_set_header X-User-Id $user_id;
+          proxy_set_header X-User-Role $user_role;
+          proxy_set_header X-User-Verified $user_verified;
                 proxy_pass http://appointment-service:3004/;
             }
             location /api/telemedicine/ {
+          auth_request /_auth;
+          auth_request_set $user_id $upstream_http_x_user_id;
+          auth_request_set $user_role $upstream_http_x_user_role;
+          auth_request_set $user_verified $upstream_http_x_user_verified;
+          proxy_set_header X-User-Id $user_id;
+          proxy_set_header X-User-Role $user_role;
+          proxy_set_header X-User-Verified $user_verified;
                 proxy_pass http://telemedicine-service:3005/;
             }
             location /api/payments/ {
+          auth_request /_auth;
+          auth_request_set $user_id $upstream_http_x_user_id;
+          auth_request_set $user_role $upstream_http_x_user_role;
+          auth_request_set $user_verified $upstream_http_x_user_verified;
+          proxy_set_header X-User-Id $user_id;
+          proxy_set_header X-User-Role $user_role;
+          proxy_set_header X-User-Verified $user_verified;
                 proxy_pass http://payment-service:3006/;
             }
             location /api/notifications/ {
+          auth_request /_auth;
+          auth_request_set $user_id $upstream_http_x_user_id;
+          auth_request_set $user_role $upstream_http_x_user_role;
+          auth_request_set $user_verified $upstream_http_x_user_verified;
+          proxy_set_header X-User-Id $user_id;
+          proxy_set_header X-User-Role $user_role;
+          proxy_set_header X-User-Verified $user_verified;
                 proxy_pass http://notification-service:3007/;
             }
             location /api/ai/ {
+          auth_request /_auth;
+          auth_request_set $user_id $upstream_http_x_user_id;
+          auth_request_set $user_role $upstream_http_x_user_role;
+          auth_request_set $user_verified $upstream_http_x_user_verified;
+          proxy_set_header X-User-Id $user_id;
+          proxy_set_header X-User-Role $user_role;
+          proxy_set_header X-User-Verified $user_verified;
                 proxy_pass http://ai-symptom-service:3008/;
             }
         }
