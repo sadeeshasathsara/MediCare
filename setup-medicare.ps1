@@ -278,7 +278,7 @@ function Start-GatewayPortForward([string]$ns, [string]$kubectlPath) {
     Write-Host "Starting API Gateway port-forward on http://localhost:$port ..." -ForegroundColor Cyan
     Write-Host "A new PowerShell window will stay open for the tunnel." -ForegroundColor Gray
 
-    $cmd = "& `"$kubectlToUse`" port-forward -n `"$ns`" svc/api-gateway $port:$port"
+    $cmd = "& `"$kubectlToUse`" port-forward -n `"$ns`" svc/api-gateway ${port}:${port}"
     Start-Process -FilePath "powershell.exe" -ArgumentList @("-NoExit", "-Command", $cmd) | Out-Null
 }
 
