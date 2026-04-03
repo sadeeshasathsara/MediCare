@@ -14,6 +14,7 @@ Ensure the top-level NGINX API Gateway is running via `docker-compose` first so 
 
 If you are running the backend on **Minikube**, make sure the gateway is reachable from your host:
 - Recommended (works reliably on Windows + Minikube Docker driver): `kubectl port-forward -n default svc/api-gateway 8080:8080`
+- Or run `\setup-medicare.ps1 -PortForwardGateway` after deploying (opens a separate window for the tunnel)
 - Alternative: `minikube service -n default api-gateway --url` (keep that terminal open)
 
 By default the frontend calls `http://localhost:8080/api`. You can override the gateway base URL via:

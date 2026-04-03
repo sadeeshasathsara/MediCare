@@ -28,6 +28,10 @@ You can run it from anywhere (it anchors itself to the repo root). It handles:
 
 # Auto mode: detect changes (k8s/, services/, .env) and update accordingly
 .\setup-medicare.ps1 -Auto
+
+# Start a local tunnel to the API Gateway on http://localhost:8080
+# (Recommended on Windows + Minikube Docker driver)
+.\setup-medicare.ps1 -PortForwardGateway
 ```
 
 ---

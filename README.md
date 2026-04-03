@@ -43,6 +43,10 @@ This is the **fastest and easiest** way to get started. It automatically checks 
    ```powershell
    .\setup-medicare.ps1
    ```
+   To also open a local API Gateway tunnel on `http://localhost:8080` (recommended on Windows + Minikube Docker driver):
+   ```powershell
+   .\setup-medicare.ps1 -PortForwardGateway
+   ```
    *Note: On the first run, this script permanently adds the `.bin` folder to your Path so you can use `minikube` or `kubectl` from any terminal later.*
 
 ---
