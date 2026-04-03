@@ -12,6 +12,13 @@ The **Web Client** is the core interactive frontend visualization layer for the 
 
 Ensure the top-level NGINX API Gateway is running via `docker-compose` first so that API requests can successfully be routed.
 
+If you are running the backend on **Minikube**, make sure the gateway is reachable from your host:
+- Recommended (works reliably on Windows + Minikube Docker driver): `kubectl port-forward -n default svc/api-gateway 8080:8080`
+- Alternative: `minikube service -n default api-gateway --url` (keep that terminal open)
+
+By default the frontend calls `http://localhost:8080/api`. You can override the gateway base URL via:
+- `VITE_API_BASE_URL` (example: `http://localhost:8080/api`)
+
 1. Install project dependencies:
    ```bash
    npm install

@@ -9,6 +9,11 @@ data:
         worker_connections 4096;
     }
     http {
+      # Use Kubernetes DNS for runtime upstream name resolution.
+      # This prevents nginx from failing to start if service DNS is briefly unavailable.
+      resolver 10.96.0.10 valid=10s ipv6=off;
+      resolver_timeout 5s;
+
       # Allow CORS only from dev frontend origins.
       map $http_origin $cors_origin {
         default "";
@@ -19,6 +24,16 @@ data:
       limit_req_zone $binary_remote_addr zone=auth_limit:10m rate=2r/s;
         server {
             listen 8080;
+
+          # Upstream service hosts (resolved via the resolver above).
+          set $auth_service "auth-service.default.svc.cluster.local:3001";
+          set $patient_service "patient-service.default.svc.cluster.local:3002";
+          set $doctor_service "doctor-service.default.svc.cluster.local:3003";
+          set $appointment_service "appointment-service.default.svc.cluster.local:3004";
+          set $telemedicine_service "telemedicine-service.default.svc.cluster.local:3005";
+          set $payment_service "payment-service.default.svc.cluster.local:3006";
+          set $notification_service "notification-service.default.svc.cluster.local:3007";
+          set $ai_symptom_service "ai-symptom-service.default.svc.cluster.local:3008";
 
           # Ensure the gateway is the single source of truth for CORS headers.
           # Some upstream services (e.g., Spring) may also emit CORS headers,
@@ -45,7 +60,7 @@ data:
 
         location = /_auth {
           internal;
-          proxy_pass http://auth-service:3001/auth/validate;
+          proxy_pass http://$auth_service/auth/validate;
           proxy_pass_request_body off;
           proxy_set_header Content-Length "";
           proxy_set_header Authorization $http_authorization;
@@ -55,15 +70,15 @@ data:
 
             location = /api/auth/login {
               limit_req zone=auth_limit burst=5 nodelay;
-              proxy_pass http://auth-service:3001/auth/login;
+              proxy_pass http://$auth_service/auth/login;
             }
             location = /api/auth/register {
               limit_req zone=auth_limit burst=5 nodelay;
-              proxy_pass http://auth-service:3001/auth/register;
+              proxy_pass http://$auth_service/auth/register;
             }
 
             location /api/auth/ {
-          proxy_pass http://auth-service:3001/auth/;
+          proxy_pass http://$auth_service/auth/;
             }
 
             location = /api/auth/verify-doctor {
@@ -74,7 +89,7 @@ data:
               proxy_set_header X-User-Id $user_id;
               proxy_set_header X-User-Role $user_role;
               proxy_set_header X-User-Verified $user_verified;
-              proxy_pass http://auth-service:3001/auth/verify-doctor;
+              proxy_pass http://$auth_service/auth/verify-doctor;
             }
             location /api/auth/admin/ {
               auth_request /_auth;
@@ -84,7 +99,7 @@ data:
               proxy_set_header X-User-Id $user_id;
               proxy_set_header X-User-Role $user_role;
               proxy_set_header X-User-Verified $user_verified;
-              proxy_pass http://auth-service:3001/auth/admin/;
+              proxy_pass http://$auth_service/auth/admin/;
             }
             location /api/patients/ {
           auth_request /_auth;
@@ -94,7 +109,7 @@ data:
           proxy_set_header X-User-Id $user_id;
           proxy_set_header X-User-Role $user_role;
           proxy_set_header X-User-Verified $user_verified;
-                proxy_pass http://patient-service:3002/;
+                proxy_pass http://$patient_service/;
             }
             location /api/doctors/ {
           auth_request /_auth;
@@ -104,7 +119,7 @@ data:
           proxy_set_header X-User-Id $user_id;
           proxy_set_header X-User-Role $user_role;
           proxy_set_header X-User-Verified $user_verified;
-                proxy_pass http://doctor-service:3003/;
+                proxy_pass http://$doctor_service/;
             }
             location /api/appointments/ {
           auth_request /_auth;
@@ -114,7 +129,7 @@ data:
           proxy_set_header X-User-Id $user_id;
           proxy_set_header X-User-Role $user_role;
           proxy_set_header X-User-Verified $user_verified;
-                proxy_pass http://appointment-service:3004/;
+                proxy_pass http://$appointment_service/;
             }
             location /api/telemedicine/ {
           auth_request /_auth;
@@ -124,7 +139,7 @@ data:
           proxy_set_header X-User-Id $user_id;
           proxy_set_header X-User-Role $user_role;
           proxy_set_header X-User-Verified $user_verified;
-                proxy_pass http://telemedicine-service:3005/;
+                proxy_pass http://$telemedicine_service/;
             }
             location /api/payments/ {
           auth_request /_auth;
@@ -134,7 +149,7 @@ data:
           proxy_set_header X-User-Id $user_id;
           proxy_set_header X-User-Role $user_role;
           proxy_set_header X-User-Verified $user_verified;
-                proxy_pass http://payment-service:3006/;
+                proxy_pass http://$payment_service/;
             }
             location /api/notifications/ {
           auth_request /_auth;
@@ -144,7 +159,7 @@ data:
           proxy_set_header X-User-Id $user_id;
           proxy_set_header X-User-Role $user_role;
           proxy_set_header X-User-Verified $user_verified;
-                proxy_pass http://notification-service:3007/;
+                proxy_pass http://$notification_service/;
             }
             location /api/ai/ {
           auth_request /_auth;
@@ -154,7 +169,7 @@ data:
           proxy_set_header X-User-Id $user_id;
           proxy_set_header X-User-Role $user_role;
           proxy_set_header X-User-Verified $user_verified;
-                proxy_pass http://ai-symptom-service:3008/;
+                proxy_pass http://$ai_symptom_service/;
             }
         }
     }

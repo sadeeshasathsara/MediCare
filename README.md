@@ -62,6 +62,9 @@ If you prefer to run the commands manually:
    ```bash
    .\minikube.exe service api-gateway --url
    ```
+   > Note (Windows + Docker driver): `minikube service --url` opens a tunnel and the terminal
+   > must remain open while you use that URL. If NodePort/IP access times out, use:
+   > `kubectl port-forward svc/api-gateway 8080:8080` and call `http://localhost:8080`.
 For more detailed Kubernetes commands and troubleshooting, see the [KUBERNETES_GUIDE.md](file:///c:/Users/sadee/OneDrive/Documents/MediCare/KUBERNETES_GUIDE.md).
 
 ---
