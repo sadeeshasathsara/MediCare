@@ -12,7 +12,8 @@ param(
     [string]$Service,
     [switch]$NoRestart,
     [switch]$Auto,
-    [string]$DiffRef
+    [string]$DiffRef,
+    [switch]$PortForwardGateway
 )
 
 $ErrorActionPreference = "Stop"
@@ -251,6 +252,36 @@ function Any-MatchPrefix([string[]]$paths, [string]$prefix) {
     return $false
 }
 
+function Start-GatewayPortForward([string]$ns, [string]$kubectlPath) {
+    $port = 8080
+
+    # Best-effort check for a port conflict.
+    $alreadyListening = $false
+    try {
+        $conn = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue
+        if ($conn) { $alreadyListening = $true }
+    } catch {
+        # Ignore if Get-NetTCPConnection isn't available.
+    }
+
+    if ($alreadyListening) {
+        Write-Host "Port $port is already in use on this machine." -ForegroundColor Yellow
+        Write-Host "If you already have a port-forward running, you can reuse it." -ForegroundColor Yellow
+        return
+    }
+
+    $kubectlToUse = $kubectlPath
+    if ([string]::IsNullOrWhiteSpace($kubectlToUse)) {
+        $kubectlToUse = "kubectl"
+    }
+
+    Write-Host "Starting API Gateway port-forward on http://localhost:$port ..." -ForegroundColor Cyan
+    Write-Host "A new PowerShell window will stay open for the tunnel." -ForegroundColor Gray
+
+    $cmd = "& `"$kubectlToUse`" port-forward -n `"$ns`" svc/api-gateway ${port}:${port}"
+    Start-Process -FilePath "powershell.exe" -ArgumentList @("-NoExit", "-Command", $cmd) | Out-Null
+}
+
 # 5. Prerequisites Check
 Write-Host "Checking Docker..." -NoNewline
 if ($null -eq (Get-ToolPath "docker")) {
@@ -461,6 +492,11 @@ Write-Host "View Service Logs:  kubectl logs -f deployment/<service-name>"
 Write-Host "Open Dashboard:     minikube dashboard"
 Write-Host "Restart a Service:  kubectl rollout restart deployment/<service-name>"
 Write-Host "API Gateway URL:    minikube service -n $Namespace api-gateway --url"
+Write-Host "Gateway Port-Forward: kubectl port-forward -n $Namespace svc/api-gateway 8080:8080"
 Write-Host "--------------------------------"
+
+if ($PortForwardGateway) {
+    Start-GatewayPortForward -ns $Namespace -kubectlPath $KBT
+}
 
 Set-Location $OriginalLocation
