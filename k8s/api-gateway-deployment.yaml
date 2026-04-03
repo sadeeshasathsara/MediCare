@@ -60,7 +60,8 @@ data:
 
         location = /_auth {
           internal;
-          proxy_pass http://$auth_service/auth/validate;
+          rewrite ^ /auth/validate break;
+          proxy_pass http://$auth_service;
           proxy_pass_request_body off;
           proxy_set_header Content-Length "";
           proxy_set_header Authorization $http_authorization;
@@ -70,15 +71,18 @@ data:
 
             location = /api/auth/login {
               limit_req zone=auth_limit burst=5 nodelay;
-              proxy_pass http://$auth_service/auth/login;
+              rewrite ^ /auth/login break;
+              proxy_pass http://$auth_service;
             }
             location = /api/auth/register {
               limit_req zone=auth_limit burst=5 nodelay;
-              proxy_pass http://$auth_service/auth/register;
+              rewrite ^ /auth/register break;
+              proxy_pass http://$auth_service;
             }
 
             location /api/auth/ {
-          proxy_pass http://$auth_service/auth/;
+          rewrite ^/api/auth/(.*)$ /auth/$1 break;
+          proxy_pass http://$auth_service;
             }
 
             location = /api/auth/verify-doctor {
@@ -89,7 +93,8 @@ data:
               proxy_set_header X-User-Id $user_id;
               proxy_set_header X-User-Role $user_role;
               proxy_set_header X-User-Verified $user_verified;
-              proxy_pass http://$auth_service/auth/verify-doctor;
+              rewrite ^ /auth/verify-doctor break;
+              proxy_pass http://$auth_service;
             }
             location /api/auth/admin/ {
               auth_request /_auth;
@@ -99,7 +104,8 @@ data:
               proxy_set_header X-User-Id $user_id;
               proxy_set_header X-User-Role $user_role;
               proxy_set_header X-User-Verified $user_verified;
-              proxy_pass http://$auth_service/auth/admin/;
+              rewrite ^/api/auth/admin/(.*)$ /auth/admin/$1 break;
+              proxy_pass http://$auth_service;
             }
             location /api/patients/ {
           auth_request /_auth;
@@ -109,7 +115,8 @@ data:
           proxy_set_header X-User-Id $user_id;
           proxy_set_header X-User-Role $user_role;
           proxy_set_header X-User-Verified $user_verified;
-                proxy_pass http://$patient_service/;
+                rewrite ^/api/patients/(.*)$ /$1 break;
+                proxy_pass http://$patient_service;
             }
             location /api/doctors/ {
           auth_request /_auth;
@@ -119,7 +126,8 @@ data:
           proxy_set_header X-User-Id $user_id;
           proxy_set_header X-User-Role $user_role;
           proxy_set_header X-User-Verified $user_verified;
-                proxy_pass http://$doctor_service/;
+                rewrite ^/api/doctors/(.*)$ /$1 break;
+                proxy_pass http://$doctor_service;
             }
             location /api/appointments/ {
           auth_request /_auth;
@@ -129,7 +137,8 @@ data:
           proxy_set_header X-User-Id $user_id;
           proxy_set_header X-User-Role $user_role;
           proxy_set_header X-User-Verified $user_verified;
-                proxy_pass http://$appointment_service/;
+                rewrite ^/api/appointments/(.*)$ /$1 break;
+                proxy_pass http://$appointment_service;
             }
             location /api/telemedicine/ {
           auth_request /_auth;
@@ -139,7 +148,8 @@ data:
           proxy_set_header X-User-Id $user_id;
           proxy_set_header X-User-Role $user_role;
           proxy_set_header X-User-Verified $user_verified;
-                proxy_pass http://$telemedicine_service/;
+                rewrite ^/api/telemedicine/(.*)$ /$1 break;
+                proxy_pass http://$telemedicine_service;
             }
             location /api/payments/ {
           auth_request /_auth;
@@ -149,7 +159,8 @@ data:
           proxy_set_header X-User-Id $user_id;
           proxy_set_header X-User-Role $user_role;
           proxy_set_header X-User-Verified $user_verified;
-                proxy_pass http://$payment_service/;
+                rewrite ^/api/payments/(.*)$ /$1 break;
+                proxy_pass http://$payment_service;
             }
             location /api/notifications/ {
           auth_request /_auth;
@@ -159,7 +170,8 @@ data:
           proxy_set_header X-User-Id $user_id;
           proxy_set_header X-User-Role $user_role;
           proxy_set_header X-User-Verified $user_verified;
-                proxy_pass http://$notification_service/;
+                rewrite ^/api/notifications/(.*)$ /$1 break;
+                proxy_pass http://$notification_service;
             }
             location /api/ai/ {
           auth_request /_auth;
@@ -169,7 +181,8 @@ data:
           proxy_set_header X-User-Id $user_id;
           proxy_set_header X-User-Role $user_role;
           proxy_set_header X-User-Verified $user_verified;
-                proxy_pass http://$ai_symptom_service/;
+                rewrite ^/api/ai/(.*)$ /$1 break;
+                proxy_pass http://$ai_symptom_service;
             }
         }
     }
