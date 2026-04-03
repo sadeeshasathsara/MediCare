@@ -28,6 +28,10 @@ You can run it from anywhere (it anchors itself to the repo root). It handles:
 
 # Auto mode: detect changes (k8s/, services/, .env) and update accordingly
 .\setup-medicare.ps1 -Auto
+
+# Start a local tunnel to the API Gateway on http://localhost:8080
+# (Recommended on Windows + Minikube Docker driver)
+.\setup-medicare.ps1 -PortForwardGateway
 ```
 
 ---
@@ -55,6 +59,12 @@ kubectl get pods -n default
 # Get the API Gateway URL
 minikube service -n default api-gateway --url
 ```
+
+> [!IMPORTANT]
+> **Windows + Minikube Docker driver:** NodePort access like `http://<minikube-ip>:30080` may not be reachable.
+> Prefer one of these options:
+> - `minikube service -n default api-gateway --url` (keep the terminal open; it runs a tunnel)
+> - `kubectl port-forward -n default svc/api-gateway 8080:8080` and use `http://localhost:8080`
 
 ### 2) After you change something (update Kubernetes)
 
