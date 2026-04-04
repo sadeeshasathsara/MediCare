@@ -1,6 +1,8 @@
 package com.healthcare.auth.security;
 
+import com.healthcare.auth.service.JwtService;
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -13,8 +15,6 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
-
-import com.healthcare.auth.service.JwtService;
 
 import java.io.IOException;
 import java.util.List;
@@ -29,27 +29,29 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     }
 
     @Override
-    protected void doFilterInternal(
-            @NonNull HttpServletRequest request,
-            @NonNull HttpServletResponse response,
-            @NonNull FilterChain filterChain) throws ServletException, IOException {
+    protected void doFilterInternal(@NonNull HttpServletRequest request, @NonNull HttpServletResponse response,
+            @NonNull FilterChain filterChain)
+            throws ServletException, IOException {
 
-        if (SecurityContextHolder.getContext().getAuthentication() == null) {
-            String header = request.getHeader(HttpHeaders.AUTHORIZATION);
-            if (header != null && header.startsWith("Bearer ")) {
-                String token = header.substring("Bearer ".length()).trim();
-                Claims claims = jwtService.parseClaims(token);
-                if (claims != null && claims.getSubject() != null && !claims.getSubject().isBlank()) {
+        String authorization = request.getHeader(HttpHeaders.AUTHORIZATION);
+        if (authorization != null && authorization.startsWith("Bearer ")) {
+            String token = authorization.substring("Bearer ".length()).trim();
+            if (!token.isEmpty()) {
+                try {
+                    Claims claims = jwtService.parseAndValidate(token);
+                    String userId = claims.getSubject();
                     String role = claims.get("role", String.class);
-                    List<GrantedAuthority> authorities = (role != null && !role.isBlank())
-                            ? List.of(new SimpleGrantedAuthority("ROLE_" + role.trim()))
-                            : List.of();
 
-                    UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(
-                            claims.getSubject(),
-                            null,
-                            authorities);
-                    SecurityContextHolder.getContext().setAuthentication(auth);
+                    if (userId != null && role != null && !userId.isBlank() && !role.isBlank()) {
+                        List<GrantedAuthority> authorities = List.of(new SimpleGrantedAuthority("ROLE_" + role));
+                        UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
+                                userId,
+                                null,
+                                authorities);
+                        SecurityContextHolder.getContext().setAuthentication(authentication);
+                    }
+                } catch (JwtException ex) {
+                    SecurityContextHolder.clearContext();
                 }
             }
         }

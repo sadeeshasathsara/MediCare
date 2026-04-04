@@ -9,36 +9,194 @@ data:
         worker_connections 4096;
     }
     http {
+      # Use Kubernetes DNS for runtime upstream name resolution.
+      # This prevents nginx from failing to start if service DNS is briefly unavailable.
+      resolver 10.96.0.10 valid=10s ipv6=off;
+      resolver_timeout 5s;
+
+      # Allow CORS only from dev frontend origins.
+      map $http_origin $cors_origin {
+        default "";
+        "http://localhost:5173" $http_origin;
+        "http://127.0.0.1:5173" $http_origin;
+      }
+
+      limit_req_zone $binary_remote_addr zone=auth_limit:10m rate=2r/s;
         server {
             listen 8080;
-            location /api/auth/ {
-                proxy_pass http://auth-service:3001/;
+
+          # Upstream service hosts (resolved via the resolver above).
+          set $auth_service "auth-service.default.svc.cluster.local:3001";
+          set $patient_service "patient-service.default.svc.cluster.local:3002";
+          set $doctor_service "doctor-service.default.svc.cluster.local:3003";
+          set $appointment_service "appointment-service.default.svc.cluster.local:3004";
+          set $telemedicine_service "telemedicine-service.default.svc.cluster.local:3005";
+          set $payment_service "payment-service.default.svc.cluster.local:3006";
+          set $notification_service "notification-service.default.svc.cluster.local:3007";
+          set $ai_symptom_service "ai-symptom-service.default.svc.cluster.local:3008";
+
+          # Ensure the gateway is the single source of truth for CORS headers.
+          # Some upstream services (e.g., Spring) may also emit CORS headers,
+          # which causes browsers to reject responses with duplicated
+          # `Access-Control-Allow-Origin`.
+          proxy_hide_header Access-Control-Allow-Origin;
+          proxy_hide_header Access-Control-Allow-Methods;
+          proxy_hide_header Access-Control-Allow-Headers;
+          proxy_hide_header Access-Control-Allow-Credentials;
+          proxy_hide_header Access-Control-Max-Age;
+          proxy_hide_header Access-Control-Expose-Headers;
+
+            # CORS (preflight + headers)
+            # Browsers send OPTIONS preflight when using Authorization header.
+            add_header 'Access-Control-Allow-Origin' $cors_origin always;
+            add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, PATCH, DELETE, OPTIONS' always;
+            add_header 'Access-Control-Allow-Headers' 'Authorization, Content-Type' always;
+            add_header 'Access-Control-Max-Age' 86400 always;
+            add_header 'Vary' 'Origin' always;
+
+            if ($request_method = OPTIONS) {
+              return 204;
             }
-        location /api/patients/admin/ {
-          rewrite ^/api/patients/admin/(.*)$ /admin/$1 break;
-          proxy_pass http://patient-service:3002;
+
+        location = /_auth {
+          internal;
+          rewrite ^ /auth/validate break;
+          proxy_pass http://$auth_service;
+          proxy_pass_request_body off;
+          proxy_set_header Content-Length "";
+          proxy_set_header Authorization $http_authorization;
+          proxy_set_header X-Original-URI $request_uri;
+          proxy_set_header X-Original-Method $request_method;
         }
+
+            location = /api/auth/login {
+              limit_req zone=auth_limit burst=5 nodelay;
+              rewrite ^ /auth/login break;
+              proxy_pass http://$auth_service;
+            }
+            location = /api/auth/register {
+              limit_req zone=auth_limit burst=5 nodelay;
+              rewrite ^ /auth/register break;
+              proxy_pass http://$auth_service;
+            }
+
+            location /api/auth/ {
+          rewrite ^/api/auth/(.*)$ /auth/$1 break;
+          proxy_pass http://$auth_service;
+            }
+
+            location = /api/auth/verify-doctor {
+              auth_request /_auth;
+              auth_request_set $user_id $upstream_http_x_user_id;
+              auth_request_set $user_role $upstream_http_x_user_role;
+              auth_request_set $user_verified $upstream_http_x_user_verified;
+              proxy_set_header X-User-Id $user_id;
+              proxy_set_header X-User-Role $user_role;
+              proxy_set_header X-User-Verified $user_verified;
+              rewrite ^ /auth/verify-doctor break;
+              proxy_pass http://$auth_service;
+            }
+            location /api/auth/admin/ {
+              auth_request /_auth;
+              auth_request_set $user_id $upstream_http_x_user_id;
+              auth_request_set $user_role $upstream_http_x_user_role;
+              auth_request_set $user_verified $upstream_http_x_user_verified;
+              proxy_set_header X-User-Id $user_id;
+              proxy_set_header X-User-Role $user_role;
+              proxy_set_header X-User-Verified $user_verified;
+              rewrite ^/api/auth/admin/(.*)$ /auth/admin/$1 break;
+              proxy_pass http://$auth_service;
+            }
+            # Patient service
+            # External: /api/patients/* -> Internal: /patients/*
+            # External: /api/patients/admin/* -> Internal: /admin/*
+            location /api/patients/admin/ {
+          auth_request /_auth;
+          auth_request_set $user_id $upstream_http_x_user_id;
+          auth_request_set $user_role $upstream_http_x_user_role;
+          auth_request_set $user_verified $upstream_http_x_user_verified;
+          proxy_set_header X-User-Id $user_id;
+          proxy_set_header X-User-Role $user_role;
+          proxy_set_header X-User-Verified $user_verified;
+                rewrite ^/api/patients/admin/(.*)$ /admin/$1 break;
+                proxy_pass http://$patient_service;
+            }
             location /api/patients/ {
-          rewrite ^/api/patients/(.*)$ /patients/$1 break;
-          proxy_pass http://patient-service:3002;
+          auth_request /_auth;
+          auth_request_set $user_id $upstream_http_x_user_id;
+          auth_request_set $user_role $upstream_http_x_user_role;
+          auth_request_set $user_verified $upstream_http_x_user_verified;
+          proxy_set_header X-User-Id $user_id;
+          proxy_set_header X-User-Role $user_role;
+          proxy_set_header X-User-Verified $user_verified;
+                rewrite ^/api/patients/(.*)$ /patients/$1 break;
+                proxy_pass http://$patient_service;
             }
             location /api/doctors/ {
-                proxy_pass http://doctor-service:3003/;
+          auth_request /_auth;
+          auth_request_set $user_id $upstream_http_x_user_id;
+          auth_request_set $user_role $upstream_http_x_user_role;
+          auth_request_set $user_verified $upstream_http_x_user_verified;
+          proxy_set_header X-User-Id $user_id;
+          proxy_set_header X-User-Role $user_role;
+          proxy_set_header X-User-Verified $user_verified;
+                rewrite ^/api/doctors/(.*)$ /$1 break;
+                proxy_pass http://$doctor_service;
             }
             location /api/appointments/ {
-                proxy_pass http://appointment-service:3004/;
+          auth_request /_auth;
+          auth_request_set $user_id $upstream_http_x_user_id;
+          auth_request_set $user_role $upstream_http_x_user_role;
+          auth_request_set $user_verified $upstream_http_x_user_verified;
+          proxy_set_header X-User-Id $user_id;
+          proxy_set_header X-User-Role $user_role;
+          proxy_set_header X-User-Verified $user_verified;
+                rewrite ^/api/appointments/(.*)$ /$1 break;
+                proxy_pass http://$appointment_service;
             }
             location /api/telemedicine/ {
-                proxy_pass http://telemedicine-service:3005/;
+          auth_request /_auth;
+          auth_request_set $user_id $upstream_http_x_user_id;
+          auth_request_set $user_role $upstream_http_x_user_role;
+          auth_request_set $user_verified $upstream_http_x_user_verified;
+          proxy_set_header X-User-Id $user_id;
+          proxy_set_header X-User-Role $user_role;
+          proxy_set_header X-User-Verified $user_verified;
+                rewrite ^/api/telemedicine/(.*)$ /$1 break;
+                proxy_pass http://$telemedicine_service;
             }
             location /api/payments/ {
-                proxy_pass http://payment-service:3006/;
+          auth_request /_auth;
+          auth_request_set $user_id $upstream_http_x_user_id;
+          auth_request_set $user_role $upstream_http_x_user_role;
+          auth_request_set $user_verified $upstream_http_x_user_verified;
+          proxy_set_header X-User-Id $user_id;
+          proxy_set_header X-User-Role $user_role;
+          proxy_set_header X-User-Verified $user_verified;
+                rewrite ^/api/payments/(.*)$ /$1 break;
+                proxy_pass http://$payment_service;
             }
             location /api/notifications/ {
-                proxy_pass http://notification-service:3007/;
+          auth_request /_auth;
+          auth_request_set $user_id $upstream_http_x_user_id;
+          auth_request_set $user_role $upstream_http_x_user_role;
+          auth_request_set $user_verified $upstream_http_x_user_verified;
+          proxy_set_header X-User-Id $user_id;
+          proxy_set_header X-User-Role $user_role;
+          proxy_set_header X-User-Verified $user_verified;
+                rewrite ^/api/notifications/(.*)$ /$1 break;
+                proxy_pass http://$notification_service;
             }
             location /api/ai/ {
-                proxy_pass http://ai-symptom-service:3008/;
+          auth_request /_auth;
+          auth_request_set $user_id $upstream_http_x_user_id;
+          auth_request_set $user_role $upstream_http_x_user_role;
+          auth_request_set $user_verified $upstream_http_x_user_verified;
+          proxy_set_header X-User-Id $user_id;
+          proxy_set_header X-User-Role $user_role;
+          proxy_set_header X-User-Verified $user_verified;
+                rewrite ^/api/ai/(.*)$ /$1 break;
+                proxy_pass http://$ai_symptom_service;
             }
         }
     }

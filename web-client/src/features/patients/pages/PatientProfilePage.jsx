@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '@/context/AuthContext'
-import { changeMyEmail } from '@/features/auth/services/authApi'
 import {
     downloadPatientReport,
     getPatientHistory,
@@ -24,8 +23,8 @@ function emptyProfile(userId, email) {
 }
 
 export default function PatientProfilePage() {
-    const { user, login } = useAuth()
-    const userId = user?.sub
+    const { user } = useAuth()
+    const userId = user?.id
     const userEmail = user?.email
 
     const [loading, setLoading] = useState(true)
@@ -48,12 +47,14 @@ export default function PatientProfilePage() {
         setError('')
         try {
             const data = await getPatientProfile(userId)
+            const base = emptyProfile(userId, userEmail)
             setProfile({
-                ...emptyProfile(userId, userEmail),
+                ...base,
                 ...data,
-                email: data.email || userEmail || '',
-                contact: { ...emptyProfile(userId, userEmail).contact, ...(data.contact || {}) },
-                address: { ...emptyProfile(userId, userEmail).address, ...(data.address || {}) },
+                // Keep email visible even if patient-service doesn't store it.
+                email: data?.email || userEmail || '',
+                contact: { ...base.contact, ...(data?.contact || {}) },
+                address: { ...base.address, ...(data?.address || {}) },
             })
         } catch (e) {
             setError(e?.response?.data?.message || e?.message || 'Failed to load profile')
@@ -69,7 +70,7 @@ export default function PatientProfilePage() {
         setReportError('')
         try {
             const data = await listPatientReports(userId)
-            setReports(data)
+            setReports(Array.isArray(data) ? data : [])
         } catch (e) {
             setReportError(e?.response?.data?.message || e?.message || 'Failed to load reports')
         } finally {
@@ -79,10 +80,6 @@ export default function PatientProfilePage() {
 
     useEffect(() => {
         load()
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [userId])
-
-    useEffect(() => {
         loadReports()
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [userId])
@@ -110,17 +107,11 @@ export default function PatientProfilePage() {
         setSaving(true)
         setError('')
         try {
-            if (profile.email && userEmail && profile.email.trim().toLowerCase() !== userEmail.trim().toLowerCase()) {
-                const res = await changeMyEmail(profile.email)
-                if (res?.token) {
-                    login(res.token)
-                }
-            }
-
             const payload = {
-                email: profile.email,
-                name: profile.name,
-                dob: profile.dob,
+                // Keep email as a mirror field only; login email is auth-service owned.
+                email: profile?.email || userEmail || '',
+                name: profile?.name || '',
+                dob: profile?.dob || '',
                 contact: { phone: profile?.contact?.phone || '' },
                 address: {
                     line1: profile?.address?.line1 || '',
@@ -132,11 +123,13 @@ export default function PatientProfilePage() {
                 },
             }
             const saved = await updatePatientProfile(userId, payload)
+            const base = emptyProfile(userId, saved?.email || userEmail)
             setProfile({
-                ...emptyProfile(userId, saved.email || profile.email || userEmail),
+                ...base,
                 ...saved,
-                contact: { ...emptyProfile(userId, saved.email || profile.email || userEmail).contact, ...(saved.contact || {}) },
-                address: { ...emptyProfile(userId, saved.email || profile.email || userEmail).address, ...(saved.address || {}) },
+                email: saved?.email || userEmail || '',
+                contact: { ...base.contact, ...(saved?.contact || {}) },
+                address: { ...base.address, ...(saved?.address || {}) },
             })
         } catch (e) {
             setError(e?.response?.data?.message || e?.message || 'Failed to save profile')
@@ -250,7 +243,7 @@ export default function PatientProfilePage() {
                 <section className="rounded-xl border p-5" style={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}>
                     <h2 className="text-base font-semibold" style={{ color: 'hsl(var(--foreground))' }}>Personal Info</h2>
                     <div className="mt-4 grid grid-cols-1 gap-3">
-                        <Field label="Email" value={profile?.email || ''} onChange={(v) => updateField('email', v)} disabled={loading} />
+                        <Field label="Email" value={profile?.email || ''} onChange={(v) => updateField('email', v)} disabled={true} helper="Email is managed by the authentication service." />
                         <Field label="Name" value={profile?.name || ''} onChange={(v) => updateField('name', v)} disabled={loading} />
                         <Field label="Date of Birth" placeholder="YYYY-MM-DD" value={profile?.dob || ''} onChange={(v) => updateField('dob', v)} disabled={loading} />
                         <Field label="Phone" value={profile?.contact?.phone || ''} onChange={(v) => updateField('contact.phone', v)} disabled={loading} />
@@ -394,7 +387,7 @@ export default function PatientProfilePage() {
     )
 }
 
-function Field({ label, value, onChange, disabled, placeholder }) {
+function Field({ label, value, onChange, disabled, placeholder, helper }) {
     return (
         <label className="space-y-1">
             <span className="text-xs font-medium" style={{ color: 'hsl(var(--muted-foreground))' }}>{label}</span>
@@ -418,6 +411,9 @@ function Field({ label, value, onChange, disabled, placeholder }) {
                     e.currentTarget.style.boxShadow = 'none'
                 }}
             />
+            {helper ? (
+                <span className="block text-xs" style={{ color: 'hsl(var(--muted-foreground))' }}>{helper}</span>
+            ) : null}
         </label>
     )
 }

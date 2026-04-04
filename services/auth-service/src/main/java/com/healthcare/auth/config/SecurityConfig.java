@@ -4,11 +4,12 @@ import com.healthcare.auth.security.JwtAuthenticationFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
-import org.springframework.security.config.Customizer;
-import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.config.Customizer;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
@@ -19,6 +20,7 @@ import java.util.Arrays;
 import java.util.List;
 
 @Configuration
+@EnableMethodSecurity
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
@@ -45,6 +47,7 @@ public class SecurityConfig {
         config.setAllowedOrigins(allowedOrigins);
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("Authorization", "Content-Type"));
+        config.setExposedHeaders(List.of("X-User-Id", "X-User-Role", "X-User-Verified"));
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
@@ -61,9 +64,16 @@ public class SecurityConfig {
                         .requestMatchers("/error").permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/health", "/health/**").permitAll()
-                        .requestMatchers("/login", "/register", "/validate").permitAll()
-                        .requestMatchers("/auth/login", "/auth/register", "/auth/validate").permitAll()
-                        .anyRequest().authenticated())
+                        // Public auth endpoints
+                        .requestMatchers(HttpMethod.POST, "/auth/register", "/auth/login", "/auth/refresh",
+                                "/auth/logout")
+                        .permitAll()
+                        .requestMatchers(HttpMethod.GET, "/auth/validate").permitAll()
+
+                        // Admin-only auth endpoints (defense in depth; gateway already protects these)
+                        .requestMatchers(HttpMethod.POST, "/auth/verify-doctor").hasRole("ADMIN")
+                        .requestMatchers("/auth/admin/**").hasRole("ADMIN")
+                        .anyRequest().denyAll())
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
                 .exceptionHandling(eh -> eh
                         .authenticationEntryPoint((request, response, authException) -> response.setStatus(401)))
