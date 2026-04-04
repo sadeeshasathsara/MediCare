@@ -99,7 +99,7 @@ pipeline {
         success {
             emailext(
                 to: 'sadeeshasathsara99@gmail.com, ericdevon2003@gmail.com, chathushuni@gmail.com, nipun20011216@gmail.com',
-                subject: "✅ [SUCCESS] Medicare Pipeline #${env.BUILD_NUMBER}",
+                subject: "[SUCCESS] Medicare Pipeline #${env.BUILD_NUMBER}",
                 mimeType: 'text/html',
                 body: """
                     <html>
@@ -137,7 +137,7 @@ pipeline {
         failure {
             emailext(
                 to: 'sadeeshasathsara99@gmail.com, ericdevon2003@gmail.com, chathushuni@gmail.com, nipun20011216@gmail.com',
-                subject: "❌ [FAILED] Medicare Pipeline #${env.BUILD_NUMBER}",
+                subject: "[FAILED] Medicare Pipeline #${env.BUILD_NUMBER}",
                 mimeType: 'text/html',
                 body: """
                     <html>
