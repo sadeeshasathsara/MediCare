@@ -1,15 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '@/context/AuthContext'
-import {
-    downloadPatientReport,
-    getPatientHistory,
-    getPatientPrescriptions,
-    getPatientProfile,
-    listPatientReports,
-    updatePatientProfile,
-    uploadPatientReport,
-} from '@/features/patients/services/patientApi'
-import { Download, Upload, Save, RefreshCcw } from 'lucide-react'
+import { getPatientProfile, updatePatientProfile } from '@/features/patients/services/patientApi'
+import { Save, RefreshCcw } from 'lucide-react'
 
 function emptyProfile(userId, email) {
     return {
@@ -31,13 +23,6 @@ export default function PatientProfilePage() {
     const [saving, setSaving] = useState(false)
     const [error, setError] = useState('')
     const [profile, setProfile] = useState(null)
-
-    const [reportsLoading, setReportsLoading] = useState(false)
-    const [reports, setReports] = useState([])
-    const [reportError, setReportError] = useState('')
-
-    const [history, setHistory] = useState(null)
-    const [prescriptions, setPrescriptions] = useState(null)
 
     const canUse = useMemo(() => Boolean(userId), [userId])
 
@@ -64,23 +49,8 @@ export default function PatientProfilePage() {
         }
     }
 
-    const loadReports = async () => {
-        if (!userId) return
-        setReportsLoading(true)
-        setReportError('')
-        try {
-            const data = await listPatientReports(userId)
-            setReports(Array.isArray(data) ? data : [])
-        } catch (e) {
-            setReportError(e?.response?.data?.message || e?.message || 'Failed to load reports')
-        } finally {
-            setReportsLoading(false)
-        }
-    }
-
     useEffect(() => {
         load()
-        loadReports()
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [userId])
 
@@ -138,56 +108,6 @@ export default function PatientProfilePage() {
         }
     }
 
-    const upload = async (file) => {
-        if (!userId || !file) return
-        setReportError('')
-        try {
-            await uploadPatientReport(userId, file)
-            await loadReports()
-        } catch (e) {
-            setReportError(e?.response?.data?.message || e?.message || 'Failed to upload report')
-        }
-    }
-
-    const download = async (report) => {
-        if (!userId) return
-        setReportError('')
-        try {
-            const res = await downloadPatientReport(userId, report.id)
-            const blob = new Blob([res.data], { type: report.contentType || 'application/octet-stream' })
-            const url = window.URL.createObjectURL(blob)
-            const a = document.createElement('a')
-            a.href = url
-            a.download = report.originalFileName || 'report'
-            document.body.appendChild(a)
-            a.click()
-            a.remove()
-            window.URL.revokeObjectURL(url)
-        } catch (e) {
-            setReportError(e?.response?.data?.message || e?.message || 'Failed to download report')
-        }
-    }
-
-    const loadHistory = async () => {
-        if (!userId) return
-        try {
-            const data = await getPatientHistory(userId)
-            setHistory(data)
-        } catch (e) {
-            setHistory(e?.response?.data || { message: 'Failed to load history' })
-        }
-    }
-
-    const loadPrescriptions = async () => {
-        if (!userId) return
-        try {
-            const data = await getPatientPrescriptions(userId)
-            setPrescriptions(data)
-        } catch (e) {
-            setPrescriptions(e?.response?.data || { message: 'Failed to load prescriptions' })
-        }
-    }
-
     if (!canUse) {
         return (
             <div className="rounded-xl border p-6" style={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}>
@@ -207,7 +127,7 @@ export default function PatientProfilePage() {
                         My Profile
                     </h1>
                     <p className="text-sm mt-1" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                        Update your personal details and manage your medical documents.
+                        Manage your patient account details.
                     </p>
                 </div>
 
@@ -264,123 +184,6 @@ export default function PatientProfilePage() {
                             <Field label="Country" value={profile?.address?.country || ''} onChange={(v) => updateField('address.country', v)} disabled={loading} />
                         </div>
                     </div>
-                </section>
-            </div>
-
-            <section className="rounded-xl border p-5" style={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}>
-                <div className="flex items-start justify-between gap-4">
-                    <div>
-                        <h2 className="text-base font-semibold" style={{ color: 'hsl(var(--foreground))' }}>Medical Documents</h2>
-                        <p className="text-sm mt-1" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                            Upload PDF/JPG/PNG reports and download them later.
-                        </p>
-                    </div>
-
-                    <label
-                        className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium cursor-pointer"
-                        style={{ backgroundColor: 'hsl(var(--secondary))', color: 'hsl(var(--secondary-foreground))' }}
-                    >
-                        <Upload size={16} />
-                        Upload
-                        <input
-                            type="file"
-                            className="hidden"
-                            accept="application/pdf,image/png,image/jpeg"
-                            onChange={(e) => {
-                                const file = e.target.files?.[0]
-                                e.target.value = ''
-                                upload(file)
-                            }}
-                        />
-                    </label>
-                </div>
-
-                {reportError && (
-                    <p className="text-sm mt-3" style={{ color: 'hsl(var(--destructive))' }}>{reportError}</p>
-                )}
-
-                <div className="mt-4 rounded-lg border overflow-hidden" style={{ borderColor: 'hsl(var(--border))' }}>
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                            <thead>
-                                <tr className="border-b" style={{ borderColor: 'hsl(var(--border))' }}>
-                                    <th className="text-left font-medium px-4 py-3" style={{ color: 'hsl(var(--muted-foreground))' }}>File</th>
-                                    <th className="text-left font-medium px-4 py-3" style={{ color: 'hsl(var(--muted-foreground))' }}>Uploaded</th>
-                                    <th className="text-right font-medium px-4 py-3" style={{ color: 'hsl(var(--muted-foreground))' }}>Action</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {reportsLoading ? (
-                                    <tr>
-                                        <td colSpan={3} className="px-4 py-8 text-center" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                                            Loading...
-                                        </td>
-                                    </tr>
-                                ) : reports.length === 0 ? (
-                                    <tr>
-                                        <td colSpan={3} className="px-4 py-8 text-center" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                                            No reports uploaded.
-                                        </td>
-                                    </tr>
-                                ) : (
-                                    reports.map((r) => (
-                                        <tr key={r.id} className="border-b last:border-b-0" style={{ borderColor: 'hsl(var(--border))' }}>
-                                            <td className="px-4 py-3" style={{ color: 'hsl(var(--foreground))' }}>{r.originalFileName}</td>
-                                            <td className="px-4 py-3" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                                                {r.uploadedAt ? new Date(r.uploadedAt).toLocaleString() : '-'}
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                <div className="flex justify-end">
-                                                    <button
-                                                        onClick={() => download(r)}
-                                                        className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-medium transition-colors"
-                                                        style={{ backgroundColor: 'transparent', borderColor: 'hsl(var(--border))', color: 'hsl(var(--foreground))' }}
-                                                    >
-                                                        <Download size={14} />
-                                                        Download
-                                                    </button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </section>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <section className="rounded-xl border p-5" style={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}>
-                    <div className="flex items-start justify-between gap-4">
-                        <h2 className="text-base font-semibold" style={{ color: 'hsl(var(--foreground))' }}>Appointment History</h2>
-                        <button
-                            onClick={loadHistory}
-                            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-medium transition-colors"
-                            style={{ backgroundColor: 'transparent', borderColor: 'hsl(var(--border))', color: 'hsl(var(--foreground))' }}
-                        >
-                            Load
-                        </button>
-                    </div>
-                    <pre className="mt-3 text-xs whitespace-pre-wrap" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                        {history ? JSON.stringify(history, null, 2) : 'Not loaded'}
-                    </pre>
-                </section>
-
-                <section className="rounded-xl border p-5" style={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}>
-                    <div className="flex items-start justify-between gap-4">
-                        <h2 className="text-base font-semibold" style={{ color: 'hsl(var(--foreground))' }}>Prescriptions</h2>
-                        <button
-                            onClick={loadPrescriptions}
-                            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-medium transition-colors"
-                            style={{ backgroundColor: 'transparent', borderColor: 'hsl(var(--border))', color: 'hsl(var(--foreground))' }}
-                        >
-                            Load
-                        </button>
-                    </div>
-                    <pre className="mt-3 text-xs whitespace-pre-wrap" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                        {prescriptions ? JSON.stringify(prescriptions, null, 2) : 'Not loaded'}
-                    </pre>
                 </section>
             </div>
         </div>

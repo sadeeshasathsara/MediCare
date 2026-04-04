@@ -14,6 +14,10 @@ import RegisterPage from '@/features/auth/pages/RegisterPage'
 // ── Patients (Member 1) ────────────────────────────────
 import PatientDashboard from '@/features/patients/pages/PatientDashboard'
 import PatientProfilePage from '@/features/patients/pages/PatientProfilePage'
+import PatientReportsPage from '@/features/patients/pages/PatientReportsPage'
+import PatientHistoryPage from '@/features/patients/pages/PatientHistoryPage'
+import PatientPrescriptionsPage from '@/features/patients/pages/PatientPrescriptionsPage'
+import AdminPatientsPage from '@/features/patients/pages/AdminPatientsPage'
 
 // ── Doctors (Member 2) ─────────────────────────────────
 import DoctorDashboard from '@/features/doctors/pages/DoctorDashboard'
@@ -24,7 +28,6 @@ import AppointmentsPage from '@/features/appointments/pages/AppointmentsPage'
 import TelemedicinePage from '@/features/telemedicine/pages/TelemedicinePage'
 import PaymentsPage from '@/features/payments/pages/PaymentsPage'
 import NotificationsPage from '@/features/notifications/pages/NotificationsPage'
-import SymptomCheckerPage from '@/features/ai-symptom/pages/SymptomCheckerPage'
 
 // ── Appointments (Member 2) ────────────────────────────
 // import AppointmentList from '@/features/appointments/pages/AppointmentList'
@@ -45,12 +48,9 @@ import SymptomCheckerPage from '@/features/ai-symptom/pages/SymptomCheckerPage'
 // --- Navigation Links for Top Nav ---
 const patientLinks = [
   { label: 'Dashboard', path: '/patient/dashboard' },
-  { label: 'Appointments', path: '/patient/appointments' },
-  { label: 'Telemedicine', path: '/patient/telemedicine' },
-  { label: 'Payments', path: '/patient/payments' },
-  { label: 'Notifications', path: '/patient/notifications' },
-  { label: 'AI Symptom', path: '/patient/symptom-checker' },
-  { label: 'Profile', path: '/patient/profile' },
+  { label: 'Reports', path: '/patient/reports' },
+  { label: 'History', path: '/patient/history' },
+  { label: 'Prescriptions', path: '/patient/prescriptions' },
 ]
 
 const doctorLinks = [
@@ -59,7 +59,6 @@ const doctorLinks = [
   { label: 'Telemedicine', path: '/doctor/telemedicine' },
   { label: 'Payments', path: '/doctor/payments' },
   { label: 'Notifications', path: '/doctor/notifications' },
-  { label: 'Profile', path: '/doctor/profile' },
 ]
 
 export default function AppRoutes() {
@@ -133,6 +132,7 @@ export default function AppRoutes() {
       {/* Admin Routes — wrapped in AdminLayout */}
       <Route path="/admin/create-admin" element={requireAdmin(<AdminLayout><CreateAdminPage /></AdminLayout>)} />
       <Route path="/admin/pending-doctors" element={requireAdmin(<AdminLayout><PendingDoctorsPage /></AdminLayout>)} />
+      <Route path="/patients" element={requireAdmin(<AdminLayout><AdminPatientsPage /></AdminLayout>)} />
 
       {/* Patient Routes — wrapped in TopNavLayout */}
       <Route
@@ -140,28 +140,20 @@ export default function AppRoutes() {
         element={requireRole('PATIENT', <TopNavLayout navLinks={patientLinks}><PatientDashboard /></TopNavLayout>)}
       />
       <Route
-        path="/patient/appointments"
-        element={requireRole('PATIENT', <TopNavLayout navLinks={patientLinks}><AppointmentsPage /></TopNavLayout>)}
-      />
-      <Route
-        path="/patient/telemedicine"
-        element={requireRole('PATIENT', <TopNavLayout navLinks={patientLinks}><TelemedicinePage /></TopNavLayout>)}
-      />
-      <Route
-        path="/patient/payments"
-        element={requireRole('PATIENT', <TopNavLayout navLinks={patientLinks}><PaymentsPage /></TopNavLayout>)}
-      />
-      <Route
-        path="/patient/notifications"
-        element={requireRole('PATIENT', <TopNavLayout navLinks={patientLinks}><NotificationsPage /></TopNavLayout>)}
-      />
-      <Route
-        path="/patient/symptom-checker"
-        element={requireRole('PATIENT', <TopNavLayout navLinks={patientLinks}><SymptomCheckerPage /></TopNavLayout>)}
-      />
-      <Route
         path="/patient/profile"
         element={requireRole('PATIENT', <TopNavLayout navLinks={patientLinks}><PatientProfilePage /></TopNavLayout>)}
+      />
+      <Route
+        path="/patient/reports"
+        element={requireRole('PATIENT', <TopNavLayout navLinks={patientLinks}><PatientReportsPage /></TopNavLayout>)}
+      />
+      <Route
+        path="/patient/history"
+        element={requireRole('PATIENT', <TopNavLayout navLinks={patientLinks}><PatientHistoryPage /></TopNavLayout>)}
+      />
+      <Route
+        path="/patient/prescriptions"
+        element={requireRole('PATIENT', <TopNavLayout navLinks={patientLinks}><PatientPrescriptionsPage /></TopNavLayout>)}
       />
 
       {/* Doctor Routes — wrapped in TopNavLayout */}
