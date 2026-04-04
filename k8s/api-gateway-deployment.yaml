@@ -14,8 +14,13 @@ data:
             location /api/auth/ {
                 proxy_pass http://auth-service:3001/;
             }
+        location /api/patients/admin/ {
+          rewrite ^/api/patients/admin/(.*)$ /admin/$1 break;
+          proxy_pass http://patient-service:3002;
+        }
             location /api/patients/ {
-                proxy_pass http://patient-service:3002/;
+          rewrite ^/api/patients/(.*)$ /patients/$1 break;
+          proxy_pass http://patient-service:3002;
             }
             location /api/doctors/ {
                 proxy_pass http://doctor-service:3003/;

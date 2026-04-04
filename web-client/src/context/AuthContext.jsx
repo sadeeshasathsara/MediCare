@@ -1,31 +1,56 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useContext, useState, useEffect } from 'react'
+import { createContext, useContext, useState } from 'react'
 
 const AuthContext = createContext(null)
 
-export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null)
-  const [token, setToken] = useState(localStorage.getItem('token'))
-  const [loading, setLoading] = useState(true)
+function base64UrlDecode(input) {
+  if (!input) throw new Error('missing jwt payload')
+  let s = input.replace(/-/g, '+').replace(/_/g, '/')
+  const pad = s.length % 4
+  if (pad === 2) s += '=='
+  else if (pad === 3) s += '='
+  else if (pad !== 0) throw new Error('invalid base64url')
+  return atob(s)
+}
 
-  useEffect(() => {
-    if (token) {
-      // Decode JWT payload to get user info
-      try {
-        const payload = JSON.parse(atob(token.split('.')[1]))
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        setUser(payload)
-      } catch {
-        setToken(null)
-        localStorage.removeItem('token')
-      }
+function decodeJwtPayload(token) {
+  if (!token) return null
+  try {
+    const payloadPart = token.split('.')[1]
+    const payloadJson = base64UrlDecode(payloadPart)
+    return JSON.parse(payloadJson)
+  } catch {
+    return null
+  }
+}
+
+export function AuthProvider({ children }) {
+  const [token, setToken] = useState(() => {
+    const stored = localStorage.getItem('token')
+    const payload = decodeJwtPayload(stored)
+    if (!payload) {
+      localStorage.removeItem('token')
+      return null
     }
-    setLoading(false)
-  }, [token])
+    return stored
+  })
+
+  const [user, setUser] = useState(() => {
+    const stored = localStorage.getItem('token')
+    return decodeJwtPayload(stored)
+  })
+
+  const loading = false
 
   const login = (newToken) => {
+    const payload = decodeJwtPayload(newToken)
+    if (!payload) {
+      throw new Error('Invalid token')
+    }
+
     localStorage.setItem('token', newToken)
     setToken(newToken)
+    setUser(payload)
   }
 
   const logout = () => {

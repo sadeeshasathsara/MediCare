@@ -8,8 +8,8 @@ import LoginPage from '@/features/auth/pages/LoginPage'
 // import RegisterPage from '@/features/auth/pages/RegisterPage'
 
 // ── Patients (Member 1) ────────────────────────────────
-// import PatientDashboard from '@/features/patients/pages/PatientDashboard'
-// import PatientProfile from '@/features/patients/pages/PatientProfile'
+import AdminPatientsPage from '@/features/patients/pages/AdminPatientsPage'
+import PatientProfilePage from '@/features/patients/pages/PatientProfilePage'
 
 // ── Doctors (Member 2) ─────────────────────────────────
 // import DoctorDashboard from '@/features/doctors/pages/DoctorDashboard'
@@ -32,11 +32,9 @@ import LoginPage from '@/features/auth/pages/LoginPage'
 // import SymptomChecker from '@/features/ai-symptom/pages/SymptomChecker'
 
 // --- Navigation Links for Top Nav ---
-// const patientLinks = [
-//   { label: 'My Dashboard', path: '/patient/dashboard' },
-//   { label: 'My Appointments', path: '/patient/appointments' },
-//   { label: 'My Records', path: '/patient/records' },
-// ]
+const patientLinks = [
+  { label: 'My Profile', path: '/patient/profile' },
+]
 
 // const doctorLinks = [
 //   { label: 'Doctor Dashboard', path: '/doctor/dashboard' },
@@ -53,10 +51,10 @@ export default function AppRoutes() {
 
       {/* Admin Routes — wrapped in AdminLayout */}
       <Route path="/" element={<AdminLayout><DashboardPage /></AdminLayout>} />
-      
+      <Route path="/patients" element={<AdminLayout><AdminPatientsPage /></AdminLayout>} />
+
       {/* Patient Routes — wrapped in TopNavLayout */}
-      {/* <Route path="/patient/dashboard" element={<TopNavLayout navLinks={patientLinks}><PatientDashboard /></TopNavLayout>} /> */}
-      {/* <Route path="/patient/profile" element={<TopNavLayout navLinks={patientLinks}><PatientProfile /></TopNavLayout>} /> */}
+      <Route path="/patient/profile" element={<TopNavLayout navLinks={patientLinks}><PatientProfilePage /></TopNavLayout>} />
 
       {/* Doctor Routes — wrapped in TopNavLayout */}
       {/* <Route path="/doctor/dashboard" element={<TopNavLayout navLinks={doctorLinks}><DoctorDashboard /></TopNavLayout>} /> */}
