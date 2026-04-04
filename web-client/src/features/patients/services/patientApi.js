@@ -21,6 +21,20 @@ export async function uploadPatientReport(userId, file) {
     return data
 }
 
+export async function uploadPatientReportToFolder(userId, file, folderId) {
+    const form = new FormData()
+    form.append('file', file)
+    const { data } = await api.post(`/patients/${encodeURIComponent(userId)}/reports`, form, {
+        params: {
+            folderId: folderId || undefined,
+        },
+        headers: {
+            'Content-Type': 'multipart/form-data',
+        },
+    })
+    return data
+}
+
 export async function listPatientReports(userId) {
     const { data } = await api.get(`/patients/${encodeURIComponent(userId)}/reports`)
     return data
@@ -31,6 +45,50 @@ export async function downloadPatientReport(userId, reportId) {
         responseType: 'blob',
     })
     return res
+}
+
+export async function listPatientReportFolders(userId) {
+    const { data } = await api.get(`/patients/${encodeURIComponent(userId)}/report-folders`)
+    return data
+}
+
+export async function createPatientReportFolder(userId, payload) {
+    const { data } = await api.post(`/patients/${encodeURIComponent(userId)}/report-folders`, payload)
+    return data
+}
+
+export async function updatePatientReportFolder(userId, folderId, payload) {
+    const { data } = await api.patch(
+        `/patients/${encodeURIComponent(userId)}/report-folders/${encodeURIComponent(folderId)}`,
+        payload,
+    )
+    return data
+}
+
+export async function deletePatientReportFolder(userId, folderId) {
+    const { data } = await api.delete(`/patients/${encodeURIComponent(userId)}/report-folders/${encodeURIComponent(folderId)}`)
+    return data
+}
+
+export async function updatePatientReport(userId, reportId, payload) {
+    const { data } = await api.patch(
+        `/patients/${encodeURIComponent(userId)}/reports/${encodeURIComponent(reportId)}`,
+        payload,
+    )
+    return data
+}
+
+export async function deletePatientReport(userId, reportId) {
+    const { data } = await api.delete(`/patients/${encodeURIComponent(userId)}/reports/${encodeURIComponent(reportId)}`)
+    return data
+}
+
+export async function copyPatientReport(userId, reportId, payload) {
+    const { data } = await api.post(
+        `/patients/${encodeURIComponent(userId)}/reports/${encodeURIComponent(reportId)}/copy`,
+        payload || {},
+    )
+    return data
 }
 
 export async function getPatientHistory(userId) {

@@ -25,6 +25,15 @@ public class PatientReport {
 
     private Instant uploadedAt;
 
+    @Indexed
+    private String folderId; // null/blank => Uncategorized
+
+    private String displayFileName; // optional user-friendly name
+
+    private Instant deletedAt; // soft delete
+
+    private String sourceReportId; // for copies/aliases
+
     public String getId() {
         return id;
     }
@@ -79,5 +88,37 @@ public class PatientReport {
 
     public void setUploadedAt(Instant uploadedAt) {
         this.uploadedAt = uploadedAt;
+    }
+
+    public String getFolderId() {
+        return folderId;
+    }
+
+    public void setFolderId(String folderId) {
+        this.folderId = folderId;
+    }
+
+    public String getDisplayFileName() {
+        return displayFileName;
+    }
+
+    public void setDisplayFileName(String displayFileName) {
+        this.displayFileName = displayFileName;
+    }
+
+    public Instant getDeletedAt() {
+        return deletedAt;
+    }
+
+    public void setDeletedAt(Instant deletedAt) {
+        this.deletedAt = deletedAt;
+    }
+
+    public String getSourceReportId() {
+        return sourceReportId;
+    }
+
+    public void setSourceReportId(String sourceReportId) {
+        this.sourceReportId = sourceReportId;
     }
 }

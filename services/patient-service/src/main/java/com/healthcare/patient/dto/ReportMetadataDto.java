@@ -10,6 +10,10 @@ public class ReportMetadataDto {
     private long size;
     private Instant uploadedAt;
 
+    private String folderId;
+
+    private String displayFileName;
+
     public String getId() {
         return id;
     }
@@ -56,5 +60,21 @@ public class ReportMetadataDto {
 
     public void setUploadedAt(Instant uploadedAt) {
         this.uploadedAt = uploadedAt;
+    }
+
+    public String getFolderId() {
+        return folderId;
+    }
+
+    public void setFolderId(String folderId) {
+        this.folderId = folderId;
+    }
+
+    public String getDisplayFileName() {
+        return displayFileName;
+    }
+
+    public void setDisplayFileName(String displayFileName) {
+        this.displayFileName = displayFileName;
     }
 }

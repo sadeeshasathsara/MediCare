@@ -1,9 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useAuth } from '@/context/AuthContext'
 import {
+    copyPatientReport,
+    createPatientReportFolder,
+    deletePatientReport,
+    deletePatientReportFolder,
     downloadPatientReport,
     listPatientReports,
+    listPatientReportFolders,
+    updatePatientReport,
+    updatePatientReportFolder,
     uploadPatientReport,
+    uploadPatientReportToFolder,
 } from '@/features/patients/services/patientApi'
 import { Download, Upload, RefreshCcw, Folder, MoreVertical, Plus } from 'lucide-react'
 
@@ -111,6 +120,7 @@ export default function PatientReportsPage() {
     // contextMenu: { x, y, kind: 'background'|'folder'|'file', targetId, folderIdForPaste }
 
     const longPressTimerRef = useRef(null)
+    const uploadInputRef = useRef(null)
 
     const [reviewOpen, setReviewOpen] = useState(false)
     const [pendingFiles, setPendingFiles] = useState([])
@@ -126,18 +136,39 @@ export default function PatientReportsPage() {
         return window.matchMedia('(pointer: coarse)').matches
     }, [])
 
+    const loadFolders = async () => {
+        if (!userId) return []
+        try {
+            const data = await listPatientReportFolders(userId)
+            const list = Array.isArray(data) ? data : []
+            const mapped = list
+                .filter((f) => f && typeof f.id === 'string' && typeof f.name === 'string')
+                .map((f) => ({
+                    id: f.id,
+                    name: f.name,
+                    parentId: typeof f.parentId === 'string' && f.parentId ? f.parentId : ALL_FOLDER_ID,
+                }))
+            setFolders(mapped)
+            return mapped
+        } catch (e) {
+            setError(e?.response?.data?.message || e?.message || 'Failed to load folders')
+            setFolders([])
+            return []
+        }
+    }
+
     useEffect(() => {
         if (!userId) return
-        const state = loadFolderState(userId)
-        setFolders(state.folders)
-        setAssignments(state.assignments)
-        setHiddenReportIds(state.hiddenReportIds)
-        setShortcuts(state.shortcuts)
-        setNameOverrides(state.nameOverrides)
         setCurrentFolderId(ALL_FOLDER_ID)
         setSelectedFolderIds([])
         setSelectedFileIds([])
         setClipboard(null)
+        setAssignments({})
+        setHiddenReportIds([])
+        setShortcuts([])
+        setNameOverrides({})
+        loadFolders()
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [userId])
 
     useEffect(() => {
@@ -169,15 +200,8 @@ export default function PatientReportsPage() {
         }
     }, [folderMenuOpenId, fileMenuOpenId, contextMenu])
 
-    const persist = (nextFolders, nextAssignments, nextHiddenReportIds, nextShortcuts, nextNameOverrides) => {
-        if (!userId) return
-        saveFolderState(userId, {
-            folders: nextFolders,
-            assignments: nextAssignments,
-            hiddenReportIds: nextHiddenReportIds,
-            shortcuts: nextShortcuts,
-            nameOverrides: nextNameOverrides,
-        })
+    const persist = () => {
+        // Folders and report organization are persisted in the backend now.
     }
 
     const folderById = useMemo(() => {
@@ -215,19 +239,16 @@ export default function PatientReportsPage() {
         return parts.reverse().join(' / ')
     }
 
-    const ensureAssignmentsValid = (reportList) => {
-        const reportIds = new Set((reportList || []).map((r) => r?.id).filter(Boolean))
+    const syncAssignmentsFromReports = (reportList) => {
         const validFolderIds = new Set(folders.map((f) => f.id))
         const next = {}
-        for (const [reportId, folderId] of Object.entries(assignments)) {
-            if (!reportIds.has(reportId)) continue
-            if (folderId === UNCATEGORIZED_FOLDER_ID) continue
-            if (validFolderIds.has(folderId)) next[reportId] = folderId
+        for (const r of reportList || []) {
+            const reportId = r?.id
+            if (!reportId) continue
+            const folderId = typeof r.folderId === 'string' && r.folderId ? r.folderId : null
+            if (folderId && validFolderIds.has(folderId)) next[reportId] = folderId
         }
-        if (JSON.stringify(next) !== JSON.stringify(assignments)) {
-            setAssignments(next)
-            persist(folders, next, hiddenReportIds, shortcuts, nameOverrides)
-        }
+        setAssignments(next)
     }
 
     const load = async () => {
@@ -254,7 +275,7 @@ export default function PatientReportsPage() {
 
     useEffect(() => {
         if (!userId) return
-        ensureAssignmentsValid(reports)
+        syncAssignmentsFromReports(reports)
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [reports, folders.length])
 
@@ -340,32 +361,12 @@ export default function PatientReportsPage() {
         setUploading(true)
         setError('')
         try {
-            const createdIds = []
+            const folderId = isRealFolderId(pendingFolderId) ? pendingFolderId : null
             for (const f of pendingFiles) {
-                const created = await uploadPatientReport(userId, f)
-                if (created?.id) createdIds.push(created.id)
+                await uploadPatientReportToFolder(userId, f, folderId)
             }
 
-            const list = await load()
-
-            const nextAssignments = { ...assignments }
-
-            // Best-effort assignment: use returned ids when available; otherwise match by filename.
-            for (const id of createdIds) {
-                nextAssignments[id] = pendingFolderId
-            }
-
-            const missing = pendingFiles.filter((f) => !createdIds.length || !createdIds.includes(f?.id))
-            for (const f of missing) {
-                if (!f?.name) continue
-                const matches = (list || []).filter((r) => r?.originalFileName === f.name)
-                matches.sort((a, b) => new Date(b?.uploadedAt || 0).getTime() - new Date(a?.uploadedAt || 0).getTime())
-                const matchId = matches?.[0]?.id
-                if (matchId && !nextAssignments[matchId]) nextAssignments[matchId] = pendingFolderId
-            }
-
-            setAssignments(nextAssignments)
-            persist(folders, nextAssignments, hiddenReportIds, shortcuts, nameOverrides)
+            await load()
             closeReview()
         } catch (e) {
             setError(e?.response?.data?.message || e?.message || 'Failed to upload report')
@@ -399,17 +400,9 @@ export default function PatientReportsPage() {
             const folderId = fileFolderId(r?.id)
             counts[folderId] = (counts[folderId] || 0) + 1
         }
-
-        for (const s of shortcuts) {
-            if (!s?.id || !s?.reportId || !s?.folderId) continue
-            if (hiddenSet.has(s.reportId)) continue
-            const folderId = s.folderId
-            if (folderId === ALL_FOLDER_ID) continue
-            counts[folderId] = (counts[folderId] || 0) + 1
-        }
         return counts
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [reports, assignments, folders, hiddenReportIds, shortcuts])
+    }, [reports, assignments, folders, hiddenReportIds])
 
     const reportById = useMemo(() => {
         const map = new Map()
@@ -434,20 +427,9 @@ export default function PatientReportsPage() {
             }
             items.push({ kind: 'report', id: `report:${r.id}`, reportId: r.id, report: r })
         }
-
-        for (const s of shortcuts) {
-            if (!s?.id || !s?.reportId || !s?.folderId) continue
-            if (hiddenSet.has(s.reportId)) continue
-            const targetFolderId = s.folderId === ALL_FOLDER_ID ? UNCATEGORIZED_FOLDER_ID : s.folderId
-            if (targetFolderId !== destination) continue
-            const report = reportById.get(s.reportId)
-            if (!report) continue
-            items.push({ kind: 'shortcut', id: `shortcut:${s.id}`, shortcutId: s.id, reportId: s.reportId, report })
-        }
-
         return items
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [reports, currentFolderId, assignments, folders, hiddenReportIds, shortcuts, reportById])
+    }, [reports, currentFolderId, assignments, folders, hiddenReportIds, reportById])
 
     const currentFolderName = useMemo(() => {
         if (currentFolderId === ALL_FOLDER_ID) return 'Reports'
@@ -463,15 +445,31 @@ export default function PatientReportsPage() {
         setContextMenu(null)
     }
 
-    const createFolder = (name, parentId) => {
+    const createFolder = async (name, parentId) => {
         const trimmed = (name || '').trim()
         if (!trimmed) return null
-        const id = newId()
-        const normalizedParent = isRealFolderId(parentId) ? parentId : ALL_FOLDER_ID
-        const nextFolders = [...folders, { id, name: trimmed, parentId: normalizedParent }]
-        setFolders(nextFolders)
-        persist(nextFolders, assignments, hiddenReportIds, shortcuts, nameOverrides)
-        return id
+        if (!userId) return null
+
+        const normalizedParent = isRealFolderId(parentId) ? parentId : null
+
+        const created = await createPatientReportFolder(userId, {
+            name: trimmed,
+            parentId: normalizedParent,
+        })
+
+        const mapped = {
+            id: created.id,
+            name: created.name,
+            parentId: typeof created.parentId === 'string' && created.parentId ? created.parentId : ALL_FOLDER_ID,
+        }
+
+        setFolders((prev) => {
+            const next = (prev || []).filter((f) => f?.id !== mapped.id)
+            next.push(mapped)
+            return next
+        })
+
+        return mapped.id
     }
 
     const isSystemFolder = (folderId) => folderId === UNCATEGORIZED_FOLDER_ID || folderId === ALL_FOLDER_ID
@@ -509,27 +507,37 @@ export default function PatientReportsPage() {
         setRenameOpen(true)
     }
 
-    const confirmRename = () => {
+    const confirmRename = async () => {
         const id = renameTargetId
         const name = renameValue.trim()
-        if (!id || !name) return
+        if (!id || !name || !userId) return
 
-        if (renameTargetKind === 'folder') {
-            if (isSystemFolder(id)) return
-            const nextFolders = folders.map((f) => (f.id === id ? { ...f, name } : f))
-            setFolders(nextFolders)
-            persist(nextFolders, assignments, hiddenReportIds, shortcuts, nameOverrides)
-        } else if (renameTargetKind === 'file') {
-            const nextOverrides = { ...nameOverrides, [id]: name }
-            setNameOverrides(nextOverrides)
-            persist(folders, assignments, hiddenReportIds, shortcuts, nextOverrides)
+        setError('')
+
+        try {
+            if (renameTargetKind === 'folder') {
+                if (isSystemFolder(id)) return
+                const updated = await updatePatientReportFolder(userId, id, { name })
+                const mapped = {
+                    id: updated.id,
+                    name: updated.name,
+                    parentId: typeof updated.parentId === 'string' && updated.parentId ? updated.parentId : ALL_FOLDER_ID,
+                }
+                setFolders((prev) => (prev || []).map((f) => (f.id === id ? mapped : f)))
+            } else if (renameTargetKind === 'file') {
+                const reportId = id.startsWith('report:') ? id.slice('report:'.length) : id
+                await updatePatientReport(userId, reportId, { displayFileName: name })
+                setReports((prev) => (prev || []).map((r) => (r?.id === reportId ? { ...r, displayFileName: name } : r)))
+            }
+
+            setRenameOpen(false)
+            setRenameTargetId(null)
+            setRenameTargetKind(null)
+            setFolderMenuOpenId(null)
+            setFileMenuOpenId(null)
+        } catch (e) {
+            setError(e?.response?.data?.message || e?.message || 'Failed to rename')
         }
-
-        setRenameOpen(false)
-        setRenameTargetId(null)
-        setRenameTargetKind(null)
-        setFolderMenuOpenId(null)
-        setFileMenuOpenId(null)
     }
 
     const openDelete = (ids) => {
@@ -555,46 +563,35 @@ export default function PatientReportsPage() {
         return Array.from(result)
     }
 
-    const confirmDelete = () => {
+    const confirmDelete = async () => {
+        if (!userId) return
         const idsToDelete = collectDescendants(deleteTargetIds).filter((id) => !isSystemFolder(id))
         if (idsToDelete.length === 0) {
             setDeleteOpen(false)
             return
         }
 
-        const idSet = new Set(idsToDelete)
-        const nextFolders = folders.filter((f) => !idSet.has(f.id))
-        const nextAssignments = { ...assignments }
-        const reportIdsToHide = []
-
-        for (const r of reports) {
-            const reportId = r?.id
-            if (!reportId) continue
-            const folderId = assignments?.[reportId]
-            if (folderId && idSet.has(folderId)) {
-                reportIdsToHide.push(reportId)
-                delete nextAssignments[reportId]
+        setError('')
+        try {
+            // Delete each selected folder root; backend cascades descendants + soft-deletes reports inside.
+            const unique = Array.from(new Set(idsToDelete))
+            for (const id of unique) {
+                await deletePatientReportFolder(userId, id)
             }
+
+            if (unique.includes(currentFolderId)) {
+                setCurrentFolderId(ALL_FOLDER_ID)
+            }
+
+            setSelectedFolderIds([])
+            setDeleteOpen(false)
+            setDeleteTargetIds([])
+            setFolderMenuOpenId(null)
+
+            await Promise.all([loadFolders(), load()])
+        } catch (e) {
+            setError(e?.response?.data?.message || e?.message || 'Failed to delete folder')
         }
-
-        const nextHidden = Array.from(new Set([...hiddenReportIds, ...reportIdsToHide]))
-
-        const nextShortcuts = shortcuts.filter((s) => !idSet.has(s.folderId))
-
-        setFolders(nextFolders)
-        setAssignments(nextAssignments)
-        setHiddenReportIds(nextHidden)
-        setShortcuts(nextShortcuts)
-        persist(nextFolders, nextAssignments, nextHidden, nextShortcuts, nameOverrides)
-
-        if (idSet.has(currentFolderId)) {
-            setCurrentFolderId(ALL_FOLDER_ID)
-        }
-
-        setSelectedFolderIds([])
-        setDeleteOpen(false)
-        setDeleteTargetIds([])
-        setFolderMenuOpenId(null)
     }
 
     const deleteSelectedFiles = () => {
@@ -602,42 +599,28 @@ export default function PatientReportsPage() {
         deleteFileIds(selectedFileIds)
     }
 
-    const deleteFileIds = (fileIds) => {
+    const deleteFileIds = async (fileIds) => {
         const ids = (fileIds || []).filter(Boolean)
-        if (ids.length === 0) return
-        const nextAssignments = { ...assignments }
-        const nextShortcuts = [...shortcuts]
-        const nextHidden = new Set(hiddenReportIds)
-        const nextOverrides = { ...nameOverrides }
+        if (ids.length === 0 || !userId) return
 
-        for (const fid of ids) {
-            if (fid.startsWith('shortcut:')) {
-                const sid = fid.slice('shortcut:'.length)
-                const idx = nextShortcuts.findIndex((s) => s.id === sid)
-                if (idx >= 0) nextShortcuts.splice(idx, 1)
-                delete nextOverrides[fid]
-            } else if (fid.startsWith('report:')) {
-                const rid = fid.slice('report:'.length)
-                nextHidden.add(rid)
-                delete nextAssignments[rid]
-                delete nextOverrides[fid]
+        setError('')
+        try {
+            for (const fid of ids) {
+                const reportId = fid.startsWith('report:') ? fid.slice('report:'.length) : fid
+                if (!reportId) continue
+                await deletePatientReport(userId, reportId)
             }
-        }
 
-        const hiddenList = Array.from(nextHidden)
-        setAssignments(nextAssignments)
-        setHiddenReportIds(hiddenList)
-        setShortcuts(nextShortcuts)
-        setNameOverrides(nextOverrides)
-        persist(folders, nextAssignments, hiddenList, nextShortcuts, nextOverrides)
-        setSelectedFileIds((prev) => prev.filter((id) => !ids.includes(id)))
-        setFileMenuOpenId(null)
+            setSelectedFileIds((prev) => prev.filter((id) => !ids.includes(id)))
+            setFileMenuOpenId(null)
+            await load()
+        } catch (e) {
+            setError(e?.response?.data?.message || e?.message || 'Failed to delete file')
+        }
     }
 
     const fileDisplayName = (fileItem) => {
-        const key = fileItem?.id
-        const override = key ? nameOverrides?.[key] : ''
-        return override || fileItem?.report?.originalFileName || 'Report'
+        return fileItem?.report?.displayFileName || fileItem?.report?.originalFileName || 'Report'
     }
 
     const destinationFolderForFiles = () => (isRealFolderId(currentFolderId) ? currentFolderId : UNCATEGORIZED_FOLDER_ID)
@@ -683,116 +666,111 @@ export default function PatientReportsPage() {
         return { destParent: ALL_FOLDER_ID, destFileFolder: UNCATEGORIZED_FOLDER_ID }
     }
 
-    const pasteWithDestination = (destParent, destFileFolder) => {
-        if (!clipboard) return
+    const pasteWithDestination = async (destParent, destFileFolder) => {
+        if (!clipboard || !userId) return
         const mode = clipboard.mode
 
-        // Folders
-        if (clipboard.folderIds?.length) {
-            const roots = clipboard.folderIds.filter((id) => isRealFolderId(id))
+        setError('')
+        try {
+            const normalizedDestParent = isRealFolderId(destParent) ? destParent : null
+            const normalizedDestFileFolder = isRealFolderId(destFileFolder) ? destFileFolder : null
 
-            if (mode === 'cut') {
-                // Prevent moving a folder into itself/its descendants.
-                const forbidden = new Set(collectDescendants(roots))
-                if (forbidden.has(destParent)) {
-                    setError('Cannot move a folder into itself.')
-                } else {
-                    const nextFolders = folders.map((f) => (roots.includes(f.id) ? { ...f, parentId: destParent } : f))
-                    setFolders(nextFolders)
-                    persist(nextFolders, assignments, hiddenReportIds, shortcuts, nameOverrides)
-                }
-            } else if (mode === 'copy') {
-                const toCopy = collectDescendants(roots)
-                const mapOldToNew = new Map()
-                for (const id of toCopy) mapOldToNew.set(id, newId())
+            // Folders
+            if (clipboard.folderIds?.length) {
+                const roots = clipboard.folderIds.filter((id) => isRealFolderId(id))
 
-                const nextFolders = [...folders]
-                for (const oldId of toCopy) {
-                    const old = folders.find((f) => f.id === oldId)
-                    if (!old) continue
-                    const newIdVal = mapOldToNew.get(oldId)
-                    const oldParent = old.parentId
-                    const newParent = roots.includes(oldId) ? destParent : mapOldToNew.get(oldParent) || destParent
-                    nextFolders.push({ id: newIdVal, name: old.name, parentId: newParent })
-                }
+                if (mode === 'cut') {
+                    // Prevent moving a folder into itself/its descendants.
+                    const forbidden = new Set(collectDescendants(roots))
+                    if (normalizedDestParent && forbidden.has(normalizedDestParent)) {
+                        setError('Cannot move a folder into itself.')
+                    } else {
+                        for (const id of roots) {
+                            await updatePatientReportFolder(userId, id, { parentId: normalizedDestParent })
+                        }
+                    }
+                } else if (mode === 'copy') {
+                    const toCopy = collectDescendants(roots)
 
-                const nextShortcuts = [...shortcuts]
-                // Copy contents: create shortcuts for reports assigned in copied folders.
-                for (const r of reports) {
-                    const rid = r?.id
-                    if (!rid || hiddenSet.has(rid)) continue
-                    const folderId = assignments?.[rid] || UNCATEGORIZED_FOLDER_ID
-                    if (!toCopy.includes(folderId)) continue
-                    const newFolderId = mapOldToNew.get(folderId)
-                    if (!newFolderId) continue
-                    nextShortcuts.push({ id: newId(), reportId: rid, folderId: newFolderId })
-                }
+                    const depthOf = (id) => {
+                        let d = 0
+                        let cur = folderById.get(id)
+                        const seen = new Set()
+                        while (cur && cur.parentId && cur.parentId !== ALL_FOLDER_ID && !seen.has(cur.parentId)) {
+                            seen.add(cur.parentId)
+                            d += 1
+                            cur = folderById.get(cur.parentId)
+                        }
+                        return d
+                    }
 
-                for (const s of shortcuts) {
-                    if (!s?.id || !s?.reportId || !s?.folderId) continue
-                    if (!toCopy.includes(s.folderId)) continue
-                    const newFolderId = mapOldToNew.get(s.folderId)
-                    if (!newFolderId) continue
-                    nextShortcuts.push({ id: newId(), reportId: s.reportId, folderId: newFolderId })
-                }
+                    const ordered = [...toCopy].sort((a, b) => depthOf(a) - depthOf(b))
+                    const mapOldToNew = new Map()
 
-                setFolders(nextFolders)
-                setShortcuts(nextShortcuts)
-                persist(nextFolders, assignments, hiddenReportIds, nextShortcuts, nameOverrides)
-            }
-        }
+                    for (const oldId of ordered) {
+                        const old = folderById.get(oldId)
+                        if (!old) continue
+                        const oldParent = old.parentId
+                        const newParent = roots.includes(oldId)
+                            ? normalizedDestParent
+                            : (mapOldToNew.get(oldParent) || normalizedDestParent)
 
-        // Files
-        if (clipboard.fileIds?.length) {
-            const nextAssignments = { ...assignments }
-            const nextShortcuts = [...shortcuts]
-            const dest = destFileFolder
+                        const created = await createPatientReportFolder(userId, {
+                            name: old.name,
+                            parentId: newParent || undefined,
+                        })
+                        mapOldToNew.set(oldId, created.id)
+                    }
 
-            if (mode === 'cut') {
-                for (const fid of clipboard.fileIds) {
-                    if (fid.startsWith('shortcut:')) {
-                        const sid = fid.slice('shortcut:'.length)
-                        const s = nextShortcuts.find((x) => x.id === sid)
-                        if (s) s.folderId = dest
-                    } else if (fid.startsWith('report:')) {
-                        const rid = fid.slice('report:'.length)
-                        nextAssignments[rid] = dest
+                    // Copy reports in the folder tree.
+                    for (const r of reports) {
+                        if (!r?.id) continue
+                        const folderId = typeof r.folderId === 'string' && r.folderId ? r.folderId : null
+                        if (!folderId || !toCopy.includes(folderId)) continue
+                        const newFolderId = mapOldToNew.get(folderId)
+                        if (!newFolderId) continue
+                        await copyPatientReport(userId, r.id, { folderId: newFolderId })
                     }
                 }
-                setAssignments(nextAssignments)
-                setShortcuts(nextShortcuts)
-                persist(folders, nextAssignments, hiddenReportIds, nextShortcuts, nameOverrides)
-            } else if (mode === 'copy') {
-                for (const fid of clipboard.fileIds) {
-                    if (fid.startsWith('shortcut:')) {
-                        const sid = fid.slice('shortcut:'.length)
-                        const s = shortcuts.find((x) => x.id === sid)
-                        if (s) nextShortcuts.push({ id: newId(), reportId: s.reportId, folderId: dest })
-                    } else if (fid.startsWith('report:')) {
-                        const rid = fid.slice('report:'.length)
-                        nextShortcuts.push({ id: newId(), reportId: rid, folderId: dest })
+            }
+
+            // Files
+            if (clipboard.fileIds?.length) {
+                const reportIds = clipboard.fileIds
+                    .map((fid) => (fid.startsWith('report:') ? fid.slice('report:'.length) : fid))
+                    .filter(Boolean)
+
+                if (mode === 'cut') {
+                    for (const rid of reportIds) {
+                        await updatePatientReport(userId, rid, { folderId: normalizedDestFileFolder })
+                    }
+                } else if (mode === 'copy') {
+                    for (const rid of reportIds) {
+                        await copyPatientReport(userId, rid, { folderId: normalizedDestFileFolder })
                     }
                 }
-                setShortcuts(nextShortcuts)
-                persist(folders, assignments, hiddenReportIds, nextShortcuts, nameOverrides)
             }
-        }
 
-        if (clipboard.mode === 'cut') setClipboard(null)
-        setSelectedFolderIds([])
-        setSelectedFileIds([])
-        setFolderMenuOpenId(null)
-        setFileMenuOpenId(null)
+            if (clipboard.mode === 'cut') setClipboard(null)
+            setSelectedFolderIds([])
+            setSelectedFileIds([])
+            setFolderMenuOpenId(null)
+            setFileMenuOpenId(null)
+
+            await Promise.all([loadFolders(), load()])
+        } catch (e) {
+            setError(e?.response?.data?.message || e?.message || 'Paste failed')
+        }
     }
 
-    const paste = () => {
+    const paste = async () => {
         const { destParent, destFileFolder } = resolvePasteDestination(currentFolderId)
-        pasteWithDestination(destParent, destFileFolder)
+        await pasteWithDestination(destParent, destFileFolder)
     }
 
-    const pasteInto = (targetFolderId) => {
+    const pasteInto = async (targetFolderId) => {
         const { destParent, destFileFolder } = resolvePasteDestination(targetFolderId)
-        pasteWithDestination(destParent, destFileFolder)
+        await pasteWithDestination(destParent, destFileFolder)
     }
 
     useEffect(() => {
@@ -885,12 +863,16 @@ export default function PatientReportsPage() {
         setContextMenu(null)
     }
 
-    const confirmCreateFolder = () => {
+    const confirmCreateFolder = async () => {
         const parentId = isRealFolderId(currentFolderId) ? currentFolderId : ALL_FOLDER_ID
-        const id = createFolder(createValue, parentId)
-        if (!id) return
-        setCreateOpen(false)
-        setCreateValue('')
+        try {
+            const id = await createFolder(createValue, parentId)
+            if (!id) return
+            setCreateOpen(false)
+            setCreateValue('')
+        } catch (e) {
+            setError(e?.response?.data?.message || e?.message || 'Failed to create folder')
+        }
     }
 
     const openFolderMenu = (folderId) => {
@@ -970,24 +952,33 @@ export default function PatientReportsPage() {
                         New folder
                     </button>
 
-                    <label
-                        className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium cursor-pointer"
+                    <button
+                        type="button"
+                        className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium"
                         style={{ backgroundColor: 'hsl(var(--secondary))', color: 'hsl(var(--secondary-foreground))' }}
+                        onClick={() => {
+                            setFolderMenuOpenId(null)
+                            setFileMenuOpenId(null)
+                            setContextMenu(null)
+                            uploadInputRef.current?.click?.()
+                        }}
                     >
                         <Upload size={16} />
                         Upload
-                        <input
-                            type="file"
-                            className="hidden"
-                            accept="application/pdf,image/png,image/jpeg"
-                            multiple
-                            onChange={(e) => {
-                                const files = e.target.files
-                                e.target.value = ''
-                                openReview(files)
-                            }}
-                        />
-                    </label>
+                    </button>
+
+                    <input
+                        ref={uploadInputRef}
+                        type="file"
+                        className="hidden"
+                        accept="application/pdf,image/png,image/jpeg"
+                        multiple
+                        onChange={(e) => {
+                            const picked = Array.from(e.target.files || [])
+                            e.target.value = ''
+                            openReview(picked)
+                        }}
+                    />
                 </div>
             </div>
 
@@ -1454,210 +1445,213 @@ export default function PatientReportsPage() {
                 </div>
             </section>
 
-            {reviewOpen ? (
-                <div
-                    className="fixed inset-0 z-50 flex items-center justify-center p-4"
-                    style={{ backgroundColor: 'hsl(var(--background) / 0.8)' }}
-                    onMouseDown={(e) => {
-                        if (e.target === e.currentTarget) closeReview()
-                    }}
-                >
+            {reviewOpen
+                ? createPortal(
                     <div
-                        role="dialog"
-                        aria-modal="true"
-                        className="w-full max-w-3xl rounded-xl border overflow-hidden"
-                        style={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}
+                        className="fixed inset-0 z-[1000] flex items-center justify-center p-4"
+                        style={{ backgroundColor: 'hsl(var(--background) / 0.8)' }}
+                        onMouseDown={(e) => {
+                            if (e.target === e.currentTarget) closeReview()
+                        }}
                     >
-                        <div className="px-5 py-4 border-b" style={{ borderColor: 'hsl(var(--border))' }}>
-                            <div className="flex items-start justify-between gap-3">
-                                <div>
-                                    <h2 className="text-base font-semibold" style={{ color: 'hsl(var(--foreground))' }}>
-                                        Review report before upload
-                                    </h2>
-                                    <p className="text-sm mt-1" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                                        Confirm the selected file before uploading.
-                                    </p>
-                                </div>
-                                <button
-                                    onClick={closeReview}
-                                    className="px-3 py-2 rounded-lg border text-sm font-medium"
-                                    style={{ backgroundColor: 'transparent', borderColor: 'hsl(var(--border))', color: 'hsl(var(--foreground))' }}
-                                    disabled={uploading}
-                                >
-                                    Close
-                                </button>
-                            </div>
-                        </div>
-
-                        <div className="p-5 grid grid-cols-1 lg:grid-cols-2 gap-4">
-                            <div className="rounded-lg border p-4" style={{ borderColor: 'hsl(var(--border))' }}>
-                                <div className="flex items-center justify-between">
-                                    <div className="text-sm font-medium" style={{ color: 'hsl(var(--foreground))' }}>
-                                        Files to upload ({pendingFiles.length})
+                        <div
+                            role="dialog"
+                            aria-modal="true"
+                            className="w-full max-w-3xl rounded-xl border overflow-hidden"
+                            style={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}
+                        >
+                            <div className="px-5 py-4 border-b" style={{ borderColor: 'hsl(var(--border))' }}>
+                                <div className="flex items-start justify-between gap-3">
+                                    <div>
+                                        <h2 className="text-base font-semibold" style={{ color: 'hsl(var(--foreground))' }}>
+                                            Review report before upload
+                                        </h2>
+                                        <p className="text-sm mt-1" style={{ color: 'hsl(var(--muted-foreground))' }}>
+                                            Confirm the selected file before uploading.
+                                        </p>
                                     </div>
-
-                                    <label
-                                        className="px-3 py-2 rounded-lg border text-sm font-medium cursor-pointer"
-                                        style={{ backgroundColor: 'transparent', borderColor: 'hsl(var(--border))', color: 'hsl(var(--foreground))' }}
-                                    >
-                                        Add more
-                                        <input
-                                            type="file"
-                                            className="hidden"
-                                            accept="application/pdf,image/png,image/jpeg"
-                                            multiple
-                                            disabled={uploading}
-                                            onChange={(e) => {
-                                                const files = e.target.files
-                                                e.target.value = ''
-                                                setPendingFiles((prev) => mergeFiles(prev, Array.from(files || [])))
-                                            }}
-                                        />
-                                    </label>
-                                </div>
-
-                                <div className="mt-3 rounded-lg border overflow-hidden" style={{ borderColor: 'hsl(var(--border))' }}>
-                                    <div className="max-h-48 overflow-auto">
-                                        {pendingFiles.map((f, idx) => (
-                                            <div
-                                                key={`${f.name}|${f.size}|${f.lastModified}`}
-                                                className="flex items-center justify-between gap-2 px-3 py-2 border-b last:border-b-0"
-                                                style={{
-                                                    borderColor: 'hsl(var(--border))',
-                                                    backgroundColor: idx === activePendingIndex ? 'hsl(var(--secondary))' : 'transparent',
-                                                }}
-                                            >
-                                                <button
-                                                    onClick={() => setActivePendingIndex(idx)}
-                                                    className="flex-1 text-left"
-                                                    style={{ color: idx === activePendingIndex ? 'hsl(var(--secondary-foreground))' : 'hsl(var(--foreground))' }}
-                                                    disabled={uploading}
-                                                >
-                                                    <div className="text-sm font-medium truncate">{f.name}</div>
-                                                    <div className="text-xs" style={{ opacity: 0.8 }}>
-                                                        {f.type || 'unknown'} • {Math.max(1, Math.round(f.size / 1024))} KB
-                                                    </div>
-                                                </button>
-
-                                                <button
-                                                    onClick={() => removePendingAt(idx)}
-                                                    className="px-2 py-1 rounded-lg border text-xs"
-                                                    style={{
-                                                        backgroundColor: 'transparent',
-                                                        borderColor: 'hsl(var(--border))',
-                                                        color: idx === activePendingIndex ? 'hsl(var(--secondary-foreground))' : 'hsl(var(--foreground))',
-                                                    }}
-                                                    disabled={uploading}
-                                                >
-                                                    Remove
-                                                </button>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-
-                                <div className="mt-4">
-                                    <div className="text-sm font-medium" style={{ color: 'hsl(var(--foreground))' }}>Upload to folder</div>
-                                    <select
-                                        value={pendingFolderId}
-                                        onChange={(e) => setPendingFolderId(e.target.value)}
-                                        className="mt-2 w-full px-3 py-2 rounded-lg border text-sm"
-                                        style={{ backgroundColor: 'transparent', borderColor: 'hsl(var(--border))', color: 'hsl(var(--foreground))' }}
-                                        disabled={uploading}
-                                    >
-                                        <option value={UNCATEGORIZED_FOLDER_ID}>Uncategorized</option>
-                                        {folders.map((f) => (
-                                            <option key={f.id} value={f.id}>{folderPathLabel(f.id)}</option>
-                                        ))}
-                                    </select>
-
-                                    <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-2">
-                                        <input
-                                            placeholder="New folder name"
-                                            className="sm:col-span-2 w-full px-3 py-2 rounded-lg border text-sm"
-                                            style={{ backgroundColor: 'transparent', borderColor: 'hsl(var(--border))', color: 'hsl(var(--foreground))' }}
-                                            disabled={uploading}
-                                            onKeyDown={(e) => {
-                                                if (e.key !== 'Enter') return
-                                                const parent = isRealFolderId(pendingFolderId) ? pendingFolderId : ALL_FOLDER_ID
-                                                const id = createFolder(e.currentTarget.value, parent)
-                                                if (id) {
-                                                    setPendingFolderId(id)
-                                                    e.currentTarget.value = ''
-                                                }
-                                            }}
-                                        />
-                                        <button
-                                            type="button"
-                                            className="px-3 py-2 rounded-lg border text-sm font-medium"
-                                            style={{ backgroundColor: 'transparent', borderColor: 'hsl(var(--border))', color: 'hsl(var(--foreground))' }}
-                                            disabled={uploading}
-                                            onClick={(e) => {
-                                                const wrapper = e.currentTarget.parentElement
-                                                const input = wrapper?.querySelector('input')
-                                                const parent = isRealFolderId(pendingFolderId) ? pendingFolderId : ALL_FOLDER_ID
-                                                const id = createFolder(input?.value, parent)
-                                                if (id) {
-                                                    setPendingFolderId(id)
-                                                    if (input) input.value = ''
-                                                }
-                                            }}
-                                        >
-                                            Create
-                                        </button>
-                                    </div>
-                                </div>
-
-                                <div className="mt-4 flex items-center gap-2">
                                     <button
                                         onClick={closeReview}
                                         className="px-3 py-2 rounded-lg border text-sm font-medium"
                                         style={{ backgroundColor: 'transparent', borderColor: 'hsl(var(--border))', color: 'hsl(var(--foreground))' }}
                                         disabled={uploading}
                                     >
-                                        Cancel
-                                    </button>
-                                    <button
-                                        onClick={confirmUpload}
-                                        className="px-3 py-2 rounded-lg text-sm font-medium"
-                                        style={{ backgroundColor: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))' }}
-                                        disabled={uploading || pendingFiles.length === 0}
-                                    >
-                                        {uploading ? 'Uploading…' : `Confirm upload (${pendingFiles.length})`}
+                                        Close
                                     </button>
                                 </div>
                             </div>
 
-                            <div className="rounded-lg border overflow-hidden" style={{ borderColor: 'hsl(var(--border))' }}>
-                                <div className="px-4 py-3 border-b text-sm font-medium" style={{ borderColor: 'hsl(var(--border))', color: 'hsl(var(--foreground))' }}>
-                                    Preview
+                            <div className="p-5 grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                <div className="rounded-lg border p-4" style={{ borderColor: 'hsl(var(--border))' }}>
+                                    <div className="flex items-center justify-between">
+                                        <div className="text-sm font-medium" style={{ color: 'hsl(var(--foreground))' }}>
+                                            Files to upload ({pendingFiles.length})
+                                        </div>
+
+                                        <label
+                                            className="px-3 py-2 rounded-lg border text-sm font-medium cursor-pointer"
+                                            style={{ backgroundColor: 'transparent', borderColor: 'hsl(var(--border))', color: 'hsl(var(--foreground))' }}
+                                        >
+                                            Add more
+                                            <input
+                                                type="file"
+                                                className="hidden"
+                                                accept="application/pdf,image/png,image/jpeg"
+                                                multiple
+                                                disabled={uploading}
+                                                onChange={(e) => {
+                                                    const picked = Array.from(e.target.files || [])
+                                                    e.target.value = ''
+                                                    setPendingFiles((prev) => mergeFiles(prev, picked))
+                                                }}
+                                            />
+                                        </label>
+                                    </div>
+
+                                    <div className="mt-3 rounded-lg border overflow-hidden" style={{ borderColor: 'hsl(var(--border))' }}>
+                                        <div className="max-h-48 overflow-auto">
+                                            {pendingFiles.map((f, idx) => (
+                                                <div
+                                                    key={`${f.name}|${f.size}|${f.lastModified}`}
+                                                    className="flex items-center justify-between gap-2 px-3 py-2 border-b last:border-b-0"
+                                                    style={{
+                                                        borderColor: 'hsl(var(--border))',
+                                                        backgroundColor: idx === activePendingIndex ? 'hsl(var(--secondary))' : 'transparent',
+                                                    }}
+                                                >
+                                                    <button
+                                                        onClick={() => setActivePendingIndex(idx)}
+                                                        className="flex-1 text-left"
+                                                        style={{ color: idx === activePendingIndex ? 'hsl(var(--secondary-foreground))' : 'hsl(var(--foreground))' }}
+                                                        disabled={uploading}
+                                                    >
+                                                        <div className="text-sm font-medium truncate">{f.name}</div>
+                                                        <div className="text-xs" style={{ opacity: 0.8 }}>
+                                                            {f.type || 'unknown'} • {Math.max(1, Math.round(f.size / 1024))} KB
+                                                        </div>
+                                                    </button>
+
+                                                    <button
+                                                        onClick={() => removePendingAt(idx)}
+                                                        className="px-2 py-1 rounded-lg border text-xs"
+                                                        style={{
+                                                            backgroundColor: 'transparent',
+                                                            borderColor: 'hsl(var(--border))',
+                                                            color: idx === activePendingIndex ? 'hsl(var(--secondary-foreground))' : 'hsl(var(--foreground))',
+                                                        }}
+                                                        disabled={uploading}
+                                                    >
+                                                        Remove
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <div className="mt-4">
+                                        <div className="text-sm font-medium" style={{ color: 'hsl(var(--foreground))' }}>Upload to folder</div>
+                                        <select
+                                            value={pendingFolderId}
+                                            onChange={(e) => setPendingFolderId(e.target.value)}
+                                            className="mt-2 w-full px-3 py-2 rounded-lg border text-sm"
+                                            style={{ backgroundColor: 'transparent', borderColor: 'hsl(var(--border))', color: 'hsl(var(--foreground))' }}
+                                            disabled={uploading}
+                                        >
+                                            <option value={UNCATEGORIZED_FOLDER_ID}>Uncategorized</option>
+                                            {folders.map((f) => (
+                                                <option key={f.id} value={f.id}>{folderPathLabel(f.id)}</option>
+                                            ))}
+                                        </select>
+
+                                        <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                            <input
+                                                placeholder="New folder name"
+                                                className="sm:col-span-2 w-full px-3 py-2 rounded-lg border text-sm"
+                                                style={{ backgroundColor: 'transparent', borderColor: 'hsl(var(--border))', color: 'hsl(var(--foreground))' }}
+                                                disabled={uploading}
+                                                onKeyDown={async (e) => {
+                                                    if (e.key !== 'Enter') return
+                                                    const parent = isRealFolderId(pendingFolderId) ? pendingFolderId : ALL_FOLDER_ID
+                                                    const id = await createFolder(e.currentTarget.value, parent)
+                                                    if (id) {
+                                                        setPendingFolderId(id)
+                                                        e.currentTarget.value = ''
+                                                    }
+                                                }}
+                                            />
+                                            <button
+                                                type="button"
+                                                className="px-3 py-2 rounded-lg border text-sm font-medium"
+                                                style={{ backgroundColor: 'transparent', borderColor: 'hsl(var(--border))', color: 'hsl(var(--foreground))' }}
+                                                disabled={uploading}
+                                                onClick={async (e) => {
+                                                    const wrapper = e.currentTarget.parentElement
+                                                    const input = wrapper?.querySelector('input')
+                                                    const parent = isRealFolderId(pendingFolderId) ? pendingFolderId : ALL_FOLDER_ID
+                                                    const id = await createFolder(input?.value, parent)
+                                                    if (id) {
+                                                        setPendingFolderId(id)
+                                                        if (input) input.value = ''
+                                                    }
+                                                }}
+                                            >
+                                                Create
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div className="mt-4 flex items-center gap-2">
+                                        <button
+                                            onClick={closeReview}
+                                            className="px-3 py-2 rounded-lg border text-sm font-medium"
+                                            style={{ backgroundColor: 'transparent', borderColor: 'hsl(var(--border))', color: 'hsl(var(--foreground))' }}
+                                            disabled={uploading}
+                                        >
+                                            Cancel
+                                        </button>
+                                        <button
+                                            onClick={confirmUpload}
+                                            className="px-3 py-2 rounded-lg text-sm font-medium"
+                                            style={{ backgroundColor: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))' }}
+                                            disabled={uploading || pendingFiles.length === 0}
+                                        >
+                                            {uploading ? 'Uploading…' : `Confirm upload (${pendingFiles.length})`}
+                                        </button>
+                                    </div>
                                 </div>
-                                <div className="p-4">
-                                    {pendingFiles?.[activePendingIndex]?.type?.startsWith('image/') && pendingPreviewUrl ? (
-                                        <img
-                                            src={pendingPreviewUrl}
-                                            alt="Report preview"
-                                            className="w-full rounded-md border"
-                                            style={{ borderColor: 'hsl(var(--border))' }}
-                                        />
-                                    ) : pendingFiles?.[activePendingIndex]?.type === 'application/pdf' && pendingPreviewUrl ? (
-                                        <iframe
-                                            title="PDF preview"
-                                            src={pendingPreviewUrl}
-                                            className="w-full rounded-md border"
-                                            style={{ borderColor: 'hsl(var(--border))', height: 420 }}
-                                        />
-                                    ) : (
-                                        <p className="text-sm" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                                            Preview is available for PDF and image files.
-                                        </p>
-                                    )}
+
+                                <div className="rounded-lg border overflow-hidden" style={{ borderColor: 'hsl(var(--border))' }}>
+                                    <div className="px-4 py-3 border-b text-sm font-medium" style={{ borderColor: 'hsl(var(--border))', color: 'hsl(var(--foreground))' }}>
+                                        Preview
+                                    </div>
+                                    <div className="p-4">
+                                        {pendingFiles?.[activePendingIndex]?.type?.startsWith('image/') && pendingPreviewUrl ? (
+                                            <img
+                                                src={pendingPreviewUrl}
+                                                alt="Report preview"
+                                                className="w-full rounded-md border"
+                                                style={{ borderColor: 'hsl(var(--border))' }}
+                                            />
+                                        ) : pendingFiles?.[activePendingIndex]?.type === 'application/pdf' && pendingPreviewUrl ? (
+                                            <iframe
+                                                title="PDF preview"
+                                                src={pendingPreviewUrl}
+                                                className="w-full rounded-md border"
+                                                style={{ borderColor: 'hsl(var(--border))', height: 420 }}
+                                            />
+                                        ) : (
+                                            <p className="text-sm" style={{ color: 'hsl(var(--muted-foreground))' }}>
+                                                Preview is available for PDF and image files.
+                                            </p>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
                         </div>
-                    </div>
-                </div>
-            ) : null}
+                    </div>,
+                    document.body,
+                )
+                : null}
 
             {renameOpen ? (
                 <div
