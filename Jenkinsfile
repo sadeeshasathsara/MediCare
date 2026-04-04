@@ -96,7 +96,81 @@ pipeline {
     }
 
     post {
-        success { echo 'Pipeline completed successfully!' }
-        failure { echo 'Pipeline failed!' }
+        success {
+            emailext(
+                to: 'sadeeshasathsara99@gmail.com, ericdevon2003@gmail.com, chathushuni@gmail.com, nipun20011216@gmail.com',
+                subject: "✅ [SUCCESS] Medicare Pipeline #${env.BUILD_NUMBER}",
+                mimeType: 'text/html',
+                body: """
+                    <html>
+                    <body style="font-family: Arial, sans-serif; padding: 20px;">
+                        <h2 style="color: #28a745;">✅ Build Successful</h2>
+                        <table style="border-collapse: collapse; width: 100%;">
+                            <tr>
+                                <td style="padding: 8px; border: 1px solid #ddd;"><b>Job</b></td>
+                                <td style="padding: 8px; border: 1px solid #ddd;">${env.JOB_NAME}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 8px; border: 1px solid #ddd;"><b>Build</b></td>
+                                <td style="padding: 8px; border: 1px solid #ddd;">#${env.BUILD_NUMBER}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 8px; border: 1px solid #ddd;"><b>Duration</b></td>
+                                <td style="padding: 8px; border: 1px solid #ddd;">${currentBuild.durationString}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 8px; border: 1px solid #ddd;"><b>Branch</b></td>
+                                <td style="padding: 8px; border: 1px solid #ddd;">${env.GIT_BRANCH}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 8px; border: 1px solid #ddd;"><b>Commit</b></td>
+                                <td style="padding: 8px; border: 1px solid #ddd;">${env.GIT_COMMIT?.take(7)}</td>
+                            </tr>
+                        </table>
+                        <br>
+                        <a href="${env.BUILD_URL}" style="background-color: #28a745; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px;">View Build</a>
+                    </body>
+                    </html>
+                """
+            )
+        }
+        failure {
+            emailext(
+                to: 'sadeeshasathsara99@gmail.com, ericdevon2003@gmail.com, chathushuni@gmail.com, nipun20011216@gmail.com',
+                subject: "❌ [FAILED] Medicare Pipeline #${env.BUILD_NUMBER}",
+                mimeType: 'text/html',
+                body: """
+                    <html>
+                    <body style="font-family: Arial, sans-serif; padding: 20px;">
+                        <h2 style="color: #dc3545;">❌ Build Failed</h2>
+                        <table style="border-collapse: collapse; width: 100%;">
+                            <tr>
+                                <td style="padding: 8px; border: 1px solid #ddd;"><b>Job</b></td>
+                                <td style="padding: 8px; border: 1px solid #ddd;">${env.JOB_NAME}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 8px; border: 1px solid #ddd;"><b>Build</b></td>
+                                <td style="padding: 8px; border: 1px solid #ddd;">#${env.BUILD_NUMBER}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 8px; border: 1px solid #ddd;"><b>Duration</b></td>
+                                <td style="padding: 8px; border: 1px solid #ddd;">${currentBuild.durationString}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 8px; border: 1px solid #ddd;"><b>Branch</b></td>
+                                <td style="padding: 8px; border: 1px solid #ddd;">${env.GIT_BRANCH}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 8px; border: 1px solid #ddd;"><b>Commit</b></td>
+                                <td style="padding: 8px; border: 1px solid #ddd;">${env.GIT_COMMIT?.take(7)}</td>
+                            </tr>
+                        </table>
+                        <br>
+                        <a href="${env.BUILD_URL}console" style="background-color: #dc3545; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px;">View Console Log</a>
+                    </body>
+                    </html>
+                """
+            )
+        }
     }
 }
