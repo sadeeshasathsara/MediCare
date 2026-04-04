@@ -11,60 +11,12 @@ import {
     listPatientReportFolders,
     updatePatientReport,
     updatePatientReportFolder,
-    uploadPatientReport,
     uploadPatientReportToFolder,
 } from '@/features/patients/services/patientApi'
 import { Download, Upload, RefreshCcw, Folder, MoreVertical, Plus } from 'lucide-react'
 
-const STORAGE_PREFIX = 'patientReportFolders:v1:'
 const ALL_FOLDER_ID = '__all__'
 const UNCATEGORIZED_FOLDER_ID = '__uncategorized__'
-
-function storageKey(userId) {
-    return `${STORAGE_PREFIX}${userId}`
-}
-
-function safeJsonParse(value, fallback) {
-    try {
-        return JSON.parse(value)
-    } catch {
-        return fallback
-    }
-}
-
-function newId() {
-    if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID()
-    return `id_${Date.now()}_${Math.random().toString(16).slice(2)}`
-}
-
-function loadFolderState(userId) {
-    const raw = window.localStorage.getItem(storageKey(userId))
-    const parsed = safeJsonParse(raw, null)
-    const folders = Array.isArray(parsed?.folders) ? parsed.folders : []
-    const assignments = parsed?.assignments && typeof parsed.assignments === 'object' ? parsed.assignments : {}
-    const hiddenReportIds = Array.isArray(parsed?.hiddenReportIds) ? parsed.hiddenReportIds : []
-    const shortcuts = Array.isArray(parsed?.shortcuts) ? parsed.shortcuts : []
-    const nameOverrides = parsed?.nameOverrides && typeof parsed.nameOverrides === 'object' ? parsed.nameOverrides : {}
-    return {
-        folders: folders
-            .filter((f) => f && typeof f.id === 'string' && typeof f.name === 'string')
-            .map((f) => ({
-                id: f.id,
-                name: f.name,
-                parentId: typeof f.parentId === 'string' ? f.parentId : ALL_FOLDER_ID,
-            })),
-        assignments,
-        hiddenReportIds: hiddenReportIds.filter((id) => typeof id === 'string'),
-        shortcuts: shortcuts
-            .filter((s) => s && typeof s.id === 'string' && typeof s.reportId === 'string' && typeof s.folderId === 'string')
-            .map((s) => ({ id: s.id, reportId: s.reportId, folderId: s.folderId })),
-        nameOverrides,
-    }
-}
-
-function saveFolderState(userId, state) {
-    window.localStorage.setItem(storageKey(userId), JSON.stringify(state))
-}
 
 function folderLabel(folderId, folders) {
     if (folderId === ALL_FOLDER_ID) return 'All'
@@ -199,10 +151,6 @@ export default function PatientReportsPage() {
             document.removeEventListener('keydown', onKeyDown)
         }
     }, [folderMenuOpenId, fileMenuOpenId, contextMenu])
-
-    const persist = () => {
-        // Folders and report organization are persisted in the backend now.
-    }
 
     const folderById = useMemo(() => {
         const map = new Map()
@@ -500,13 +448,6 @@ export default function PatientReportsPage() {
         longPressTimerRef.current = null
     }
 
-    const openRename = () => {
-        const id = renameTargetId
-        if (!id || isSystemFolder(id)) return
-        setRenameValue(folderLabel(id, folders))
-        setRenameOpen(true)
-    }
-
     const confirmRename = async () => {
         const id = renameTargetId
         const name = renameValue.trim()
@@ -622,10 +563,6 @@ export default function PatientReportsPage() {
     const fileDisplayName = (fileItem) => {
         return fileItem?.report?.displayFileName || fileItem?.report?.originalFileName || 'Report'
     }
-
-    const destinationFolderForFiles = () => (isRealFolderId(currentFolderId) ? currentFolderId : UNCATEGORIZED_FOLDER_ID)
-
-    const destinationParentForFolders = () => (isRealFolderId(currentFolderId) ? currentFolderId : ALL_FOLDER_ID)
 
     const openFileRename = (fileId, currentName) => {
         setRenameTargetKind('file')
