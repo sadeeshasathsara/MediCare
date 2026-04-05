@@ -48,6 +48,7 @@ import NotificationsPage from '@/features/notifications/pages/NotificationsPage'
 // --- Navigation Links for Top Nav ---
 const patientLinks = [
   { label: 'Dashboard', path: '/patient/dashboard' },
+  { label: 'Profile', path: '/patient/profile' },
   { label: 'Reports', path: '/patient/reports' },
   { label: 'History', path: '/patient/history' },
   { label: 'Prescriptions', path: '/patient/prescriptions' },
@@ -59,6 +60,7 @@ const doctorLinks = [
   { label: 'Telemedicine', path: '/doctor/telemedicine' },
   { label: 'Payments', path: '/doctor/payments' },
   { label: 'Notifications', path: '/doctor/notifications' },
+  { label: 'Profile', path: '/doctor/profile' },
 ]
 
 export default function AppRoutes() {

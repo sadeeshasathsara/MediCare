@@ -20,6 +20,13 @@ spec:
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 3002
+          readinessProbe:
+            tcpSocket:
+              port: 3002
+            initialDelaySeconds: 2
+            periodSeconds: 3
+            timeoutSeconds: 1
+            failureThreshold: 10
           env:
             # Update the MongoDB URI below manually
             - name: SPRING_DATA_MONGODB_URI
