@@ -65,7 +65,7 @@ pipeline {
                     cd web-client
                     npm install
                     npm run build
-                    sudo cp -r dist/* /var/www/medicarelk/
+                    cp -r dist/* /var/www/medicarelk/
                 """
             }
         }
