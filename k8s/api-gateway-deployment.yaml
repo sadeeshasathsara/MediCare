@@ -11,7 +11,7 @@ data:
     http {
       # Use Kubernetes DNS for runtime upstream name resolution.
       # This prevents nginx from failing to start if service DNS is briefly unavailable.
-      resolver 10.96.0.10 valid=10s ipv6=off;
+      resolver 10.43.0.10 valid=10s ipv6=off;
       resolver_timeout 5s;
 
       # Allow CORS only from dev frontend origins.
@@ -19,6 +19,7 @@ data:
         default "";
         "http://localhost:5173" $http_origin;
         "http://127.0.0.1:5173" $http_origin;
+        "https://medicarelk.duckdns.org" $http_origin;
       }
 
       limit_req_zone $binary_remote_addr zone=auth_limit:10m rate=2r/s;
