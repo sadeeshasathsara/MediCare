@@ -24,13 +24,6 @@ function isProfileIncomplete(p) {
     return !(nameOk && dobOk && phoneOk && addrOk)
 }
 
-function firstNameOf(name) {
-    if (!name) return ''
-    const s = String(name).trim()
-    if (!s) return ''
-    return s.split(/\s+/)[0]
-}
-
 function normalizeFirstName(value) {
     if (!value) return ''
     let s = String(value).trim()
@@ -256,13 +249,12 @@ export default function PatientDashboard() {
         normalizeFirstName(profile?.name) ||
         normalizeFirstName(user?.name) ||
         'Patient'
-    const todayLabel = useMemo(() => {
-        try {
-            return new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })
-        } catch {
-            return ''
-        }
-    }, [])
+    let todayLabel = ''
+    try {
+        todayLabel = new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })
+    } catch {
+        todayLabel = ''
+    }
 
     const checklist = profileChecklist(profile)
     const profileOk = checklist.completed === checklist.total && checklist.total > 0
@@ -503,6 +495,70 @@ export default function PatientDashboard() {
                             </div>
                         </div>
                     </div>
+                </div>
+            </section>
+
+            <section className="rounded-xl border p-5" style={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}>
+                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                    <div>
+                        <h2 className="text-base font-semibold" style={{ color: 'hsl(var(--foreground))' }}>Upcoming appointments</h2>
+                        <p className="text-sm mt-1" style={{ color: 'hsl(var(--muted-foreground))' }}>
+                            Your next scheduled visits will appear here.
+                        </p>
+                    </div>
+                    <button
+                        type="button"
+                        disabled
+                        className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-colors"
+                        style={{ backgroundColor: 'transparent', borderColor: 'hsl(var(--border))', color: 'hsl(var(--muted-foreground))', cursor: 'not-allowed' }}
+                        title="Appointments are not connected yet"
+                    >
+                        View all
+                        <ArrowRight size={16} />
+                    </button>
+                </div>
+
+                <div className="mt-4">
+                    {loading ? (
+                        <div className="space-y-3">
+                            <div className="rounded-lg border p-4" style={{ borderColor: 'hsl(var(--border))' }}>
+                                <div className="flex items-center justify-between gap-3">
+                                    <Skeleton className="h-4 w-56" />
+                                    <Skeleton className="h-6 w-20 rounded-full" />
+                                </div>
+                                <div className="mt-2 flex items-center justify-between gap-3">
+                                    <Skeleton className="h-4 w-40" />
+                                    <Skeleton className="h-4 w-24" />
+                                </div>
+                            </div>
+                            <div className="rounded-lg border p-4" style={{ borderColor: 'hsl(var(--border))' }}>
+                                <div className="flex items-center justify-between gap-3">
+                                    <Skeleton className="h-4 w-52" />
+                                    <Skeleton className="h-6 w-24 rounded-full" />
+                                </div>
+                                <div className="mt-2 flex items-center justify-between gap-3">
+                                    <Skeleton className="h-4 w-44" />
+                                    <Skeleton className="h-4 w-28" />
+                                </div>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="rounded-lg border p-4" style={{ backgroundColor: 'hsl(var(--secondary))', borderColor: 'hsl(var(--border))' }}>
+                            <div className="flex items-start gap-3">
+                                <div className="mt-0.5" style={{ color: 'hsl(var(--muted-foreground))' }}>
+                                    <Calendar size={18} />
+                                </div>
+                                <div className="min-w-0">
+                                    <div className="text-sm font-medium" style={{ color: 'hsl(var(--foreground))' }}>
+                                        No upcoming appointments
+                                    </div>
+                                    <div className="text-sm mt-1" style={{ color: 'hsl(var(--muted-foreground))' }}>
+                                        When appointment scheduling is connected, you’ll see your date, time, doctor, and visit type here.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </section>
 
