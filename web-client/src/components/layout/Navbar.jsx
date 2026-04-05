@@ -1,6 +1,7 @@
 import { useAuth } from '@/context/AuthContext'
 import { useTheme } from '@/context/ThemeContext'
 import { useMobile } from '@/hooks/useMobile'
+import { downloadPatientProfilePhoto } from '@/features/patients/services/patientApi'
 import { Sun, Moon, Menu, LogOut, User, ChevronDown, HeartPulse, X } from 'lucide-react'
 import { useState, useRef, useEffect, useMemo } from 'react'
 import { Link, NavLink } from 'react-router-dom'
@@ -11,6 +12,7 @@ export default function Navbar({ onMenuClick, showMenuButton = true, showLogo = 
   const isMobile = useMobile()
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
+  const [avatarUrl, setAvatarUrl] = useState('')
   const dropdownRef = useRef(null)
 
   const profilePath = useMemo(() => {
@@ -30,6 +32,47 @@ export default function Navbar({ onMenuClick, showMenuButton = true, showLogo = 
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    let objectUrlToRevoke = ''
+
+    async function loadAvatar() {
+      const role = user?.role
+      const userId = user?.id
+
+      // Currently only patient-service provides a profile-photo endpoint.
+      if (!userId || role !== 'PATIENT') {
+        setAvatarUrl('')
+        return
+      }
+
+      try {
+        const res = await downloadPatientProfilePhoto(userId)
+        if (cancelled) return
+
+        objectUrlToRevoke = URL.createObjectURL(res.data)
+        setAvatarUrl(objectUrlToRevoke)
+      } catch {
+        if (cancelled) return
+        setAvatarUrl('')
+      }
+    }
+
+    loadAvatar()
+
+    function handleUpdated() {
+      loadAvatar()
+    }
+
+    window.addEventListener('profile-photo-updated', handleUpdated)
+
+    return () => {
+      cancelled = true
+      window.removeEventListener('profile-photo-updated', handleUpdated)
+      if (objectUrlToRevoke) URL.revokeObjectURL(objectUrlToRevoke)
+    }
+  }, [user?.id, user?.role])
 
   return (
     <header
@@ -131,7 +174,15 @@ export default function Navbar({ onMenuClick, showMenuButton = true, showLogo = 
                 color: 'hsl(var(--primary-foreground))',
               }}
             >
-              {user?.name?.[0]?.toUpperCase() || 'U'}
+              {avatarUrl ? (
+                <img
+                  src={avatarUrl}
+                  alt="Profile"
+                  className="h-full w-full rounded-full object-cover"
+                />
+              ) : (
+                user?.name?.[0]?.toUpperCase() || 'U'
+              )}
             </div>
             {!isMobile && (
               <>

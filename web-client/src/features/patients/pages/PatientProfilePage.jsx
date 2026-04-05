@@ -111,6 +111,7 @@ export default function PatientProfilePage() {
         try {
             await uploadPatientProfilePhoto(userId, file)
             await load()
+            window.dispatchEvent(new Event('profile-photo-updated'))
         } catch (e) {
             setError(e?.response?.data?.message || e?.message || 'Failed to upload profile photo')
         } finally {
@@ -125,6 +126,7 @@ export default function PatientProfilePage() {
         try {
             await removePatientProfilePhoto(userId)
             await load()
+            window.dispatchEvent(new Event('profile-photo-updated'))
         } catch (e) {
             setError(e?.response?.data?.message || e?.message || 'Failed to remove profile photo')
         } finally {
