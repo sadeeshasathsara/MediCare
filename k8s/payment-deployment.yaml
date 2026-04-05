@@ -27,6 +27,12 @@ spec:
                 secretKeyRef:
                   name: medicare-secrets
                   key: MONGO_URI_PAYMENT
+
+            - name: CORS_ALLOWED_ORIGINS
+              valueFrom:
+                secretKeyRef:
+                  name: medicare-secrets
+                  key: CORS_ALLOWED_ORIGINS
 ---
 apiVersion: v1
 kind: Service

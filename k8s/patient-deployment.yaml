@@ -34,6 +34,12 @@ spec:
                 secretKeyRef:
                   name: medicare-secrets
                   key: MONGO_URI_PATIENT
+
+            - name: CORS_ALLOWED_ORIGINS
+              valueFrom:
+                secretKeyRef:
+                  name: medicare-secrets
+                  key: CORS_ALLOWED_ORIGINS
             - name: PATIENT_STORAGE_PROVIDER
               valueFrom:
                 secretKeyRef:
