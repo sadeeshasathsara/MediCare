@@ -107,6 +107,20 @@ data:
               rewrite ^/api/auth/admin/(.*)$ /auth/admin/$1 break;
               proxy_pass http://$auth_service;
             }
+            # Patient service
+            # External: /api/patients/* -> Internal: /patients/*
+            # External: /api/patients/admin/* -> Internal: /admin/*
+            location /api/patients/admin/ {
+          auth_request /_auth;
+          auth_request_set $user_id $upstream_http_x_user_id;
+          auth_request_set $user_role $upstream_http_x_user_role;
+          auth_request_set $user_verified $upstream_http_x_user_verified;
+          proxy_set_header X-User-Id $user_id;
+          proxy_set_header X-User-Role $user_role;
+          proxy_set_header X-User-Verified $user_verified;
+                rewrite ^/api/patients/admin/(.*)$ /admin/$1 break;
+                proxy_pass http://$patient_service;
+            }
             location /api/patients/ {
           auth_request /_auth;
           auth_request_set $user_id $upstream_http_x_user_id;
@@ -115,7 +129,7 @@ data:
           proxy_set_header X-User-Id $user_id;
           proxy_set_header X-User-Role $user_role;
           proxy_set_header X-User-Verified $user_verified;
-                rewrite ^/api/patients/(.*)$ /$1 break;
+                rewrite ^/api/patients/(.*)$ /patients/$1 break;
                 proxy_pass http://$patient_service;
             }
             location /api/doctors/ {

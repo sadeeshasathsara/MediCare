@@ -17,7 +17,15 @@ function decodeJwtPayload(token) {
   try {
     const parts = token.split('.')
     if (parts.length < 2) return null
-    return JSON.parse(atob(parts[1]))
+
+    // JWT uses base64url encoding.
+    let s = parts[1].replace(/-/g, '+').replace(/_/g, '/')
+    const pad = s.length % 4
+    if (pad === 2) s += '=='
+    else if (pad === 3) s += '='
+    else if (pad !== 0) return null
+
+    return JSON.parse(atob(s))
   } catch {
     return null
   }
