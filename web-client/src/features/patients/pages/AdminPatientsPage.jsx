@@ -5,6 +5,8 @@ import { CheckCircle2, XCircle, Trash2, RefreshCcw } from 'lucide-react'
 export default function AdminPatientsPage() {
     const [page, setPage] = useState(0)
     const [size] = useState(10)
+    const [q, setQ] = useState('')
+    const [status, setStatusFilter] = useState('')
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState('')
     const [data, setData] = useState({ items: [], page: 0, size: 10, total: 0 })
@@ -14,11 +16,13 @@ export default function AdminPatientsPage() {
         return Math.max(1, Math.ceil(t / size))
     }, [data, size])
 
-    const load = async (targetPage = page) => {
+    const load = async (targetPage = page, overrides = {}) => {
         setLoading(true)
         setError('')
         try {
-            const res = await adminListPatients(targetPage, size)
+            const query = typeof overrides.q === 'string' ? overrides.q : q
+            const statusValue = typeof overrides.status === 'string' ? overrides.status : status
+            const res = await adminListPatients(targetPage, size, query.trim(), statusValue)
             setData(res)
             setPage(res.page)
         } catch (e) {
@@ -84,6 +88,76 @@ export default function AdminPatientsPage() {
                     </p>
                 </div>
             )}
+
+            <form
+                onSubmit={(e) => {
+                    e.preventDefault()
+                    load(0)
+                }}
+                className="rounded-xl border p-4 flex flex-col lg:flex-row lg:items-center gap-3"
+                style={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}
+            >
+                <div className="flex-1">
+                    <label className="block text-xs font-medium" style={{ color: 'hsl(var(--muted-foreground))' }}>
+                        Search
+                    </label>
+                    <input
+                        value={q}
+                        onChange={(e) => setQ(e.target.value)}
+                        placeholder="Search by name, email, or user ID"
+                        className="mt-1 w-full px-3 py-2.5 rounded-lg border text-sm outline-none"
+                        style={{
+                            backgroundColor: 'hsl(var(--input))',
+                            borderColor: 'hsl(var(--border))',
+                            color: 'hsl(var(--foreground))',
+                        }}
+                    />
+                </div>
+
+                <div className="min-w-55">
+                    <label className="block text-xs font-medium" style={{ color: 'hsl(var(--muted-foreground))' }}>
+                        Status
+                    </label>
+                    <select
+                        value={status}
+                        onChange={(e) => setStatusFilter(e.target.value)}
+                        className="mt-1 w-full px-3 py-2.5 rounded-lg border text-sm outline-none"
+                        style={{
+                            backgroundColor: 'hsl(var(--input))',
+                            borderColor: 'hsl(var(--border))',
+                            color: 'hsl(var(--foreground))',
+                        }}
+                    >
+                        <option value="">All</option>
+                        <option value="ACTIVE">ACTIVE</option>
+                        <option value="INACTIVE">INACTIVE</option>
+                    </select>
+                </div>
+
+                <div className="flex items-center gap-2 lg:self-end">
+                    <button
+                        type="submit"
+                        className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors"
+                        style={{ backgroundColor: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))' }}
+                        disabled={loading}
+                    >
+                        Apply
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setQ('')
+                            setStatusFilter('')
+                            load(0, { q: '', status: '' })
+                        }}
+                        className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-colors"
+                        style={{ backgroundColor: 'transparent', borderColor: 'hsl(var(--border))', color: 'hsl(var(--foreground))' }}
+                        disabled={loading}
+                    >
+                        Reset
+                    </button>
+                </div>
+            </form>
 
             <div className="rounded-xl border overflow-hidden" style={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}>
                 <div className="overflow-x-auto">

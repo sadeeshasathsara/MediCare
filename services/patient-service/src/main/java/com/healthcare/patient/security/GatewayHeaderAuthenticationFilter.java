@@ -10,6 +10,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -24,6 +25,17 @@ public class GatewayHeaderAuthenticationFilter extends OncePerRequestFilter {
     public static final String HEADER_USER_ID = "X-User-Id";
     public static final String HEADER_USER_ROLE = "X-User-Role";
     private static final com.fasterxml.jackson.databind.ObjectMapper OBJECT_MAPPER = new com.fasterxml.jackson.databind.ObjectMapper();
+
+    private final boolean acceptBearerJwt;
+
+    public GatewayHeaderAuthenticationFilter(Environment environment) {
+        // Security hardening: downstream services should normally trust only
+        // gateway-injected headers.
+        // Enable this ONLY for local/dev scenarios where you call patient-service
+        // directly.
+        this.acceptBearerJwt = Boolean.parseBoolean(
+                environment.getProperty("patient.security.accept-bearer", "false").trim());
+    }
 
     @Override
     protected void doFilterInternal(
@@ -46,7 +58,7 @@ public class GatewayHeaderAuthenticationFilter extends OncePerRequestFilter {
             }
 
             // Option B: Bearer token (web-client uses a fake JWT)
-            if (userId == null) {
+            if (acceptBearerJwt && userId == null) {
                 String authHeader = request.getHeader(HttpHeaders.AUTHORIZATION);
                 if (authHeader != null && authHeader.startsWith("Bearer ")) {
                     String token = authHeader.substring("Bearer ".length()).trim();

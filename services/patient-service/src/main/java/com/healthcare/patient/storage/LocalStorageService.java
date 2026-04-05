@@ -44,6 +44,16 @@ public class LocalStorageService implements StorageService {
         }
     }
 
+    @Override
+    public void delete(String key) {
+        try {
+            Path path = resolveKeyPath(key);
+            Files.deleteIfExists(path);
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to delete file", e);
+        }
+    }
+
     private Path resolveKeyPath(String key) {
         String safeKey = key.replace('\\', '/');
         while (safeKey.startsWith("/"))

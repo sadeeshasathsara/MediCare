@@ -10,6 +10,7 @@ import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.core.sync.RequestBody;
 
 import java.io.InputStream;
@@ -69,6 +70,16 @@ public class S3StorageService implements StorageService {
         } catch (NoSuchKeyException e) {
             throw new IllegalArgumentException("Object not found", e);
         }
+    }
+
+    @Override
+    public void delete(String key) {
+        if (bucket.isEmpty()) {
+            throw new IllegalStateException("S3 bucket is not configured (patient.storage.s3.bucket)");
+        }
+
+        DeleteObjectRequest req = DeleteObjectRequest.builder().bucket(bucket).key(key).build();
+        s3.deleteObject(req);
     }
 
     private static AwsCredentialsProvider resolveCredentialsProvider(Environment environment) {

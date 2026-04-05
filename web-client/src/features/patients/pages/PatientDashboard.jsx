@@ -4,6 +4,25 @@ import { useAuth } from '@/context/AuthContext'
 import { getPatientHistory, getPatientPrescriptions, getPatientProfile, listPatientReports } from '@/features/patients/services/patientApi'
 import { RefreshCcw, Calendar, Bell, CreditCard, Video } from 'lucide-react'
 
+const PROFILE_PROMPT_SNOOZE_MS = 7 * 24 * 60 * 60 * 1000
+
+function isProfileIncomplete(p) {
+    const nameOk = Boolean(p?.name && String(p.name).trim())
+    const dobOk = Boolean(p?.dob)
+    const phoneOk = Boolean(p?.contact?.phone && String(p.contact.phone).trim())
+
+    const addr = p?.address || {}
+    const addrOk = Boolean(
+        addr?.line1 && String(addr.line1).trim() &&
+        addr?.city && String(addr.city).trim() &&
+        addr?.state && String(addr.state).trim() &&
+        addr?.postalCode && String(addr.postalCode).trim() &&
+        addr?.country && String(addr.country).trim(),
+    )
+
+    return !(nameOk && dobOk && phoneOk && addrOk)
+}
+
 function StatCard({ title, value, hint, to }) {
     const card = (
         <div
@@ -112,6 +131,7 @@ export default function PatientDashboard() {
     const [reportsCount, setReportsCount] = useState(null)
     const [historyStatus, setHistoryStatus] = useState('unknown')
     const [prescriptionsStatus, setPrescriptionsStatus] = useState('unknown')
+    const [profilePromptSnoozedUntil, setProfilePromptSnoozedUntil] = useState(0)
 
     const canUse = useMemo(() => Boolean(userId), [userId])
 
@@ -157,6 +177,14 @@ export default function PatientDashboard() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [userId])
 
+    useEffect(() => {
+        if (!userId) return
+        const key = `patient.profileUpdateSnoozeUntil:${userId}`
+        const raw = localStorage.getItem(key)
+        const parsed = raw ? Number(raw) : 0
+        setProfilePromptSnoozedUntil(Number.isFinite(parsed) ? parsed : 0)
+    }, [userId])
+
     if (!canUse) {
         return (
             <div className="rounded-xl border p-6" style={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}>
@@ -191,6 +219,12 @@ export default function PatientDashboard() {
         ['—', '—', '—', 'No recent payments'],
     ]
 
+    const showProfilePrompt =
+        !loading &&
+        !error &&
+        isProfileIncomplete(profile) &&
+        Date.now() > (profilePromptSnoozedUntil || 0)
+
     return (
         <div className="space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
@@ -216,6 +250,43 @@ export default function PatientDashboard() {
 
             {error ? (
                 <p className="text-sm" style={{ color: 'hsl(var(--destructive))' }}>{error}</p>
+            ) : null}
+
+            {showProfilePrompt ? (
+                <div className="rounded-xl border p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
+                    style={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}
+                >
+                    <div>
+                        <div className="text-sm font-semibold" style={{ color: 'hsl(var(--foreground))' }}>
+                            Complete your profile
+                        </div>
+                        <div className="text-sm mt-1" style={{ color: 'hsl(var(--muted-foreground))' }}>
+                            Add your personal details so we can serve you better.
+                        </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                        <Link
+                            to="/patient/profile"
+                            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors"
+                            style={{ backgroundColor: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))' }}
+                        >
+                            Update profile
+                        </Link>
+                        <button
+                            onClick={() => {
+                                const until = Date.now() + PROFILE_PROMPT_SNOOZE_MS
+                                const key = `patient.profileUpdateSnoozeUntil:${userId}`
+                                localStorage.setItem(key, String(until))
+                                setProfilePromptSnoozedUntil(until)
+                            }}
+                            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-colors"
+                            style={{ backgroundColor: 'transparent', borderColor: 'hsl(var(--border))', color: 'hsl(var(--foreground))' }}
+                        >
+                            Remind me later
+                        </button>
+                    </div>
+                </div>
             ) : null}
 
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">

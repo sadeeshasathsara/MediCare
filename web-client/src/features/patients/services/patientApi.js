@@ -101,8 +101,38 @@ export async function getPatientPrescriptions(userId) {
     return data
 }
 
-export async function adminListPatients(page = 0, size = 10) {
-    const { data } = await api.get('/patients/admin/patients', { params: { page, size } })
+export async function uploadPatientProfilePhoto(userId, file) {
+    const form = new FormData()
+    form.append('file', file)
+    const { data } = await api.post(`/patients/${encodeURIComponent(userId)}/profile-photo`, form, {
+        headers: {
+            'Content-Type': 'multipart/form-data',
+        },
+    })
+    return data
+}
+
+export async function downloadPatientProfilePhoto(userId) {
+    const res = await api.get(`/patients/${encodeURIComponent(userId)}/profile-photo`, {
+        responseType: 'blob',
+    })
+    return res
+}
+
+export async function removePatientProfilePhoto(userId) {
+    const { data } = await api.delete(`/patients/${encodeURIComponent(userId)}/profile-photo`)
+    return data
+}
+
+export async function adminListPatients(page = 0, size = 10, q, status) {
+    const { data } = await api.get('/patients/admin/patients', {
+        params: {
+            page,
+            size,
+            q: q || undefined,
+            status: status || undefined,
+        },
+    })
     return data
 }
 

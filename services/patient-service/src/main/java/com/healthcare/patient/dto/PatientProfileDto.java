@@ -16,6 +16,11 @@ public class PatientProfileDto {
     private Instant createdAt;
     private Instant updatedAt;
 
+    private boolean hasProfilePhoto;
+    private Instant profilePhotoUpdatedAt;
+    private String profilePhotoContentType;
+    private Long profilePhotoSize;
+
     public String getUserId() {
         return userId;
     }
@@ -94,6 +99,38 @@ public class PatientProfileDto {
 
     public void setUpdatedAt(Instant updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public boolean isHasProfilePhoto() {
+        return hasProfilePhoto;
+    }
+
+    public void setHasProfilePhoto(boolean hasProfilePhoto) {
+        this.hasProfilePhoto = hasProfilePhoto;
+    }
+
+    public Instant getProfilePhotoUpdatedAt() {
+        return profilePhotoUpdatedAt;
+    }
+
+    public void setProfilePhotoUpdatedAt(Instant profilePhotoUpdatedAt) {
+        this.profilePhotoUpdatedAt = profilePhotoUpdatedAt;
+    }
+
+    public String getProfilePhotoContentType() {
+        return profilePhotoContentType;
+    }
+
+    public void setProfilePhotoContentType(String profilePhotoContentType) {
+        this.profilePhotoContentType = profilePhotoContentType;
+    }
+
+    public Long getProfilePhotoSize() {
+        return profilePhotoSize;
+    }
+
+    public void setProfilePhotoSize(Long profilePhotoSize) {
+        this.profilePhotoSize = profilePhotoSize;
     }
 
     public static class ContactDto {

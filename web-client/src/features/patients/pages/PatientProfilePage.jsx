@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '@/context/AuthContext'
-import { getPatientProfile, updatePatientProfile } from '@/features/patients/services/patientApi'
-import { Save, RefreshCcw } from 'lucide-react'
+import { downloadPatientProfilePhoto, getPatientProfile, removePatientProfilePhoto, updatePatientProfile, uploadPatientProfilePhoto } from '@/features/patients/services/patientApi'
+import { Save, RefreshCcw, Camera, Trash2 } from 'lucide-react'
 
 function emptyProfile(userId, email) {
     return {
@@ -21,8 +21,11 @@ export default function PatientProfilePage() {
 
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
+    const [photoLoading, setPhotoLoading] = useState(false)
+    const [photoSaving, setPhotoSaving] = useState(false)
     const [error, setError] = useState('')
     const [profile, setProfile] = useState(null)
+    const [photoUrl, setPhotoUrl] = useState('')
 
     const canUse = useMemo(() => Boolean(userId), [userId])
 
@@ -41,9 +44,25 @@ export default function PatientProfilePage() {
                 contact: { ...base.contact, ...(data?.contact || {}) },
                 address: { ...base.address, ...(data?.address || {}) },
             })
+
+            if (data?.hasProfilePhoto) {
+                setPhotoLoading(true)
+                try {
+                    const res = await downloadPatientProfilePhoto(userId)
+                    const url = URL.createObjectURL(res.data)
+                    setPhotoUrl(url)
+                } catch {
+                    setPhotoUrl('')
+                } finally {
+                    setPhotoLoading(false)
+                }
+            } else {
+                setPhotoUrl('')
+            }
         } catch (e) {
             setError(e?.response?.data?.message || e?.message || 'Failed to load profile')
             setProfile(emptyProfile(userId, userEmail))
+            setPhotoUrl('')
         } finally {
             setLoading(false)
         }
@@ -53,6 +72,40 @@ export default function PatientProfilePage() {
         load()
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [userId])
+
+    useEffect(() => {
+        return () => {
+            if (photoUrl) URL.revokeObjectURL(photoUrl)
+        }
+    }, [photoUrl])
+
+    const uploadPhoto = async (file) => {
+        if (!userId || !file) return
+        setPhotoSaving(true)
+        setError('')
+        try {
+            await uploadPatientProfilePhoto(userId, file)
+            await load()
+        } catch (e) {
+            setError(e?.response?.data?.message || e?.message || 'Failed to upload profile photo')
+        } finally {
+            setPhotoSaving(false)
+        }
+    }
+
+    const removePhoto = async () => {
+        if (!userId) return
+        setPhotoSaving(true)
+        setError('')
+        try {
+            await removePatientProfilePhoto(userId)
+            await load()
+        } catch (e) {
+            setError(e?.response?.data?.message || e?.message || 'Failed to remove profile photo')
+        } finally {
+            setPhotoSaving(false)
+        }
+    }
 
     const updateField = (path, value) => {
         setProfile((prev) => {
@@ -162,6 +215,58 @@ export default function PatientProfilePage() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <section className="rounded-xl border p-5" style={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}>
                     <h2 className="text-base font-semibold" style={{ color: 'hsl(var(--foreground))' }}>Personal Info</h2>
+
+                    <div className="mt-4 flex items-center justify-between gap-4">
+                        <div className="flex items-center gap-3">
+                            <div
+                                className="h-14 w-14 rounded-full border overflow-hidden flex items-center justify-center"
+                                style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--muted))' }}
+                            >
+                                {photoUrl ? (
+                                    <img src={photoUrl} alt="Profile" className="h-full w-full object-cover" />
+                                ) : (
+                                    <Camera size={18} style={{ color: 'hsl(var(--muted-foreground))' }} />
+                                )}
+                            </div>
+                            <div>
+                                <div className="text-sm font-medium" style={{ color: 'hsl(var(--foreground))' }}>Profile Photo</div>
+                                <div className="text-xs" style={{ color: 'hsl(var(--muted-foreground))' }}>
+                                    {photoLoading ? 'Loading...' : photoUrl ? 'Uploaded' : 'Not set'}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                            <label
+                                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-medium transition-colors cursor-pointer"
+                                style={{ backgroundColor: 'transparent', borderColor: 'hsl(var(--border))', color: 'hsl(var(--foreground))' }}
+                            >
+                                <input
+                                    type="file"
+                                    accept="image/*"
+                                    className="hidden"
+                                    disabled={loading || photoSaving}
+                                    onChange={(e) => {
+                                        const f = e.target.files?.[0]
+                                        e.target.value = ''
+                                        if (f) uploadPhoto(f)
+                                    }}
+                                />
+                                {photoUrl ? 'Replace' : 'Upload'}
+                            </label>
+
+                            <button
+                                onClick={removePhoto}
+                                className="inline-flex items-center justify-center p-2 rounded-lg border transition-colors"
+                                style={{ backgroundColor: 'transparent', borderColor: 'hsl(var(--border))', color: 'hsl(var(--destructive))' }}
+                                disabled={!photoUrl || loading || photoSaving}
+                                title="Remove profile photo"
+                            >
+                                <Trash2 size={16} />
+                            </button>
+                        </div>
+                    </div>
+
                     <div className="mt-4 grid grid-cols-1 gap-3">
                         <Field label="Email" value={profile?.email || ''} onChange={(v) => updateField('email', v)} disabled={true} helper="Email is managed by the authentication service." />
                         <Field label="Name" value={profile?.name || ''} onChange={(v) => updateField('name', v)} disabled={loading} />

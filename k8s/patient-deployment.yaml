@@ -27,6 +27,55 @@ spec:
                 secretKeyRef:
                   name: medicare-secrets
                   key: MONGO_URI_PATIENT
+            - name: PATIENT_STORAGE_PROVIDER
+              valueFrom:
+                secretKeyRef:
+                  name: medicare-secrets
+                  key: PATIENT_STORAGE_PROVIDER
+            - name: PATIENT_STORAGE_LOCAL_DIR
+              valueFrom:
+                secretKeyRef:
+                  name: medicare-secrets
+                  key: PATIENT_STORAGE_LOCAL_DIR
+
+            - name: PATIENT_SECURITY_ACCEPT_BEARER
+              valueFrom:
+                secretKeyRef:
+                  name: medicare-secrets
+                  key: PATIENT_SECURITY_ACCEPT_BEARER
+
+            - name: S3_BUCKET
+              valueFrom:
+                secretKeyRef:
+                  name: medicare-secrets
+                  key: S3_BUCKET
+            - name: S3_REGION
+              valueFrom:
+                secretKeyRef:
+                  name: medicare-secrets
+                  key: S3_REGION
+            - name: S3_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  name: medicare-secrets
+                  key: S3_ENDPOINT
+            - name: S3_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: medicare-secrets
+                  key: S3_ACCESS_KEY_ID
+            - name: S3_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: medicare-secrets
+                  key: S3_SECRET_ACCESS_KEY
+          volumeMounts:
+            - name: local-storage
+              mountPath: /data/patient-reports
+      volumes:
+        - name: local-storage
+          persistentVolumeClaim:
+            claimName: local-storage
 ---
 apiVersion: v1
 kind: Service
