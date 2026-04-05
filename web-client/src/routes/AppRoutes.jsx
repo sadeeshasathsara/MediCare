@@ -6,6 +6,7 @@ import CreateAdminPage from '@/pages/CreateAdminPage'
 import PendingDoctorsPage from '@/pages/PendingDoctorsPage'
 import LandingPage from '@/pages/LandingPage'
 import { useAuth } from '@/context/AuthContext'
+import { Skeleton } from '@/components/ui/skeleton'
 
 // ── Auth (Member 1) ────────────────────────────────────
 import LoginPage from '@/features/auth/pages/LoginPage'
@@ -48,7 +49,6 @@ import NotificationsPage from '@/features/notifications/pages/NotificationsPage'
 // --- Navigation Links for Top Nav ---
 const patientLinks = [
   { label: 'Dashboard', path: '/patient/dashboard' },
-  { label: 'Profile', path: '/patient/profile' },
   { label: 'Reports', path: '/patient/reports' },
   { label: 'History', path: '/patient/history' },
   { label: 'Prescriptions', path: '/patient/prescriptions' },
@@ -60,14 +60,41 @@ const doctorLinks = [
   { label: 'Telemedicine', path: '/doctor/telemedicine' },
   { label: 'Payments', path: '/doctor/payments' },
   { label: 'Notifications', path: '/doctor/notifications' },
-  { label: 'Profile', path: '/doctor/profile' },
 ]
 
 export default function AppRoutes() {
   const { loading, accessToken, user } = useAuth()
 
+  const loadingScreen = () => (
+    <TopNavLayout>
+      <div className="space-y-4">
+        <div className="space-y-2">
+          <Skeleton className="h-8 w-56" />
+          <Skeleton className="h-4 w-96 max-w-full" />
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          <div className="rounded-xl border p-5" style={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}>
+            <Skeleton className="h-4 w-24" />
+            <Skeleton className="mt-3 h-7 w-40" />
+            <Skeleton className="mt-3 h-4 w-56" />
+          </div>
+          <div className="rounded-xl border p-5" style={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}>
+            <Skeleton className="h-4 w-28" />
+            <Skeleton className="mt-3 h-7 w-32" />
+            <Skeleton className="mt-3 h-4 w-60" />
+          </div>
+          <div className="rounded-xl border p-5" style={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}>
+            <Skeleton className="h-4 w-20" />
+            <Skeleton className="mt-3 h-7 w-44" />
+            <Skeleton className="mt-3 h-4 w-52" />
+          </div>
+        </div>
+      </div>
+    </TopNavLayout>
+  )
+
   const requireRole = (role, element) => {
-    if (loading) return null
+    if (loading) return loadingScreen()
     if (!accessToken) return <Navigate to="/login" replace />
     if (user?.role !== role) {
       return (
@@ -83,7 +110,7 @@ export default function AppRoutes() {
   }
 
   const requireAdmin = (element) => {
-    if (loading) return null
+    if (loading) return loadingScreen()
     if (!accessToken) return <Navigate to="/login" replace />
     if (user?.role !== 'ADMIN') {
       return (
@@ -99,7 +126,7 @@ export default function AppRoutes() {
   }
 
   const roleHome = () => {
-    if (loading) return null
+    if (loading) return loadingScreen()
     if (!accessToken) return <LandingPage />
 
     if (user?.role === 'ADMIN') {

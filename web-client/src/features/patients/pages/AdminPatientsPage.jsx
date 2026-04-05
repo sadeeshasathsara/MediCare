@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { adminDeletePatient, adminListPatients, adminSetPatientStatus } from '@/features/patients/services/patientApi'
 import { CheckCircle2, XCircle, Trash2, RefreshCcw } from 'lucide-react'
+import { Skeleton } from '@/components/ui/skeleton'
 
 export default function AdminPatientsPage() {
     const [page, setPage] = useState(0)
@@ -173,11 +174,29 @@ export default function AdminPatientsPage() {
                         </thead>
                         <tbody>
                             {loading ? (
-                                <tr>
-                                    <td colSpan={5} className="px-4 py-8 text-center" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                                        Loading...
-                                    </td>
-                                </tr>
+                                Array.from({ length: size }).map((_, idx) => (
+                                    <tr key={`skeleton-${idx}`} className="border-b last:border-b-0" style={{ borderColor: 'hsl(var(--border))' }}>
+                                        <td className="px-4 py-3">
+                                            <Skeleton className="h-4 w-40" />
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            <Skeleton className="h-4 w-56" />
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            <Skeleton className="h-4 w-36" />
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            <Skeleton className="h-6 w-24 rounded-full" />
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            <div className="flex items-center justify-end gap-2">
+                                                <Skeleton className="h-8 w-20 rounded-lg" />
+                                                <Skeleton className="h-8 w-24 rounded-lg" />
+                                                <Skeleton className="h-8 w-9 rounded-lg" />
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))
                             ) : data.items.length === 0 ? (
                                 <tr>
                                     <td colSpan={5} className="px-4 py-8 text-center" style={{ color: 'hsl(var(--muted-foreground))' }}>

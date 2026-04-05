@@ -14,6 +14,7 @@ import {
     uploadPatientReportToFolder,
 } from '@/features/patients/services/patientApi'
 import { Download, Upload, RefreshCcw, Folder, MoreVertical, Plus } from 'lucide-react'
+import { Skeleton } from '@/components/ui/skeleton'
 
 const ALL_FOLDER_ID = '__all__'
 const UNCATEGORIZED_FOLDER_ID = '__uncategorized__'
@@ -1217,7 +1218,22 @@ export default function PatientReportsPage() {
                         }}
                     >
                         {loading ? (
-                            <div className="text-sm" style={{ color: 'hsl(var(--muted-foreground))' }}>Loading...</div>
+                            Array.from({ length: 6 }).map((_, idx) => (
+                                <div
+                                    key={`file-skeleton-${idx}`}
+                                    className="rounded-xl border p-4"
+                                    style={{ backgroundColor: 'transparent', borderColor: 'hsl(var(--border))' }}
+                                >
+                                    <div className="flex items-start gap-3">
+                                        <Skeleton className="h-9 w-9 rounded-lg" />
+                                        <div className="min-w-0 flex-1 space-y-2">
+                                            <Skeleton className="h-4 w-3/4" />
+                                            <Skeleton className="h-3 w-1/2" />
+                                        </div>
+                                        <Skeleton className="h-6 w-6 rounded-md" />
+                                    </div>
+                                </div>
+                            ))
                         ) : visibleFileItems.length === 0 ? (
                             <div className="text-sm" style={{ color: 'hsl(var(--muted-foreground))' }}>
                                 No files here.
