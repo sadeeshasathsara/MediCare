@@ -34,7 +34,10 @@ spec:
               value: "604800000"
 
             - name: CORS_ALLOWED_ORIGINS
-              value: "http://localhost:5173,http://localhost:3000"
+              valueFrom:
+                secretKeyRef:
+                  name: medicare-secrets
+                  key: CORS_ALLOWED_ORIGINS
 
             # Optional: bootstrap initial ADMIN user (disabled by default)
             - name: ADMIN_BOOTSTRAP_ENABLED
