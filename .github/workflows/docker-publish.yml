@@ -84,5 +84,5 @@ jobs:
           args: >-
             -summary -strict
             -ignore-filename-pattern .*\\.env.*
-            -ignore-filename-pattern .*\\-patch\\-.*\\.json$
+            -ignore-filename-pattern .*SECRET-FILE/.*
             k8s/
