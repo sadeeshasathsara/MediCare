@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '@/context/AuthContext'
 import { getPatientPrescriptions } from '@/features/patients/services/patientApi'
 import { RefreshCcw } from 'lucide-react'
+import { Skeleton } from '@/components/ui/skeleton'
 
 export default function PatientPrescriptionsPage() {
     const { user } = useAuth()
@@ -78,7 +79,13 @@ export default function PatientPrescriptionsPage() {
 
             <section className="rounded-xl border p-5" style={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}>
                 {loading ? (
-                    <p className="text-sm" style={{ color: 'hsl(var(--muted-foreground))' }}>Loading...</p>
+                    <div className="space-y-2">
+                        <Skeleton className="h-4 w-44" />
+                        <Skeleton className="h-4 w-full" />
+                        <Skeleton className="h-4 w-11/12" />
+                        <Skeleton className="h-4 w-10/12" />
+                        <Skeleton className="h-4 w-9/12" />
+                    </div>
                 ) : data ? (
                     <pre className="text-xs whitespace-pre-wrap" style={{ color: 'hsl(var(--muted-foreground))' }}>{JSON.stringify(data, null, 2)}</pre>
                 ) : (
