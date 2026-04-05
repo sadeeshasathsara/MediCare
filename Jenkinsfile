@@ -82,7 +82,7 @@ pipeline {
                                 sh """
                                     kubectl create secret generic medicare-secrets \\
                                       --from-env-file=$MEDICARE_SECRETS_ENV \\
-                                      --dry-run=client -o yaml | kubectl apply -f -
+                                      --dry-run=client -o yaml | kubectl apply --validate=false -f -
                                 """
                             }
                         } catch (err) {
@@ -90,7 +90,7 @@ pipeline {
                         }
 
                         // 2) Apply manifests so env/volumes/config changes take effect
-                        sh "kubectl apply -f k8s/"
+                        sh "kubectl apply --validate=false -f k8s/"
 
                         def services = [
                             [name: 'auth-service', env: 'BUILD_AUTH'],
