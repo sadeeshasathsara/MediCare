@@ -218,6 +218,7 @@ function HeroIllustration() {
             </div>
 
             <div
+                className="lp-hero-float lp-hero-float-ai"
                 style={{
                     position: 'absolute',
                     top: -20,
@@ -249,6 +250,7 @@ function HeroIllustration() {
             </div>
 
             <div
+                className="lp-hero-float lp-hero-float-satisfaction"
                 style={{
                     position: 'absolute',
                     bottom: -18,
@@ -566,7 +568,7 @@ export default function LandingPage() {
                     fontFamily: "'Inter', ui-sans-serif, system-ui, sans-serif",
                 }}
             >
-                <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 24px', height: 68, display: 'flex', alignItems: 'center', gap: 40 }}>
+                <div className="lp-header-inner" style={{ maxWidth: 1200, margin: '0 auto', padding: '0 24px', height: 68, display: 'flex', alignItems: 'center', gap: 40 }}>
                     <a href="#" style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}>
                         <HeartPulse size={26} color="#17aacf" />
                         <span style={{ fontSize: '1.2rem', color: '#1a1510', fontWeight: 600 }}>
@@ -586,12 +588,12 @@ export default function LandingPage() {
                         ))}
                     </nav>
 
-                    <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                    <div className="lp-header-actions" style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
                         <Link to="/login" className="btn-outline hide-mobile" style={{ padding: '10px 22px', fontSize: '0.85rem' }}>
                             Sign in
                         </Link>
-                        <Link to="/register" className="btn-primary" style={{ padding: '10px 22px', fontSize: '0.85rem' }}>
-                            Get started <ArrowRight size={15} />
+                        <Link to="/register" className="btn-primary lp-header-cta" style={{ padding: '10px 22px', fontSize: '0.85rem' }}>
+                            Get started <ArrowRight size={15} className="lp-header-cta-icon" />
                         </Link>
                     </div>
                 </div>
@@ -822,7 +824,7 @@ export default function LandingPage() {
 
             <section id="services" style={{ padding: '100px 24px', background: '#fff' }}>
                 <div style={{ maxWidth: 1200, margin: '0 auto' }}>
-                    <div className="reveal" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 60, alignItems: 'end', marginBottom: 60 }}>
+                    <div className="reveal lp-two-col" style={{ display: 'grid', gap: 60, alignItems: 'end', marginBottom: 60 }}>
                         <div>
                             <div style={{ fontSize: '0.78rem', fontWeight: 700, letterSpacing: '0.12em', color: '#17aacf', textTransform: 'uppercase', marginBottom: 12 }}>
                                 What's included
@@ -911,7 +913,7 @@ export default function LandingPage() {
             <section style={{ padding: '80px 24px' }}>
                 <div style={{ maxWidth: 900, margin: '0 auto' }}>
                     <div
-                        className="reveal"
+                        className="reveal lp-cta"
                         style={{
                             background: 'linear-gradient(135deg,#1a2e27,#17aacf)',
                             borderRadius: 28,
@@ -938,9 +940,10 @@ export default function LandingPage() {
                             </p>
                         </div>
 
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, flexShrink: 0 }}>
+                        <div className="lp-cta-actions" style={{ display: 'flex', flexDirection: 'column', gap: 12, flexShrink: 0 }}>
                             <Link
                                 to="/register"
+                                className="lp-cta-primary"
                                 style={{
                                     display: 'inline-flex',
                                     alignItems: 'center',
@@ -968,14 +971,14 @@ export default function LandingPage() {
 
             <footer style={{ background: '#1a1510', padding: '48px 24px 32px' }}>
                 <div style={{ maxWidth: 1200, margin: '0 auto' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 32, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                    <div className="lp-footer-top" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 32, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                             <HeartPulse size={22} color="#17aacf" />
                             <span className="serif" style={{ fontSize: '1.1rem', color: '#fff' }}>
                                 MediCare
                             </span>
                         </div>
-                        <div style={{ display: 'flex', gap: 32 }}>
+                        <div className="lp-footer-links" style={{ display: 'flex', gap: 32 }}>
                             {['Privacy', 'Terms', 'Support', 'Contact'].map((l) => (
                                 <a
                                     key={l}
@@ -993,7 +996,7 @@ export default function LandingPage() {
                             ))}
                         </div>
                     </div>
-                    <div style={{ paddingTop: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div className="lp-footer-bottom" style={{ paddingTop: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: '0.78rem' }}>
                             © {new Date().getFullYear()} MediCare. All rights reserved.
                         </div>

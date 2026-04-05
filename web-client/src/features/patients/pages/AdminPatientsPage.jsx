@@ -60,7 +60,7 @@ export default function AdminPatientsPage() {
 
     return (
         <div className="space-y-6">
-            <div className="flex items-start justify-between gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-semibold tracking-tight" style={{ color: 'hsl(var(--foreground))' }}>
                         Patients
@@ -114,7 +114,7 @@ export default function AdminPatientsPage() {
                     />
                 </div>
 
-                <div className="min-w-55">
+                <div className="w-full lg:w-56">
                     <label className="block text-xs font-medium" style={{ color: 'hsl(var(--muted-foreground))' }}>
                         Status
                     </label>
@@ -161,7 +161,7 @@ export default function AdminPatientsPage() {
 
             <div className="rounded-xl border overflow-hidden" style={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}>
                 <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
+                    <table className="min-w-[720px] w-full text-sm">
                         <thead>
                             <tr className="border-b" style={{ borderColor: 'hsl(var(--border))' }}>
                                 <th className="text-left font-medium px-4 py-3" style={{ color: 'hsl(var(--muted-foreground))' }}>User ID</th>

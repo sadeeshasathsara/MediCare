@@ -187,7 +187,7 @@ export default function CreateAdminPage() {
 
     return (
         <div className="space-y-6">
-            <div className="flex items-start justify-between gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-semibold tracking-tight" style={{ color: 'hsl(var(--foreground))' }}>
                         Admin Accounts
@@ -272,7 +272,7 @@ export default function CreateAdminPage() {
                     </div>
                 ) : (
                     <div className="overflow-x-auto">
-                        <div className="min-w-190">
+                        <div className="min-w-[760px]">
                             <div
                                 className="grid grid-cols-12 gap-3 px-3 py-2 text-xs font-medium uppercase tracking-wide border-b"
                                 style={{ borderColor: 'hsl(var(--border))', color: 'hsl(var(--muted-foreground))' }}
