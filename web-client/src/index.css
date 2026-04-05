@@ -170,6 +170,12 @@
   .float-slow {
     animation: floatSlow 8s ease-in-out infinite;
   }
+
+  /* App utilities */
+  .min-w-190 {
+    min-width: 47.5rem;
+    /* 760px */
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
