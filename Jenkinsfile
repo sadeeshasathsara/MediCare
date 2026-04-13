@@ -82,11 +82,11 @@ pipeline {
                         // File contents should be KEY=VALUE lines matching the keys referenced in k8s/*-deployment.yaml
                         try {
                             withCredentials([file(credentialsId: env.MEDICARE_SECRETS_ENV_CREDENTIAL, variable: 'MEDICARE_SECRETS_ENV')]) {
-                                sh """
-                                    kubectl create secret generic medicare-secrets \\
-                                      --from-env-file=$MEDICARE_SECRETS_ENV \\
+                                sh '''
+                                    kubectl create secret generic medicare-secrets \
+                                      --from-env-file="$MEDICARE_SECRETS_ENV" \
                                       --dry-run=client -o yaml | kubectl apply --validate=false -f -
-                                """
+                                '''
                             }
                         } catch (err) {
                             echo "Skipping k8s secret update (missing credential '${env.MEDICARE_SECRETS_ENV_CREDENTIAL}'?): ${err}"
