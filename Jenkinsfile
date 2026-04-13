@@ -107,9 +107,8 @@ pipeline {
                         ]
 
                         services.each { svc ->
-                            if (env."${svc.env}" == 'true' || env.SECRETS_CHANGED == 'true') {
-                                sh "kubectl rollout restart deployment/${svc.name}"
-                            }
+                            // Always rollout restart all deployments after apply
+                            sh "kubectl rollout restart deployment/${svc.name}"
                         }
                     }
                 }
