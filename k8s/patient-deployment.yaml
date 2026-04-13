@@ -20,6 +20,13 @@ spec:
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 3002
+          readinessProbe:
+            tcpSocket:
+              port: 3002
+            initialDelaySeconds: 2
+            periodSeconds: 3
+            timeoutSeconds: 1
+            failureThreshold: 10
           env:
             # Update the MongoDB URI below manually
             - name: SPRING_DATA_MONGODB_URI
@@ -27,6 +34,61 @@ spec:
                 secretKeyRef:
                   name: medicare-secrets
                   key: MONGO_URI_PATIENT
+
+            - name: CORS_ALLOWED_ORIGINS
+              valueFrom:
+                secretKeyRef:
+                  name: medicare-secrets
+                  key: CORS_ALLOWED_ORIGINS
+            - name: PATIENT_STORAGE_PROVIDER
+              valueFrom:
+                secretKeyRef:
+                  name: medicare-secrets
+                  key: PATIENT_STORAGE_PROVIDER
+            - name: PATIENT_STORAGE_LOCAL_DIR
+              valueFrom:
+                secretKeyRef:
+                  name: medicare-secrets
+                  key: PATIENT_STORAGE_LOCAL_DIR
+
+            - name: PATIENT_SECURITY_ACCEPT_BEARER
+              valueFrom:
+                secretKeyRef:
+                  name: medicare-secrets
+                  key: PATIENT_SECURITY_ACCEPT_BEARER
+
+            - name: S3_BUCKET
+              valueFrom:
+                secretKeyRef:
+                  name: medicare-secrets
+                  key: S3_BUCKET
+            - name: S3_REGION
+              valueFrom:
+                secretKeyRef:
+                  name: medicare-secrets
+                  key: S3_REGION
+            - name: S3_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  name: medicare-secrets
+                  key: S3_ENDPOINT
+            - name: S3_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: medicare-secrets
+                  key: S3_ACCESS_KEY_ID
+            - name: S3_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: medicare-secrets
+                  key: S3_SECRET_ACCESS_KEY
+          volumeMounts:
+            - name: local-storage
+              mountPath: /data/patient-reports
+      volumes:
+        - name: local-storage
+          persistentVolumeClaim:
+            claimName: local-storage
 ---
 apiVersion: v1
 kind: Service

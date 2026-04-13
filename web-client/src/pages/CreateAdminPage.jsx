@@ -187,7 +187,7 @@ export default function CreateAdminPage() {
 
     return (
         <div className="space-y-6">
-            <div className="flex items-start justify-between gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-semibold tracking-tight" style={{ color: 'hsl(var(--foreground))' }}>
                         Admin Accounts
@@ -378,18 +378,14 @@ export default function CreateAdminPage() {
             {modalOpen ? (
                 <div className="fixed inset-0 z-50">
                     <div
-                        className="absolute inset-0 opacity-50"
-                        style={{ backgroundColor: 'hsl(var(--foreground))' }}
+                        className="absolute inset-0 bg-black/50"
                         onClick={closeModal}
                     />
 
                     <div className="absolute inset-0 flex items-center justify-center p-4">
                         <div
-                            className="w-full max-w-lg rounded-xl border p-5"
-                            style={{
-                                backgroundColor: 'hsl(var(--card))',
-                                borderColor: 'hsl(var(--border))',
-                            }}
+                            className="w-full max-w-lg rounded-xl border p-5 bg-card"
+                            style={{ borderColor: 'hsl(var(--border))' }}
                         >
                             <div className="flex items-start justify-between gap-4 mb-4">
                                 <div>

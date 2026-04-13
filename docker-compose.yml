@@ -19,8 +19,12 @@ services:
     build: ./services/patient-service
     expose:
       - "3002"
+    env_file:
+      - ./services/patient-service/.env
     environment:
       SPRING_DATA_MONGODB_URI: ${MONGO_URI_PATIENT}
+    volumes:
+      - local-storage:/data/patient-reports
 
   doctor-service:
     build: ./services/doctor-service
@@ -80,3 +84,7 @@ services:
       - payment-service
       - notification-service
       - ai-symptom-service
+
+volumes:
+  local-storage:
+    name: local-storage

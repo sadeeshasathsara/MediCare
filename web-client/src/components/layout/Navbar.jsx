@@ -1,8 +1,9 @@
 import { useAuth } from '@/context/AuthContext'
 import { useTheme } from '@/context/ThemeContext'
 import { useMobile } from '@/hooks/useMobile'
+import { downloadPatientProfilePhoto } from '@/features/patients/services/patientApi'
 import { Sun, Moon, Menu, LogOut, User, ChevronDown, HeartPulse, X } from 'lucide-react'
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { Link, NavLink } from 'react-router-dom'
 
 export default function Navbar({ onMenuClick, showMenuButton = true, showLogo = false, navLinks = [] }) {
@@ -11,7 +12,15 @@ export default function Navbar({ onMenuClick, showMenuButton = true, showLogo = 
   const isMobile = useMobile()
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
+  const [avatarUrl, setAvatarUrl] = useState('')
   const dropdownRef = useRef(null)
+
+  const profilePath = useMemo(() => {
+    const role = user?.role
+    if (role === 'PATIENT') return '/patient/profile'
+    if (role === 'DOCTOR') return '/doctor/profile'
+    return null
+  }, [user?.role])
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -23,6 +32,47 @@ export default function Navbar({ onMenuClick, showMenuButton = true, showLogo = 
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    let objectUrlToRevoke = ''
+
+    async function loadAvatar() {
+      const role = user?.role
+      const userId = user?.id
+
+      // Currently only patient-service provides a profile-photo endpoint.
+      if (!userId || role !== 'PATIENT') {
+        setAvatarUrl('')
+        return
+      }
+
+      try {
+        const res = await downloadPatientProfilePhoto(userId)
+        if (cancelled) return
+
+        objectUrlToRevoke = URL.createObjectURL(res.data)
+        setAvatarUrl(objectUrlToRevoke)
+      } catch {
+        if (cancelled) return
+        setAvatarUrl('')
+      }
+    }
+
+    loadAvatar()
+
+    function handleUpdated() {
+      loadAvatar()
+    }
+
+    window.addEventListener('profile-photo-updated', handleUpdated)
+
+    return () => {
+      cancelled = true
+      window.removeEventListener('profile-photo-updated', handleUpdated)
+      if (objectUrlToRevoke) URL.revokeObjectURL(objectUrlToRevoke)
+    }
+  }, [user?.id, user?.role])
 
   return (
     <header
@@ -57,15 +107,15 @@ export default function Navbar({ onMenuClick, showMenuButton = true, showLogo = 
       {navLinks.length > 0 && !isMobile && (
         <nav className="flex items-center gap-6 mr-6">
           {navLinks.map((link) => (
-             <NavLink
-               key={link.path}
-               to={link.path}
-               className={({ isActive }) => 
-                 `text-sm font-medium transition-colors hover:text-primary ${isActive ? 'text-primary' : 'text-muted-foreground'}`
-               }
-             >
-               {link.label}
-             </NavLink>
+            <NavLink
+              key={link.path}
+              to={link.path}
+              className={({ isActive }) =>
+                `text-sm font-medium transition-colors hover:text-primary ${isActive ? 'text-primary' : 'text-muted-foreground'}`
+              }
+            >
+              {link.label}
+            </NavLink>
           ))}
         </nav>
       )}
@@ -77,13 +127,13 @@ export default function Navbar({ onMenuClick, showMenuButton = true, showLogo = 
       <div className="flex items-center gap-2">
         {/* Mobile menu button for TopNavLayout */}
         {!showMenuButton && navLinks.length > 0 && isMobile && (
-           <button
-             onClick={() => setMobileNavOpen(!mobileNavOpen)}
-             className="p-2 mr-2 rounded-lg transition-colors cursor-pointer"
-             style={{ color: 'hsl(var(--foreground))' }}
-           >
-             {mobileNavOpen ? <X size={22} /> : <Menu size={22} />}
-           </button>
+          <button
+            onClick={() => setMobileNavOpen(!mobileNavOpen)}
+            className="p-2 mr-2 rounded-lg transition-colors cursor-pointer"
+            style={{ color: 'hsl(var(--foreground))' }}
+          >
+            {mobileNavOpen ? <X size={22} /> : <Menu size={22} />}
+          </button>
         )}
 
         {/* Theme toggle */}
@@ -124,7 +174,15 @@ export default function Navbar({ onMenuClick, showMenuButton = true, showLogo = 
                 color: 'hsl(var(--primary-foreground))',
               }}
             >
-              {user?.name?.[0]?.toUpperCase() || 'U'}
+              {avatarUrl ? (
+                <img
+                  src={avatarUrl}
+                  alt="Profile"
+                  className="h-full w-full rounded-full object-cover"
+                />
+              ) : (
+                user?.name?.[0]?.toUpperCase() || 'U'
+              )}
             </div>
             {!isMobile && (
               <>
@@ -146,19 +204,37 @@ export default function Navbar({ onMenuClick, showMenuButton = true, showLogo = 
                 color: 'hsl(var(--popover-foreground))',
               }}
             >
-              <button
-                onClick={() => { setDropdownOpen(false) }}
-                className="flex items-center gap-2 w-full px-3 py-2 text-sm transition-colors cursor-pointer"
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = 'hsl(var(--accent))'
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = 'transparent'
-                }}
-              >
-                <User size={16} />
-                Profile
-              </button>
+              {profilePath ? (
+                <Link
+                  to={profilePath}
+                  onClick={() => {
+                    setDropdownOpen(false)
+                  }}
+                  className="flex items-center gap-2 w-full px-3 py-2 text-sm transition-colors cursor-pointer"
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = 'hsl(var(--accent))'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'transparent'
+                  }}
+                >
+                  <User size={16} />
+                  Profile
+                </Link>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDropdownOpen(false)
+                  }}
+                  className="flex items-center gap-2 w-full px-3 py-2 text-sm transition-colors"
+                  style={{ color: 'hsl(var(--muted-foreground))', cursor: 'default' }}
+                  disabled
+                >
+                  <User size={16} />
+                  Profile
+                </button>
+              )}
               <div className="h-px mx-2 my-1" style={{ backgroundColor: 'hsl(var(--border))' }} />
               <button
                 onClick={() => { logout(); setDropdownOpen(false) }}
@@ -181,8 +257,8 @@ export default function Navbar({ onMenuClick, showMenuButton = true, showLogo = 
 
       {/* Mobile TopNav Dropdown */}
       {!showMenuButton && navLinks.length > 0 && isMobile && mobileNavOpen && (
-        <div 
-          className="absolute top-16 left-0 right-0 border-b shadow-lg p-4 flex flex-col gap-4 z-40" 
+        <div
+          className="absolute top-16 left-0 right-0 border-b shadow-lg p-4 flex flex-col gap-4 z-40"
           style={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}
         >
           {navLinks.map((link) => (
@@ -190,7 +266,7 @@ export default function Navbar({ onMenuClick, showMenuButton = true, showLogo = 
               key={link.path}
               to={link.path}
               onClick={() => setMobileNavOpen(false)}
-              className={({ isActive }) => 
+              className={({ isActive }) =>
                 `text-base font-medium transition-colors hover:text-primary ${isActive ? 'text-primary' : 'text-foreground'}`
               }
             >

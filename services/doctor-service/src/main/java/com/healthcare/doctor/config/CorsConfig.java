@@ -1,38 +1,38 @@
 package com.healthcare.doctor.config;
 
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.web.cors.CorsConfiguration;
-import org.springframework.web.cors.CorsConfigurationSource;
-import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
-import org.springframework.web.servlet.config.annotation.CorsRegistry;
-import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
-
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
+
+import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
+import org.springframework.web.servlet.config.annotation.CorsRegistry;
+import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 @Configuration
 public class CorsConfig implements WebMvcConfigurer {
 
-    private final org.springframework.core.env.Environment environment;
+    private final Environment environment;
 
-    public CorsConfig(org.springframework.core.env.Environment environment) {
+    public CorsConfig(Environment environment) {
         this.environment = environment;
     }
 
     @Override
     public void addCorsMappings(CorsRegistry registry) {
-        String allowedOriginsRaw = environment.getProperty("cors.allowed-origins",
+        String allowedOriginsRaw = environment.getProperty(
+                "cors.allowed-origins",
                 "http://localhost:5173,http://localhost:3000");
-        String[] origins = Arrays.stream(allowedOriginsRaw.split(","))
+
+        List<String> allowedOrigins = Arrays.stream(allowedOriginsRaw.split(","))
                 .map(String::trim)
                 .filter(s -> !s.isEmpty())
-                .toArray(String[]::new);
+                .collect(Collectors.toList());
 
         registry.addMapping("/**")
-                .allowedOrigins(origins)
+                .allowedOriginPatterns(allowedOrigins.toArray(new String[0]))
                 .allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
-                .allowedHeaders("Authorization", "Content-Type", "X-User-Id", "X-User-Role", "X-User-Verified")
-                .exposedHeaders("X-User-Id", "X-User-Role", "X-User-Verified");
+                .allowedHeaders("*")
+                .allowCredentials(true);
     }
 }
