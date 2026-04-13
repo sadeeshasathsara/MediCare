@@ -4,6 +4,9 @@ const TELEMEDICINE_BASE = '/telemedicine/api/v1'
 const APPOINTMENT_GATEWAY_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api'
 const APPOINTMENT_ABSOLUTE_BASE = import.meta.env.VITE_APPOINTMENT_API_BASE_URL || `${APPOINTMENT_GATEWAY_BASE}/appointments/appointments`
 const APPOINTMENT_ABSOLUTE_BASE_FALLBACK = import.meta.env.VITE_APPOINTMENT_API_BASE_URL_FALLBACK || `${APPOINTMENT_GATEWAY_BASE}/appointments`
+const RETRYABLE_APPOINTMENT_STATUSES = new Set([500, 502, 503, 504])
+const APPOINTMENT_RETRY_DELAY_MS = 1200
+const APPOINTMENT_MAX_ATTEMPTS = 2
 const RESCHEDULE_PREFIX = '[telemedicine-rescheduled]'
 const TELEMEDICINE_KEYWORDS = [
   'telemedicine',
@@ -46,6 +49,18 @@ function trimTrailingSlash(value) {
   return String(value || '').replace(/\/+$/, '')
 }
 
+function isRetryableAppointmentError(error) {
+  const status = Number(error?.response?.status)
+  if (RETRYABLE_APPOINTMENT_STATUSES.has(status)) return true
+  return !error?.response
+}
+
+function delay(ms) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms)
+  })
+}
+
 async function requestAppointmentService(method, path, configOrBody) {
   const candidates = [
     `${trimTrailingSlash(APPOINTMENT_ABSOLUTE_BASE)}${path}`,
@@ -56,20 +71,27 @@ async function requestAppointmentService(method, path, configOrBody) {
   let lastError = null
 
   for (const candidate of uniqueCandidates) {
-    try {
-      if (method === 'get') {
-        return await api.get(candidate, configOrBody)
-      }
-      if (method === 'put') {
-        return await api.put(candidate, configOrBody)
-      }
-      if (method === 'patch') {
-        return await api.patch(candidate, configOrBody)
-      }
-      throw new Error(`Unsupported method: ${method}`)
-    } catch (error) {
-      lastError = error
-      if (!isNotFound(error)) {
+    for (let attempt = 1; attempt <= APPOINTMENT_MAX_ATTEMPTS; attempt += 1) {
+      try {
+        if (method === 'get') {
+          return await api.get(candidate, configOrBody)
+        }
+        if (method === 'put') {
+          return await api.put(candidate, configOrBody)
+        }
+        if (method === 'patch') {
+          return await api.patch(candidate, configOrBody)
+        }
+        throw new Error(`Unsupported method: ${method}`)
+      } catch (error) {
+        lastError = error
+        if (isNotFound(error)) {
+          break
+        }
+        if (isRetryableAppointmentError(error) && attempt < APPOINTMENT_MAX_ATTEMPTS) {
+          await delay(APPOINTMENT_RETRY_DELAY_MS)
+          continue
+        }
         throw error
       }
     }
