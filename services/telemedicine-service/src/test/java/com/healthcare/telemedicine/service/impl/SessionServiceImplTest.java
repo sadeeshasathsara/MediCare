@@ -18,11 +18,12 @@ import org.mockito.MockitoAnnotations;
 
 import com.healthcare.telemedicine.dto.session.JoinTokenResponse;
 import com.healthcare.telemedicine.event.TelemedicineEventPublisher;
-import com.healthcare.telemedicine.model.Appointment;
+import com.healthcare.telemedicine.integration.appointment.AppointmentGateway;
+import com.healthcare.telemedicine.integration.appointment.ExternalAppointment;
+import com.healthcare.telemedicine.integration.appointment.ExternalAppointmentStatus;
+import com.healthcare.telemedicine.integration.appointment.TelemedicineAppointmentAdapter;
 import com.healthcare.telemedicine.model.ConsultationSession;
-import com.healthcare.telemedicine.model.enums.AppointmentStatus;
 import com.healthcare.telemedicine.model.enums.SessionStatus;
-import com.healthcare.telemedicine.repository.AppointmentRepository;
 import com.healthcare.telemedicine.repository.ConsultationSessionRepository;
 import com.healthcare.telemedicine.service.AuditLogService;
 import com.healthcare.telemedicine.service.JitsiService;
@@ -30,7 +31,7 @@ import com.healthcare.telemedicine.service.JitsiService;
 class SessionServiceImplTest {
 
     @Mock
-    private AppointmentRepository appointmentRepository;
+    private AppointmentGateway appointmentGateway;
 
     @Mock
     private ConsultationSessionRepository sessionRepository;
@@ -44,13 +45,16 @@ class SessionServiceImplTest {
     @Mock
     private TelemedicineEventPublisher eventPublisher;
 
+    private TelemedicineAppointmentAdapter appointmentAdapter;
     private SessionServiceImpl sessionService;
 
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
+        appointmentAdapter = new TelemedicineAppointmentAdapter("telemedicine");
         sessionService = new SessionServiceImpl(
-                appointmentRepository,
+                appointmentGateway,
+                appointmentAdapter,
                 sessionRepository,
                 jitsiService,
                 auditLogService,
@@ -60,15 +64,21 @@ class SessionServiceImplTest {
 
     @Test
     void createSession_shouldCreatePublicRoomWithoutJwtToken() {
-        Appointment appointment = Appointment.builder()
-                .doctorId("doctor-1")
-                .patientId("patient-1")
-                .scheduledAt(Instant.parse("2026-04-13T10:00:00Z"))
-                .status(AppointmentStatus.ACCEPTED)
-                .build();
-        appointment.setId("apt-1");
+        ExternalAppointment appointment = new ExternalAppointment(
+                "apt-1",
+                "doctor-1",
+                "patient-1",
+                "Patient One",
+                "Dr. Smith",
+                "Cardiology",
+                ExternalAppointmentStatus.CONFIRMED,
+                Instant.parse("2026-04-13T10:00:00Z"),
+                "Telemedicine consultation",
+                "",
+                Instant.now(),
+                Instant.now());
 
-        when(appointmentRepository.findByIdAndDeletedAtIsNull("apt-1")).thenReturn(Optional.of(appointment));
+        when(appointmentGateway.getById("apt-1", "doctor-1", "DOCTOR")).thenReturn(appointment);
         when(sessionRepository.findByAppointmentIdAndDeletedAtIsNull("apt-1")).thenReturn(Optional.empty());
         when(jitsiService.roomNameForAppointment("apt-1")).thenReturn("consult-apt-1");
         when(sessionRepository.save(any(ConsultationSession.class))).thenAnswer(invocation -> invocation.getArgument(0));

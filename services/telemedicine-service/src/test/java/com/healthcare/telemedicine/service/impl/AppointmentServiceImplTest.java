@@ -3,11 +3,11 @@ package com.healthcare.telemedicine.service.impl;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Instant;
-import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -16,16 +16,19 @@ import org.mockito.MockitoAnnotations;
 
 import com.healthcare.telemedicine.event.TelemedicineEventPublisher;
 import com.healthcare.telemedicine.exception.ConflictException;
-import com.healthcare.telemedicine.model.Appointment;
-import com.healthcare.telemedicine.model.enums.AppointmentStatus;
-import com.healthcare.telemedicine.repository.AppointmentRepository;
+import com.healthcare.telemedicine.dto.appointment.TelemedicineAppointmentResponse;
+import com.healthcare.telemedicine.dto.appointment.TelemedicineAppointmentStatus;
+import com.healthcare.telemedicine.integration.appointment.AppointmentGateway;
+import com.healthcare.telemedicine.integration.appointment.ExternalAppointment;
+import com.healthcare.telemedicine.integration.appointment.ExternalAppointmentStatus;
+import com.healthcare.telemedicine.integration.appointment.TelemedicineAppointmentAdapter;
 import com.healthcare.telemedicine.repository.ConsultationSessionRepository;
 import com.healthcare.telemedicine.service.AuditLogService;
 
 class AppointmentServiceImplTest {
 
     @Mock
-    private AppointmentRepository appointmentRepository;
+    private AppointmentGateway appointmentGateway;
 
     @Mock
     private ConsultationSessionRepository sessionRepository;
@@ -36,13 +39,16 @@ class AppointmentServiceImplTest {
     @Mock
     private AuditLogService auditLogService;
 
+    private TelemedicineAppointmentAdapter appointmentAdapter;
     private AppointmentServiceImpl appointmentService;
 
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
+        appointmentAdapter = new TelemedicineAppointmentAdapter("telemedicine");
         appointmentService = new AppointmentServiceImpl(
-                appointmentRepository,
+                appointmentGateway,
+                appointmentAdapter,
                 sessionRepository,
                 eventPublisher,
                 auditLogService);
@@ -50,20 +56,45 @@ class AppointmentServiceImplTest {
 
     @Test
     void acceptAppointment_shouldTransitionFromPendingToAccepted() {
-        Appointment pending = Appointment.builder()
-                .doctorId("doctor-1")
-                .patientId("patient-1")
-                .scheduledAt(Instant.now().plusSeconds(3600))
-                .status(AppointmentStatus.PENDING)
-                .build();
-        pending.setId("a1");
+        ExternalAppointment pending = new ExternalAppointment(
+                "a1",
+                "doctor-1",
+                "patient-1",
+                "Patient One",
+                "Dr. Smith",
+                "Cardiology",
+                ExternalAppointmentStatus.PENDING,
+                Instant.now().plusSeconds(3600),
+                "Telemedicine follow-up",
+                "",
+                Instant.now(),
+                Instant.now());
 
-        when(appointmentRepository.findByIdAndDeletedAtIsNull("a1")).thenReturn(Optional.of(pending));
-        when(appointmentRepository.save(any(Appointment.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        ExternalAppointment confirmed = new ExternalAppointment(
+                "a1",
+                "doctor-1",
+                "patient-1",
+                "Patient One",
+                "Dr. Smith",
+                "Cardiology",
+                ExternalAppointmentStatus.CONFIRMED,
+                pending.scheduledAt(),
+                "Telemedicine follow-up",
+                "",
+                pending.createdAt(),
+                Instant.now());
 
-        Appointment accepted = appointmentService.acceptAppointment("a1", "doctor-1");
+        when(appointmentGateway.getById("a1", "doctor-1", "DOCTOR")).thenReturn(pending);
+        when(appointmentGateway.updateStatus(
+                eq("a1"),
+                eq(ExternalAppointmentStatus.CONFIRMED),
+                eq(""),
+                eq("doctor-1"),
+                eq("DOCTOR"))).thenReturn(confirmed);
 
-        assertEquals(AppointmentStatus.ACCEPTED, accepted.getStatus());
+        TelemedicineAppointmentResponse accepted = appointmentService.acceptAppointment("a1", "doctor-1");
+
+        assertEquals(TelemedicineAppointmentStatus.ACCEPTED, accepted.getStatus());
         verify(eventPublisher).publishAppointmentStatusUpdated(accepted);
         verify(auditLogService).logStatusChange(
                 any(String.class),
@@ -77,12 +108,20 @@ class AppointmentServiceImplTest {
 
     @Test
     void acceptAppointment_shouldThrowWhenStatusIsRejected() {
-        Appointment rejected = Appointment.builder()
-                .doctorId("doctor-1")
-                .status(AppointmentStatus.REJECTED)
-                .build();
-        rejected.setId("a2");
-        when(appointmentRepository.findByIdAndDeletedAtIsNull("a2")).thenReturn(Optional.of(rejected));
+        ExternalAppointment cancelled = new ExternalAppointment(
+                "a2",
+                "doctor-1",
+                "patient-1",
+                "Patient One",
+                "Dr. Smith",
+                "Cardiology",
+                ExternalAppointmentStatus.CANCELLED,
+                Instant.now().plusSeconds(3600),
+                "Telemedicine follow-up",
+                "",
+                Instant.now(),
+                Instant.now());
+        when(appointmentGateway.getById("a2", "doctor-1", "DOCTOR")).thenReturn(cancelled);
 
         assertThrows(ConflictException.class, () -> appointmentService.acceptAppointment("a2", "doctor-1"));
     }
