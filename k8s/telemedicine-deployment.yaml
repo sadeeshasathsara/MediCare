@@ -97,6 +97,38 @@ spec:
                   name: medicare-secrets
                   key: TELEMEDICINE_AVAILABILITY_DAYS_AHEAD
 
+            - name: TELEMEDICINE_APPOINTMENT_SERVICE_BASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: medicare-secrets
+                  key: TELEMEDICINE_APPOINTMENT_SERVICE_BASE_URL
+            - name: TELEMEDICINE_APPOINTMENT_TELEMEDICINE_KEYWORDS
+              valueFrom:
+                secretKeyRef:
+                  name: medicare-secrets
+                  key: TELEMEDICINE_APPOINTMENT_TELEMEDICINE_KEYWORDS
+
+            - name: RABBITMQ_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: medicare-secrets
+                  key: RABBITMQ_HOST
+            - name: RABBITMQ_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: medicare-secrets
+                  key: RABBITMQ_PORT
+            - name: RABBITMQ_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: medicare-secrets
+                  key: RABBITMQ_USERNAME
+            - name: RABBITMQ_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: medicare-secrets
+                  key: RABBITMQ_PASSWORD
+
             - name: TELEMEDICINE_BROKER_ENABLED
               valueFrom:
                 secretKeyRef:
