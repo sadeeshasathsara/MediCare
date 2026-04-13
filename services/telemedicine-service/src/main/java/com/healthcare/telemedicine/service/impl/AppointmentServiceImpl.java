@@ -3,29 +3,27 @@ package com.healthcare.telemedicine.service.impl;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
-import java.util.ArrayList;
-import java.util.LinkedHashSet;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
-
-import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
-import com.healthcare.telemedicine.dto.appointment.SyncAppointmentRequest;
+import com.healthcare.telemedicine.dto.appointment.TelemedicineAppointmentResponse;
+import com.healthcare.telemedicine.dto.appointment.TelemedicineAppointmentStatus;
 import com.healthcare.telemedicine.event.TelemedicineEventPublisher;
 import com.healthcare.telemedicine.exception.BadRequestException;
 import com.healthcare.telemedicine.exception.ConflictException;
 import com.healthcare.telemedicine.exception.ForbiddenException;
 import com.healthcare.telemedicine.exception.NotFoundException;
-import com.healthcare.telemedicine.model.Appointment;
+import com.healthcare.telemedicine.integration.appointment.AppointmentGateway;
+import com.healthcare.telemedicine.integration.appointment.ExternalAppointment;
+import com.healthcare.telemedicine.integration.appointment.ExternalAppointmentStatus;
+import com.healthcare.telemedicine.integration.appointment.TelemedicineAppointmentAdapter;
 import com.healthcare.telemedicine.model.ConsultationSession;
-import com.healthcare.telemedicine.model.enums.AppointmentStatus;
 import com.healthcare.telemedicine.model.enums.SessionStatus;
-import com.healthcare.telemedicine.repository.AppointmentRepository;
 import com.healthcare.telemedicine.repository.ConsultationSessionRepository;
 import com.healthcare.telemedicine.service.AppointmentService;
 import com.healthcare.telemedicine.service.AuditLogService;
@@ -33,142 +31,128 @@ import com.healthcare.telemedicine.service.AuditLogService;
 @Service
 public class AppointmentServiceImpl implements AppointmentService {
 
-    private static final Sort APPOINTMENT_SORT_ASC = Sort.by(Sort.Direction.ASC, "scheduledAt");
-    private static final String SEEDED_PATIENT_USER_ID = "69cd4dc01d72c817c641a3e3";
-    private static final String SEEDED_PATIENT_PROFILE_ID = "69d1ec55acc43c5456fe30a2";
+    private static final String DOCTOR_ROLE = "DOCTOR";
+    private static final String PATIENT_ROLE = "PATIENT";
 
-    private final AppointmentRepository appointmentRepository;
+    private final AppointmentGateway appointmentGateway;
+    private final TelemedicineAppointmentAdapter appointmentAdapter;
     private final ConsultationSessionRepository sessionRepository;
     private final TelemedicineEventPublisher eventPublisher;
     private final AuditLogService auditLogService;
 
     public AppointmentServiceImpl(
-            AppointmentRepository appointmentRepository,
+            AppointmentGateway appointmentGateway,
+            TelemedicineAppointmentAdapter appointmentAdapter,
             ConsultationSessionRepository sessionRepository,
             TelemedicineEventPublisher eventPublisher,
             AuditLogService auditLogService) {
-        this.appointmentRepository = appointmentRepository;
+        this.appointmentGateway = appointmentGateway;
+        this.appointmentAdapter = appointmentAdapter;
         this.sessionRepository = sessionRepository;
         this.eventPublisher = eventPublisher;
         this.auditLogService = auditLogService;
     }
 
     @Override
-    public Appointment syncAppointment(SyncAppointmentRequest request, String actorId) {
-        Appointment appointment = appointmentRepository.findByIdAndDeletedAtIsNull(request.getId())
-                .orElseGet(Appointment::new);
-
-        AppointmentStatus previousStatus = appointment.getStatus();
-
-        appointment.setId(request.getId());
-        appointment.setPatientId(request.getPatientId());
-        appointment.setDoctorId(request.getDoctorId());
-        appointment.setScheduledAt(request.getScheduledAt());
-        appointment.setStatus(request.getStatus() == null ? AppointmentStatus.PENDING : request.getStatus());
-        appointment.setReasonForVisit(request.getReasonForVisit());
-        appointment.setNotes(request.getNotes());
-
-        Appointment saved = appointmentRepository.save(appointment);
-
-        if (previousStatus != null && previousStatus != saved.getStatus()) {
-            auditStatusChange(saved, previousStatus, saved.getStatus(), actorId, "appointment.synced");
-        }
-        return saved;
-    }
-
-    @Override
-    public List<Appointment> listAppointments(
+    public List<TelemedicineAppointmentResponse> listAppointments(
             String doctorId,
             String patientId,
-            AppointmentStatus status,
+            TelemedicineAppointmentStatus status,
             LocalDate date,
             String actorId,
             String actorRole) {
-        if ("DOCTOR".equals(actorRole)) {
+        List<ExternalAppointment> externalAppointments;
+
+        if (DOCTOR_ROLE.equals(actorRole)) {
             String resolvedDoctorId = StringUtils.hasText(doctorId) ? doctorId : actorId;
             if (!Objects.equals(resolvedDoctorId, actorId)) {
                 throw new ForbiddenException("Doctors can only access their own appointments");
             }
-            return listDoctorAppointments(resolvedDoctorId, status, date);
-        }
-
-        if ("PATIENT".equals(actorRole)) {
-            List<String> allowedPatientIds = resolveAllowedPatientIds(actorId);
+            externalAppointments = appointmentGateway.listByDoctorId(resolvedDoctorId, actorId, actorRole);
+        } else if (PATIENT_ROLE.equals(actorRole)) {
             String resolvedPatientId = StringUtils.hasText(patientId) ? patientId : actorId;
-            if (!allowedPatientIds.contains(resolvedPatientId)) {
+            if (!Objects.equals(resolvedPatientId, actorId)) {
                 throw new ForbiddenException("Patients can only access their own appointments");
             }
-
-            List<Appointment> appointments = appointmentRepository.findByPatientIdInAndDeletedAtIsNull(
-                    allowedPatientIds,
-                    APPOINTMENT_SORT_ASC);
-            return appointments.stream()
-                    .filter(a -> status == null || a.getStatus() == status)
-                    .filter(a -> filterByDate(a, date))
-                    .toList();
+            externalAppointments = appointmentGateway.listByPatientId(resolvedPatientId, actorId, actorRole);
+        } else {
+            throw new ForbiddenException("Unsupported role for appointment listing");
         }
 
-        throw new ForbiddenException("Unsupported role for appointment listing");
+        return externalAppointments.stream()
+                .filter(appointmentAdapter::isTelemedicineAppointment)
+                .map(appointmentAdapter::toTelemedicineAppointment)
+                .filter(appointment -> status == null || appointment.getStatus() == status)
+                .filter(appointment -> filterByDate(appointment, date))
+                .sorted(Comparator.comparing(
+                        TelemedicineAppointmentResponse::getScheduledAt,
+                        Comparator.nullsLast(Comparator.naturalOrder())))
+                .toList();
     }
 
     @Override
-    public Appointment getAppointmentById(String appointmentId, String actorId, String actorRole) {
-        Appointment appointment = findAppointment(appointmentId);
-        validateReadAccess(appointment, actorId, actorRole);
-        return appointment;
+    public TelemedicineAppointmentResponse getAppointmentById(String appointmentId, String actorId, String actorRole) {
+        ExternalAppointment externalAppointment = appointmentGateway.getById(appointmentId, actorId, actorRole);
+        if (!appointmentAdapter.isTelemedicineAppointment(externalAppointment)) {
+            throw new NotFoundException("Appointment not found");
+        }
+        return appointmentAdapter.toTelemedicineAppointment(externalAppointment);
     }
 
     @Override
-    public Appointment acceptAppointment(String appointmentId, String actorId) {
-        Appointment appointment = findAppointment(appointmentId);
-        enforceDoctorOwner(appointment, actorId);
-
-        AppointmentStatus previousStatus = appointment.getStatus();
-        if (!(previousStatus == AppointmentStatus.PENDING || previousStatus == AppointmentStatus.RESCHEDULED)) {
-            throw new ConflictException("Only PENDING or RESCHEDULED appointments can be accepted");
+    public TelemedicineAppointmentResponse acceptAppointment(String appointmentId, String actorId) {
+        ExternalAppointment current = getDoctorOwnedTelemedicineAppointment(appointmentId, actorId);
+        TelemedicineAppointmentStatus previousStatus = appointmentAdapter.toTelemedicineStatus(current);
+        if (!(previousStatus == TelemedicineAppointmentStatus.PENDING || previousStatus == TelemedicineAppointmentStatus.RESCHEDULED)) {
+            throw new ConflictException("Only pending or rescheduled appointments can be accepted");
         }
 
-        appointment.setStatus(AppointmentStatus.ACCEPTED);
-        appointment.setRejectionReason(null);
-        appointment.setRescheduleReason(null);
-        appointment.setProposedScheduledAt(null);
-
-        Appointment saved = appointmentRepository.save(appointment);
-        auditStatusChange(saved, previousStatus, saved.getStatus(), actorId, "appointment.accepted");
-        eventPublisher.publishAppointmentStatusUpdated(saved);
-        return saved;
+        ExternalAppointment updated = appointmentGateway.updateStatus(
+                appointmentId,
+                ExternalAppointmentStatus.CONFIRMED,
+                current.notes(),
+                actorId,
+                DOCTOR_ROLE);
+        TelemedicineAppointmentResponse mapped = appointmentAdapter.toTelemedicineAppointment(updated);
+        auditStatusChange(mapped, previousStatus, mapped.getStatus(), actorId, "appointment.accepted");
+        eventPublisher.publishAppointmentStatusUpdated(mapped);
+        return mapped;
     }
 
     @Override
-    public Appointment rejectAppointment(String appointmentId, String actorId, String reason) {
+    public TelemedicineAppointmentResponse rejectAppointment(String appointmentId, String actorId, String reason) {
         if (!StringUtils.hasText(reason)) {
             throw new BadRequestException("Reject reason is required");
         }
 
-        Appointment appointment = findAppointment(appointmentId);
-        enforceDoctorOwner(appointment, actorId);
-
-        AppointmentStatus previousStatus = appointment.getStatus();
-        if (!(previousStatus == AppointmentStatus.PENDING
-                || previousStatus == AppointmentStatus.ACCEPTED
-                || previousStatus == AppointmentStatus.RESCHEDULED)) {
+        ExternalAppointment current = getDoctorOwnedTelemedicineAppointment(appointmentId, actorId);
+        TelemedicineAppointmentStatus previousStatus = appointmentAdapter.toTelemedicineStatus(current);
+        if (previousStatus == TelemedicineAppointmentStatus.REJECTED
+                || previousStatus == TelemedicineAppointmentStatus.COMPLETED) {
             throw new ConflictException("Appointment cannot be rejected from current status");
         }
 
-        appointment.setStatus(AppointmentStatus.REJECTED);
-        appointment.setRejectionReason(reason);
-        appointment.setProposedScheduledAt(null);
-        appointment.setRescheduleReason(null);
+        ExternalAppointment updated = appointmentGateway.updateStatus(
+                appointmentId,
+                ExternalAppointmentStatus.CANCELLED,
+                appointmentAdapter.buildRejectionNotes(reason),
+                actorId,
+                DOCTOR_ROLE);
 
-        Appointment saved = appointmentRepository.save(appointment);
-        cancelLinkedSession(saved, actorId, "appointment.rejected");
-        auditStatusChange(saved, previousStatus, saved.getStatus(), actorId, "appointment.rejected");
-        eventPublisher.publishAppointmentStatusUpdated(saved);
-        return saved;
+        TelemedicineAppointmentResponse mapped = appointmentAdapter.toTelemedicineAppointment(updated);
+        mapped.setRejectionReason(reason);
+        cancelLinkedSession(mapped, actorId, "appointment.rejected");
+        auditStatusChange(mapped, previousStatus, mapped.getStatus(), actorId, "appointment.rejected");
+        eventPublisher.publishAppointmentStatusUpdated(mapped);
+        return mapped;
     }
 
     @Override
-    public Appointment rescheduleAppointment(String appointmentId, String actorId, Instant newScheduledAt, String reason) {
+    public TelemedicineAppointmentResponse rescheduleAppointment(
+            String appointmentId,
+            String actorId,
+            Instant newScheduledAt,
+            String reason) {
         if (newScheduledAt == null || !newScheduledAt.isAfter(Instant.now())) {
             throw new BadRequestException("newScheduledAt must be in the future");
         }
@@ -176,69 +160,51 @@ public class AppointmentServiceImpl implements AppointmentService {
             throw new BadRequestException("Reschedule reason is required");
         }
 
-        Appointment appointment = findAppointment(appointmentId);
-        enforceDoctorOwner(appointment, actorId);
-
-        AppointmentStatus previousStatus = appointment.getStatus();
-        if (!(previousStatus == AppointmentStatus.PENDING
-                || previousStatus == AppointmentStatus.ACCEPTED
-                || previousStatus == AppointmentStatus.RESCHEDULED)) {
+        ExternalAppointment current = getDoctorOwnedTelemedicineAppointment(appointmentId, actorId);
+        TelemedicineAppointmentStatus previousStatus = appointmentAdapter.toTelemedicineStatus(current);
+        if (previousStatus == TelemedicineAppointmentStatus.REJECTED
+                || previousStatus == TelemedicineAppointmentStatus.COMPLETED) {
             throw new ConflictException("Appointment cannot be rescheduled from current status");
         }
 
-        appointment.setStatus(AppointmentStatus.RESCHEDULED);
-        appointment.setScheduledAt(newScheduledAt);
-        appointment.setProposedScheduledAt(newScheduledAt);
-        appointment.setRescheduleReason(reason);
-        appointment.setRejectionReason(null);
+        appointmentGateway.reschedule(appointmentId, newScheduledAt, actorId, DOCTOR_ROLE);
+        ExternalAppointment updated = appointmentGateway.updateStatus(
+                appointmentId,
+                ExternalAppointmentStatus.PENDING,
+                appointmentAdapter.buildRescheduleNotes(reason),
+                actorId,
+                DOCTOR_ROLE);
 
-        Appointment saved = appointmentRepository.save(appointment);
-        cancelLinkedSession(saved, actorId, "appointment.rescheduled");
-        auditStatusChange(saved, previousStatus, saved.getStatus(), actorId, "appointment.rescheduled");
-        eventPublisher.publishAppointmentStatusUpdated(saved);
-        return saved;
+        TelemedicineAppointmentResponse mapped = appointmentAdapter.toTelemedicineAppointment(updated);
+        mapped.setStatus(TelemedicineAppointmentStatus.RESCHEDULED);
+        mapped.setRescheduleReason(reason);
+        mapped.setProposedScheduledAt(newScheduledAt);
+
+        cancelLinkedSession(mapped, actorId, "appointment.rescheduled");
+        auditStatusChange(mapped, previousStatus, mapped.getStatus(), actorId, "appointment.rescheduled");
+        eventPublisher.publishAppointmentStatusUpdated(mapped);
+        return mapped;
     }
 
     @Override
-    public List<Appointment> listUpcomingAppointments(String doctorId, String actorId) {
+    public List<TelemedicineAppointmentResponse> listUpcomingAppointments(String doctorId, String actorId) {
         String resolvedDoctorId = StringUtils.hasText(doctorId) ? doctorId : actorId;
         if (!Objects.equals(resolvedDoctorId, actorId)) {
             throw new ForbiddenException("Doctors can only access their own upcoming appointments");
         }
-        return appointmentRepository.findByDoctorIdAndStatusAndScheduledAtAfterAndDeletedAtIsNull(
-                resolvedDoctorId,
-                AppointmentStatus.ACCEPTED,
-                Instant.now(),
-                APPOINTMENT_SORT_ASC);
+        Instant now = Instant.now();
+        List<ExternalAppointment> appointments = appointmentGateway.listByDoctorId(resolvedDoctorId, actorId, DOCTOR_ROLE);
+
+        return appointments.stream()
+                .filter(appointmentAdapter::isTelemedicineAppointment)
+                .filter(appointmentAdapter::isEligibleForSession)
+                .filter(appointment -> appointment.scheduledAt() != null && appointment.scheduledAt().isAfter(now))
+                .map(appointmentAdapter::toTelemedicineAppointment)
+                .sorted(Comparator.comparing(TelemedicineAppointmentResponse::getScheduledAt))
+                .toList();
     }
 
-    private List<Appointment> listDoctorAppointments(String doctorId, AppointmentStatus status, LocalDate date) {
-        if (status != null && date != null) {
-            Instant start = date.atStartOfDay().toInstant(ZoneOffset.UTC);
-            Instant end = date.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC);
-            return appointmentRepository.findByDoctorIdAndStatusAndScheduledAtBetweenAndDeletedAtIsNull(
-                    doctorId,
-                    status,
-                    start,
-                    end,
-                    APPOINTMENT_SORT_ASC);
-        }
-
-        if (status != null) {
-            return appointmentRepository.findByDoctorIdAndStatusAndDeletedAtIsNull(
-                    doctorId,
-                    status,
-                    APPOINTMENT_SORT_ASC);
-        }
-
-        List<Appointment> appointments = appointmentRepository.findByDoctorIdAndDeletedAtIsNull(doctorId, APPOINTMENT_SORT_ASC);
-        if (date == null) {
-            return appointments;
-        }
-        return appointments.stream().filter(a -> filterByDate(a, date)).toList();
-    }
-
-    private boolean filterByDate(Appointment appointment, LocalDate date) {
+    private boolean filterByDate(TelemedicineAppointmentResponse appointment, LocalDate date) {
         if (date == null || appointment.getScheduledAt() == null) {
             return true;
         }
@@ -246,46 +212,18 @@ public class AppointmentServiceImpl implements AppointmentService {
         return scheduledDate.equals(date);
     }
 
-    private Appointment findAppointment(String appointmentId) {
-        return appointmentRepository.findByIdAndDeletedAtIsNull(appointmentId)
-                .orElseThrow(() -> new NotFoundException("Appointment not found"));
-    }
-
-    private void enforceDoctorOwner(Appointment appointment, String actorId) {
-        if (!Objects.equals(appointment.getDoctorId(), actorId)) {
+    private ExternalAppointment getDoctorOwnedTelemedicineAppointment(String appointmentId, String actorId) {
+        ExternalAppointment appointment = appointmentGateway.getById(appointmentId, actorId, DOCTOR_ROLE);
+        if (!Objects.equals(appointment.doctorId(), actorId)) {
             throw new ForbiddenException("Doctor can only modify their own appointments");
         }
+        if (!appointmentAdapter.isTelemedicineAppointment(appointment)) {
+            throw new NotFoundException("Appointment not found");
+        }
+        return appointment;
     }
 
-    private void validateReadAccess(Appointment appointment, String actorId, String actorRole) {
-        if ("DOCTOR".equals(actorRole) && Objects.equals(appointment.getDoctorId(), actorId)) {
-            return;
-        }
-        if ("PATIENT".equals(actorRole) && canReadPatientOwnedResource(actorId, appointment.getPatientId())) {
-            return;
-        }
-        throw new ForbiddenException("You do not have access to this appointment");
-    }
-
-    private boolean canReadPatientOwnedResource(String actorId, String resourcePatientId) {
-        return resolveAllowedPatientIds(actorId).contains(resourcePatientId);
-    }
-
-    private List<String> resolveAllowedPatientIds(String actorId) {
-        Set<String> allowed = new LinkedHashSet<>();
-        if (StringUtils.hasText(actorId)) {
-            allowed.add(actorId);
-        }
-
-        if (Objects.equals(actorId, SEEDED_PATIENT_USER_ID) || Objects.equals(actorId, SEEDED_PATIENT_PROFILE_ID)) {
-            allowed.add(SEEDED_PATIENT_USER_ID);
-            allowed.add(SEEDED_PATIENT_PROFILE_ID);
-        }
-
-        return new ArrayList<>(allowed);
-    }
-
-    private void cancelLinkedSession(Appointment appointment, String actorId, String reason) {
+    private void cancelLinkedSession(TelemedicineAppointmentResponse appointment, String actorId, String reason) {
         sessionRepository.findByAppointmentIdAndDeletedAtIsNull(appointment.getId())
                 .ifPresent(session -> cancelSession(session, actorId, reason));
     }
@@ -312,9 +250,9 @@ public class AppointmentServiceImpl implements AppointmentService {
     }
 
     private void auditStatusChange(
-            Appointment appointment,
-            AppointmentStatus fromStatus,
-            AppointmentStatus toStatus,
+            TelemedicineAppointmentResponse appointment,
+            TelemedicineAppointmentStatus fromStatus,
+            TelemedicineAppointmentStatus toStatus,
             String actorId,
             String action) {
         Map<String, Object> metadata = new LinkedHashMap<>();

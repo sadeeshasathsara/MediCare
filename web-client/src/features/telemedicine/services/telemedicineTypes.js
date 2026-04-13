@@ -257,18 +257,6 @@ export function getSessionStateCopy(sessionStatus) {
   }
 }
 
-export function createDemoAppointmentPayload({ doctorId, patientId, scheduledAt, reasonForVisit, notes }) {
-  return {
-    id: `demo-${Date.now()}`,
-    patientId: patientId || SEEDED_TELEMEDICINE_PATIENT.userId,
-    doctorId,
-    scheduledAt,
-    status: 'PENDING',
-    reasonForVisit: reasonForVisit || 'Telemedicine follow-up consultation',
-    notes: notes || 'Temporary demo appointment seeded from telemedicine workspace.',
-  }
-}
-
 export function resolveTelemedicinePatient(patientId) {
   if (
     patientId === SEEDED_TELEMEDICINE_PATIENT.userId ||
