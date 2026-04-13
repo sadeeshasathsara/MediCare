@@ -19,6 +19,7 @@ import PatientReportsPage from '@/features/patients/pages/PatientReportsPage'
 import PatientHistoryPage from '@/features/patients/pages/PatientHistoryPage'
 import PatientPrescriptionsPage from '@/features/patients/pages/PatientPrescriptionsPage'
 import AdminPatientsPage from '@/features/patients/pages/AdminPatientsPage'
+import PatientTelemedicinePage from '@/features/telemedicine/pages/PatientTelemedicinePage'
 
 // ── Doctors (Member 2) ─────────────────────────────────
 import DoctorDashboard from '@/features/doctors/pages/DoctorDashboard'
@@ -184,6 +185,10 @@ export default function AppRoutes() {
         path="/patient/prescriptions"
         element={requireRole('PATIENT', <TopNavLayout navLinks={patientLinks}><PatientPrescriptionsPage /></TopNavLayout>)}
       />
+      <Route
+        path="/patient/telemedicine"
+        element={requireRole('PATIENT', <TopNavLayout navLinks={patientLinks}><PatientTelemedicinePage /></TopNavLayout>)}
+      />
 
       {/* Doctor Routes — wrapped in TopNavLayout */}
       <Route
@@ -196,6 +201,10 @@ export default function AppRoutes() {
       />
       <Route
         path="/doctor/telemedicine"
+        element={requireRole('DOCTOR', <TopNavLayout navLinks={doctorLinks}><TelemedicinePage /></TopNavLayout>)}
+      />
+      <Route
+        path="/doctor/telemedicine/:appointmentId"
         element={requireRole('DOCTOR', <TopNavLayout navLinks={doctorLinks}><TelemedicinePage /></TopNavLayout>)}
       />
       <Route

@@ -6,6 +6,8 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.healthcare.telemedicine.dto.common.ApiResponse;
+
 import java.util.Map;
 
 @RestController
@@ -16,10 +18,10 @@ public class HealthController {
     private String serviceName;
 
     @GetMapping
-    public ResponseEntity<Map<String, String>> health() {
-        return ResponseEntity.ok(Map.of(
+    public ResponseEntity<ApiResponse<Map<String, String>>> health() {
+        return ResponseEntity.ok(ApiResponse.success(Map.of(
             "status", "UP",
             "service", serviceName
-        ));
+        ), "Service is healthy"));
     }
 }

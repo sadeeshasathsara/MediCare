@@ -1,0 +1,172 @@
+package com.healthcare.appointment.service;
+
+import com.healthcare.appointment.dto.AppointmentResponse;
+import com.healthcare.appointment.dto.CreateAppointmentRequest;
+import com.healthcare.appointment.dto.RescheduleAppointmentRequest;
+import com.healthcare.appointment.dto.UpdateAppointmentStatusRequest;
+import com.healthcare.appointment.event.AppointmentEventPublisher;
+import com.healthcare.appointment.model.Appointment;
+import com.healthcare.appointment.model.AppointmentStatus;
+import com.healthcare.appointment.repository.AppointmentRepository;
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
+
+import java.time.Instant;
+import java.util.List;
+import java.util.stream.Collectors;
+
+@Service
+public class AppointmentService {
+
+    private final AppointmentRepository appointmentRepository;
+    private final AppointmentEventPublisher eventPublisher;
+
+    public AppointmentService(AppointmentRepository appointmentRepository, AppointmentEventPublisher eventPublisher) {
+        this.appointmentRepository = appointmentRepository;
+        this.eventPublisher = eventPublisher;
+    }
+
+    public AppointmentResponse createAppointment(String patientId, CreateAppointmentRequest request) {
+        Appointment appointment = new Appointment();
+        appointment.setPatientId(patientId);
+        appointment.setPatientName(request.getPatientName().trim());
+        appointment.setDoctorId(request.getDoctorId());
+        appointment.setDoctorName(request.getDoctorName().trim());
+        appointment.setDoctorSpecialty(request.getDoctorSpecialty().trim());
+        appointment.setScheduledAt(request.getScheduledAt());
+        appointment.setReason(request.getReason().trim());
+        appointment.setStatus(AppointmentStatus.PENDING);
+        
+        Instant now = Instant.now();
+        appointment.setCreatedAt(now);
+        appointment.setUpdatedAt(now);
+
+        Appointment saved = appointmentRepository.save(appointment);
+
+        // A brand new appointment doesn't trigger confirmed/completed events. 
+        // We could emit an appointment.created event, but per spec, only confirmed, cancelled, completed are listed.
+        return toResponse(saved);
+    }
+
+    public AppointmentResponse getAppointmentById(String id) {
+        Appointment appointment = appointmentRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Appointment not found"));
+        return toResponse(appointment);
+    }
+
+    public List<AppointmentResponse> getAppointmentsByPatientId(String patientId) {
+        return appointmentRepository.findByPatientId(patientId).stream()
+                .map(this::toResponse)
+                .collect(Collectors.toList());
+    }
+
+    public List<AppointmentResponse> getAppointmentsByDoctorId(String doctorId) {
+        return appointmentRepository.findByDoctorId(doctorId).stream()
+                .map(this::toResponse)
+                .collect(Collectors.toList());
+    }
+
+    public AppointmentResponse rescheduleAppointment(String id, RescheduleAppointmentRequest request, String userId, boolean isDoctor) {
+        Appointment appointment = appointmentRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Appointment not found"));
+
+        if (!isDoctor && !userId.equals(appointment.getPatientId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied. You can only reschedule your own appointments");
+        } else if (isDoctor && !userId.equals(appointment.getDoctorId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied. Appointment is not assigned to you");
+        }
+
+        if (appointment.getStatus() != AppointmentStatus.PENDING && appointment.getStatus() != AppointmentStatus.CONFIRMED) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Only PENDING or CONFIRMED appointments can be rescheduled");
+        }
+
+        appointment.setScheduledAt(request.getScheduledAt());
+        appointment.setUpdatedAt(Instant.now());
+
+        Appointment saved = appointmentRepository.save(appointment);
+        return toResponse(saved);
+    }
+
+    public AppointmentResponse updateStatus(String id, UpdateAppointmentStatusRequest request, String doctorId) {
+        Appointment appointment = appointmentRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Appointment not found"));
+
+        if (!doctorId.equals(appointment.getDoctorId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied. Appointment is not assigned to you");
+        }
+
+        AppointmentStatus oldStatus = appointment.getStatus();
+        appointment.setStatus(request.getStatus());
+        if (request.getNotes() != null) {
+            appointment.setNotes(request.getNotes());
+        }
+        appointment.setUpdatedAt(Instant.now());
+
+        Appointment saved = appointmentRepository.save(appointment);
+
+        // Publish events based on status changes
+        if (oldStatus != AppointmentStatus.CONFIRMED && request.getStatus() == AppointmentStatus.CONFIRMED) {
+            eventPublisher.publishEvent("appointment.confirmed", saved.getId(), saved.getPatientId(), saved.getDoctorId(), toResponse(saved));
+        } else if (oldStatus != AppointmentStatus.COMPLETED && request.getStatus() == AppointmentStatus.COMPLETED) {
+            eventPublisher.publishEvent("appointment.completed", saved.getId(), saved.getPatientId(), saved.getDoctorId(), toResponse(saved));
+        } else if (oldStatus != AppointmentStatus.CANCELLED && request.getStatus() == AppointmentStatus.CANCELLED) {
+            eventPublisher.publishEvent("appointment.cancelled", saved.getId(), saved.getPatientId(), saved.getDoctorId(), toResponse(saved));
+        }
+
+        return toResponse(saved);
+    }
+
+    public void cancelAppointment(String id, String userId, boolean isDoctor) {
+        Appointment appointment = appointmentRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Appointment not found"));
+
+        if (!isDoctor && !userId.equals(appointment.getPatientId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied. You can only cancel your own appointments");
+        } else if (isDoctor && !userId.equals(appointment.getDoctorId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied. Appointment is not assigned to you");
+        }
+
+        if (appointment.getStatus() == AppointmentStatus.CANCELLED || appointment.getStatus() == AppointmentStatus.COMPLETED) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Appointment is already cancelled or completed");
+        }
+
+        appointment.setStatus(AppointmentStatus.CANCELLED);
+        appointment.setUpdatedAt(Instant.now());
+        Appointment saved = appointmentRepository.save(appointment);
+
+        eventPublisher.publishEvent("appointment.cancelled", saved.getId(), saved.getPatientId(), saved.getDoctorId(), toResponse(saved));
+    }
+
+    // A simulated external cross-service call placeholder, because Appointment Service does not own the Doctor data.
+    // Real implementation would either query the DB or call doctor-service for search capability.
+    public Object searchAvailableDoctors(String specialty, String dateStr) {
+        try {
+            org.springframework.web.client.RestTemplate restTemplate = new org.springframework.web.client.RestTemplate();
+            String url = "http://doctor-service:3003/doctors";
+            if (specialty != null && !specialty.trim().isEmpty()) {
+                url += "?specialty=" + specialty.trim();
+            }
+            return restTemplate.getForObject(url, java.util.List.class);
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Doctor service is unavailable or returned an error");
+        }
+    }
+
+    private AppointmentResponse toResponse(Appointment appointment) {
+        AppointmentResponse response = new AppointmentResponse();
+        response.setId(appointment.getId());
+        response.setDoctorId(appointment.getDoctorId());
+        response.setPatientId(appointment.getPatientId());
+        response.setPatientName(appointment.getPatientName());
+        response.setDoctorName(appointment.getDoctorName());
+        response.setDoctorSpecialty(appointment.getDoctorSpecialty());
+        response.setScheduledAt(appointment.getScheduledAt());
+        response.setReason(appointment.getReason());
+        response.setNotes(appointment.getNotes());
+        response.setStatus(appointment.getStatus());
+        response.setCreatedAt(appointment.getCreatedAt());
+        response.setUpdatedAt(appointment.getUpdatedAt());
+        return response;
+    }
+}
