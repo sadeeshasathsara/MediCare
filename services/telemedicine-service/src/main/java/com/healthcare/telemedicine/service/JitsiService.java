@@ -5,6 +5,8 @@ import java.time.Instant;
 public interface JitsiService {
     String roomNameForAppointment(String appointmentId);
 
+    boolean isJwtConfigured();
+
     String generateJoinToken(
             String roomId,
             String userId,

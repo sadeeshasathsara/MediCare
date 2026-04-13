@@ -43,6 +43,11 @@ public class JitsiServiceImpl implements JitsiService {
     }
 
     @Override
+    public boolean isJwtConfigured() {
+        return appId != null && !appId.isBlank() && appSecret != null && !appSecret.isBlank();
+    }
+
+    @Override
     public String generateJoinToken(
             String roomId,
             String userId,
@@ -50,7 +55,7 @@ public class JitsiServiceImpl implements JitsiService {
             String email,
             boolean moderator,
             Instant scheduledAt) {
-        if (appId == null || appId.isBlank() || appSecret == null || appSecret.isBlank()) {
+        if (!isJwtConfigured()) {
             throw new BadRequestException("Jitsi credentials are not configured");
         }
 

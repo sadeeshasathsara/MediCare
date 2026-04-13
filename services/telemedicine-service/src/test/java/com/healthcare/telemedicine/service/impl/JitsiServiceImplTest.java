@@ -1,6 +1,7 @@
 package com.healthcare.telemedicine.service.impl;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.charset.StandardCharsets;
@@ -51,5 +52,16 @@ class JitsiServiceImplTest {
                 120);
 
         assertEquals("consult-apt-123", service.roomNameForAppointment("apt-123"));
+    }
+
+    @Test
+    void isJwtConfigured_shouldBeFalseWhenCredentialsAreMissing() {
+        JitsiServiceImpl service = new JitsiServiceImpl(
+                "meet.jit.si",
+                "",
+                "",
+                120);
+
+        assertFalse(service.isJwtConfigured());
     }
 }

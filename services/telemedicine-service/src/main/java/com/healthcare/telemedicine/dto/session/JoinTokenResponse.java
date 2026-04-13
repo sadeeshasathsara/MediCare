@@ -14,4 +14,5 @@ public class JoinTokenResponse {
     String role;
     String token;
     Instant expiresAt;
+    boolean publicRoom;
 }

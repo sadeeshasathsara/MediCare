@@ -1,0 +1,243 @@
+export const APPOINTMENT_STATUSES = ['PENDING', 'ACCEPTED', 'RESCHEDULED', 'REJECTED']
+export const SESSION_STATUSES = ['SCHEDULED', 'WAITING', 'LIVE', 'COMPLETED', 'MISSED', 'CANCELLED']
+export const PRESCRIPTION_STATUSES = ['DRAFT', 'ISSUED', 'DISPENSED', 'CANCELLED']
+export const READY_POLL_STATUSES = new Set(['SCHEDULED', 'WAITING', 'LIVE'])
+
+const PREFERRED_APPOINTMENT_ORDER = ['PENDING', 'ACCEPTED', 'RESCHEDULED']
+
+/**
+ * @typedef {{
+ *   id: string,
+ *   patientId: string,
+ *   doctorId: string,
+ *   scheduledAt: string,
+ *   status: string,
+ *   reasonForVisit?: string,
+ *   notes?: string,
+ *   rejectionReason?: string,
+ *   rescheduleReason?: string,
+ *   proposedScheduledAt?: string
+ * }} TelemedicineAppointment
+ */
+
+/**
+ * @typedef {{
+ *   id: string,
+ *   appointmentId: string,
+ *   patientId: string,
+ *   doctorId: string,
+ *   scheduledAt: string,
+ *   jitsiRoomId: string,
+ *   jitsiRoomToken?: string,
+ *   sessionStatus: string,
+ *   startedAt?: string,
+ *   endedAt?: string,
+ *   durationSeconds?: number,
+ *   doctorJoinedAt?: string,
+ *   patientJoinedAt?: string
+ * }} TelemedicineSession
+ */
+
+/**
+ * @typedef {{
+ *   sessionId: string,
+ *   roomId: string,
+ *   jitsiDomain: string,
+ *   role: string,
+ *   token?: string,
+ *   expiresAt?: string,
+ *   publicRoom?: boolean
+ * }} TelemedicineJoinInfo
+ */
+
+/**
+ * @typedef {{
+ *   id: string,
+ *   sessionId: string,
+ *   appointmentId: string,
+ *   patientId: string,
+ *   doctorId: string,
+ *   doctorNotes: string,
+ *   diagnosis: string,
+ *   followUpDate?: string
+ * }} TelemedicineConsultation
+ */
+
+/**
+ * @typedef {{
+ *   name: string,
+ *   dosage: string,
+ *   frequency: string,
+ *   durationDays: number,
+ *   instructions?: string
+ * }} TelemedicineMedication
+ */
+
+/**
+ * @typedef {{
+ *   id: string,
+ *   consultationId: string,
+ *   patientId: string,
+ *   doctorId: string,
+ *   issuedAt: string,
+ *   expiresAt: string,
+ *   medications: TelemedicineMedication[],
+ *   prescriptionStatus: string
+ * }} TelemedicinePrescription
+ */
+
+export function humanizeStatus(value) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (match) => match.toUpperCase())
+}
+
+export function formatDateTime(value) {
+  if (!value) return 'Not set'
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return 'Invalid date'
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(date)
+}
+
+export function formatDate(value) {
+  if (!value) return 'Not set'
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return 'Invalid date'
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: 'medium',
+  }).format(date)
+}
+
+export function formatDuration(seconds) {
+  if (seconds == null) return 'Not started'
+  if (seconds < 60) return `${seconds}s`
+
+  const hours = Math.floor(seconds / 3600)
+  const minutes = Math.floor((seconds % 3600) / 60)
+  const remainingSeconds = seconds % 60
+
+  if (hours > 0) {
+    return `${hours}h ${minutes}m ${remainingSeconds}s`
+  }
+
+  return `${minutes}m ${remainingSeconds}s`
+}
+
+export function toDateTimeLocalValue(value) {
+  if (!value) return ''
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+
+  const offsetMs = date.getTimezoneOffset() * 60 * 1000
+  const localDate = new Date(date.getTime() - offsetMs)
+  return localDate.toISOString().slice(0, 16)
+}
+
+export function toIsoStringFromLocalValue(value) {
+  if (!value) return ''
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+
+  return date.toISOString()
+}
+
+export function nextLocalDateTimeValue(minutesAhead = 30) {
+  const date = new Date(Date.now() + minutesAhead * 60 * 1000)
+  return toDateTimeLocalValue(date.toISOString())
+}
+
+export function buildJitsiOrigin(domain) {
+  const normalized = String(domain || '')
+    .trim()
+    .replace(/^https?:\/\//, '')
+    .replace(/\/+$/, '')
+
+  return normalized ? `https://${normalized}` : ''
+}
+
+export function buildJitsiRoomUrl(domain, roomId, token) {
+  const origin = buildJitsiOrigin(domain)
+  if (!origin || !roomId) return ''
+
+  const roomUrl = `${origin}/${encodeURIComponent(roomId)}`
+  return token ? `${roomUrl}?jwt=${encodeURIComponent(token)}` : roomUrl
+}
+
+export function pickPreferredAppointment(appointments) {
+  if (!appointments?.length) return null
+
+  for (const status of PREFERRED_APPOINTMENT_ORDER) {
+    const match = appointments.find((appointment) => appointment.status === status)
+    if (match) return match
+  }
+
+  return appointments[0]
+}
+
+export function getSessionStateCopy(sessionStatus) {
+  switch (sessionStatus) {
+    case 'SCHEDULED':
+      return 'Session created. Doctor can generate join access when ready.'
+    case 'WAITING':
+      return 'One participant has joined. Waiting for the other side.'
+    case 'LIVE':
+      return 'Consultation is currently live.'
+    case 'COMPLETED':
+      return 'Session ended. You can complete consultation notes and prescriptions.'
+    case 'MISSED':
+      return 'The session expired before it started.'
+    case 'CANCELLED':
+      return 'The session was cancelled because the appointment changed.'
+    default:
+      return 'Select an appointment to begin.'
+  }
+}
+
+export function createDemoAppointmentPayload({ doctorId, patientId, scheduledAt, reasonForVisit, notes }) {
+  return {
+    id: `demo-${Date.now()}`,
+    patientId: patientId || 'patient-demo-001',
+    doctorId,
+    scheduledAt,
+    status: 'PENDING',
+    reasonForVisit: reasonForVisit || 'Telemedicine follow-up consultation',
+    notes: notes || 'Temporary demo appointment seeded from telemedicine workspace.',
+  }
+}
+
+export function createEmptyMedication() {
+  return {
+    name: '',
+    dosage: '',
+    frequency: '',
+    durationDays: 5,
+    instructions: '',
+  }
+}
+
+export function getErrorMessage(error, fallback = 'Something went wrong.') {
+  const messageFromServer = error?.response?.data?.message || error?.response?.data?.error
+  if (typeof messageFromServer === 'string' && messageFromServer.trim()) {
+    return messageFromServer
+  }
+
+  if (typeof error?.message === 'string' && error.message.trim()) {
+    return error.message
+  }
+
+  return fallback
+}

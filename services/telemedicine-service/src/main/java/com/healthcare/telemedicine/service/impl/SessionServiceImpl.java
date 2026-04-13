@@ -73,13 +73,7 @@ public class SessionServiceImpl implements SessionService {
         });
 
         String roomId = jitsiService.roomNameForAppointment(appointmentId);
-        String roomToken = jitsiService.generateJoinToken(
-                roomId,
-                appointment.getDoctorId(),
-                "Doctor " + appointment.getDoctorId(),
-                appointment.getDoctorId() + "@medicare.local",
-                true,
-                appointment.getScheduledAt());
+        String roomToken = null;
 
         ConsultationSession session = ConsultationSession.builder()
                 .appointmentId(appointmentId)
@@ -111,13 +105,8 @@ public class SessionServiceImpl implements SessionService {
         validateRoleForSession(session, normalizedRequestedRole, actorId, actorRole);
 
         boolean moderator = "DOCTOR".equals(normalizedRequestedRole);
-        String token = jitsiService.generateJoinToken(
-                session.getJitsiRoomId(),
-                actorId,
-                normalizedRequestedRole + " " + actorId,
-                actorId + "@medicare.local",
-                moderator,
-                session.getScheduledAt());
+        boolean publicRoom = true;
+        String token = null;
 
         if (markJoined) {
             SessionStatus before = session.getSessionStatus();
@@ -141,7 +130,8 @@ public class SessionServiceImpl implements SessionService {
                 .jitsiDomain(jitsiService.getDomain())
                 .role(normalizedRequestedRole.toLowerCase())
                 .token(token)
-                .expiresAt(jitsiService.tokenExpiry(session.getScheduledAt()))
+                .expiresAt(null)
+                .publicRoom(publicRoom)
                 .build();
     }
 
