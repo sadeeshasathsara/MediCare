@@ -16,6 +16,8 @@ public interface AppointmentRepository extends MongoRepository<Appointment, Stri
     List<Appointment> findByDoctorIdAndDeletedAtIsNull(String doctorId, Sort sort);
 
     List<Appointment> findByPatientIdAndDeletedAtIsNull(String patientId, Sort sort);
+    
+    List<Appointment> findByPatientIdInAndDeletedAtIsNull(List<String> patientIds, Sort sort);
 
     List<Appointment> findByDoctorIdAndStatusAndDeletedAtIsNull(String doctorId, AppointmentStatus status, Sort sort);
 

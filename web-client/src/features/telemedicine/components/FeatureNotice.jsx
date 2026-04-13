@@ -3,40 +3,53 @@ import { AlertTriangle, CheckCircle2, Info, XCircle } from 'lucide-react'
 const TONE_MAP = {
   info: {
     Icon: Info,
-    border: 'border-sky-200/80',
-    background: 'bg-sky-50/80 dark:bg-sky-950/30',
-    text: 'text-sky-900 dark:text-sky-100',
+    border: 'border-blue-700/45',
+    background: 'bg-blue-100/45',
+    title: 'text-blue-900',
+    body: 'text-blue-800',
+    iconWrap: 'bg-blue-200/65',
+    icon: 'text-blue-800',
   },
   success: {
     Icon: CheckCircle2,
-    border: 'border-emerald-200/80',
-    background: 'bg-emerald-50/80 dark:bg-emerald-950/30',
-    text: 'text-emerald-900 dark:text-emerald-100',
+    border: 'border-green-700/45',
+    background: 'bg-green-100/45',
+    title: 'text-green-900',
+    body: 'text-green-800',
+    iconWrap: 'bg-green-200/65',
+    icon: 'text-green-800',
   },
   warning: {
     Icon: AlertTriangle,
-    border: 'border-amber-200/80',
-    background: 'bg-amber-50/80 dark:bg-amber-950/30',
-    text: 'text-amber-950 dark:text-amber-100',
+    border: 'border-amber-700/45',
+    background: 'bg-amber-100/45',
+    title: 'text-amber-900',
+    body: 'text-amber-800',
+    iconWrap: 'bg-amber-200/65',
+    icon: 'text-amber-800',
   },
   error: {
     Icon: XCircle,
-    border: 'border-rose-200/80',
-    background: 'bg-rose-50/80 dark:bg-rose-950/30',
-    text: 'text-rose-950 dark:text-rose-100',
+    border: 'border-rose-700/45',
+    background: 'bg-rose-100/45',
+    title: 'text-rose-900',
+    body: 'text-rose-800',
+    iconWrap: 'bg-rose-200/65',
+    icon: 'text-rose-800',
   },
 }
-
 export default function FeatureNotice({ tone = 'info', title, message, children }) {
-  const { Icon, border, background, text } = TONE_MAP[tone] || TONE_MAP.info
+  const { Icon, border, background, title: titleTone, body, iconWrap, icon } = TONE_MAP[tone] || TONE_MAP.info
 
   return (
-    <div className={`rounded-2xl border px-4 py-3 ${border} ${background} ${text}`}>
+    <div className={`rounded-2xl border px-4 py-3 shadow-sm ${border} ${background}`}>
       <div className="flex items-start gap-3">
-        <Icon className="mt-0.5 h-4 w-4 shrink-0" />
+        <span className={`mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${iconWrap}`}>
+          <Icon className={`h-4 w-4 ${icon}`} />
+        </span>
         <div className="space-y-1">
-          {title ? <p className="text-sm font-semibold">{title}</p> : null}
-          {message ? <p className="text-sm leading-6 opacity-90">{message}</p> : null}
+          {title ? <p className={`text-sm font-semibold ${titleTone}`}>{title}</p> : null}
+          {message ? <p className={`text-sm leading-6 ${body}`}>{message}</p> : null}
           {children}
         </div>
       </div>

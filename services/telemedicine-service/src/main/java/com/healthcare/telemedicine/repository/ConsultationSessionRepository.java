@@ -18,6 +18,8 @@ public interface ConsultationSessionRepository extends MongoRepository<Consultat
     List<ConsultationSession> findByDoctorIdAndDeletedAtIsNull(String doctorId, Sort sort);
 
     List<ConsultationSession> findByPatientIdAndDeletedAtIsNull(String patientId, Sort sort);
+    
+    List<ConsultationSession> findByPatientIdInAndDeletedAtIsNull(List<String> patientIds, Sort sort);
 
     List<ConsultationSession> findByDoctorIdAndSessionStatusAndDeletedAtIsNull(
             String doctorId,
@@ -26,6 +28,11 @@ public interface ConsultationSessionRepository extends MongoRepository<Consultat
 
     List<ConsultationSession> findByPatientIdAndSessionStatusAndDeletedAtIsNull(
             String patientId,
+            SessionStatus sessionStatus,
+            Sort sort);
+    
+    List<ConsultationSession> findByPatientIdInAndSessionStatusAndDeletedAtIsNull(
+            List<String> patientIds,
             SessionStatus sessionStatus,
             Sort sort);
 
