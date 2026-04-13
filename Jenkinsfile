@@ -14,6 +14,9 @@ pipeline {
                     def changedFiles = sh(script: "git diff --name-only HEAD~1 HEAD", returnStdout: true).trim()
                     echo "Changed files: ${changedFiles}"
 
+                    // When shared env secret file changes, restart all services to pick up new env values.
+                    env.SECRETS_CHANGED = changedFiles.contains('k8s/SECRET-FILE/medicare-secrets.env') ? 'true' : 'false'
+
                     env.BUILD_AUTH = changedFiles.contains('services/auth-service') ? 'true' : 'false'
                     env.BUILD_PATIENT = changedFiles.contains('services/patient-service') ? 'true' : 'false'
                     env.BUILD_DOCTOR = changedFiles.contains('services/doctor-service') ? 'true' : 'false'
@@ -79,11 +82,11 @@ pipeline {
                         // File contents should be KEY=VALUE lines matching the keys referenced in k8s/*-deployment.yaml
                         try {
                             withCredentials([file(credentialsId: env.MEDICARE_SECRETS_ENV_CREDENTIAL, variable: 'MEDICARE_SECRETS_ENV')]) {
-                                sh """
-                                    kubectl create secret generic medicare-secrets \\
-                                      --from-env-file=$MEDICARE_SECRETS_ENV \\
+                                sh '''
+                                    kubectl create secret generic medicare-secrets \
+                                      --from-env-file="$MEDICARE_SECRETS_ENV" \
                                       --dry-run=client -o yaml | kubectl apply --validate=false -f -
-                                """
+                                '''
                             }
                         } catch (err) {
                             echo "Skipping k8s secret update (missing credential '${env.MEDICARE_SECRETS_ENV_CREDENTIAL}'?): ${err}"
@@ -104,7 +107,7 @@ pipeline {
                         ]
 
                         services.each { svc ->
-                            if (env."${svc.env}" == 'true') {
+                            if (env."${svc.env}" == 'true' || env.SECRETS_CHANGED == 'true') {
                                 sh "kubectl rollout restart deployment/${svc.name}"
                             }
                         }
