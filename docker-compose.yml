@@ -1,4 +1,5 @@
 services:
+
   # ── SERVICES ──────────────────────────────────────────
   auth-service:
     build: ./services/auth-service
