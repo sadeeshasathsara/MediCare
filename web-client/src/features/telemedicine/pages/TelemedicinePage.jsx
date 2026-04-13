@@ -131,23 +131,6 @@ export default function TelemedicinePage() {
   const selectedSessionId = selectedSession?.id || null
   const selectedSessionAppointmentId = selectedSession?.appointmentId || null
   const selectedSessionStatus = selectedSession?.sessionStatus || null
-  const appointmentCounts = useMemo(
-    () =>
-      enrichedAppointments.reduce(
-        (counts, appointment) => {
-          if (appointment.status === 'PENDING') counts.pending += 1
-          if (appointment.status === 'ACCEPTED') counts.accepted += 1
-          if (appointment.status === 'RESCHEDULED') counts.rescheduled += 1
-          return counts
-        },
-        { pending: 0, accepted: 0, rescheduled: 0 }
-      ),
-    [enrichedAppointments]
-  )
-  const nextAcceptedAppointment =
-    enrichedAppointments
-      .filter((appointment) => appointment.status === 'ACCEPTED')
-      .sort((left, right) => new Date(left.scheduledAt).getTime() - new Date(right.scheduledAt).getTime())[0] || null
   const workspaceSummary = selectedSession
     ? getSessionStateCopy(selectedSession.sessionStatus)
     : selectedAppointment
