@@ -7,7 +7,7 @@ import java.util.Map;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.stereotype.Component;
 
-import com.healthcare.telemedicine.model.Appointment;
+import com.healthcare.telemedicine.dto.appointment.TelemedicineAppointmentResponse;
 import com.healthcare.telemedicine.model.ConsultationSession;
 import com.healthcare.telemedicine.model.Prescription;
 
@@ -25,7 +25,7 @@ public class TelemedicineEventPublisher {
         this.brokerProperties = brokerProperties;
     }
 
-    public void publishAppointmentStatusUpdated(Appointment appointment) {
+    public void publishAppointmentStatusUpdated(TelemedicineAppointmentResponse appointment) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("appointmentId", appointment.getId());
         payload.put("newStatus", appointment.getStatus());
