@@ -3,11 +3,15 @@ import {
   useCallback,
   useDeferredValue,
   useEffect,
+  useMemo,
+  useRef,
   useState,
 } from 'react'
-import { HeartPulse, RefreshCcw, Stethoscope } from 'lucide-react'
+import { CalendarClock, HeartPulse, RefreshCcw, Stethoscope } from 'lucide-react'
+import { useNavigate, useParams } from 'react-router-dom'
 
 import { useAuth } from '@/context/AuthContext'
+import AppointmentDetailsPanel from '@/features/telemedicine/components/AppointmentDetailsPanel'
 import AppointmentInbox from '@/features/telemedicine/components/AppointmentInbox'
 import ClinicalWrapUpPanel from '@/features/telemedicine/components/ClinicalWrapUpPanel'
 import FeatureNotice from '@/features/telemedicine/components/FeatureNotice'
@@ -15,6 +19,7 @@ import LiveConsultationPanel from '@/features/telemedicine/components/LiveConsul
 import ManualTestToolsPanel from '@/features/telemedicine/components/ManualTestToolsPanel'
 import SessionControlPanel from '@/features/telemedicine/components/SessionControlPanel'
 import StatusBadge from '@/features/telemedicine/components/StatusBadge'
+import TelemedicineSection from '@/features/telemedicine/components/TelemedicineSection'
 import {
   acceptAppointment,
   cancelPrescription,
@@ -38,11 +43,13 @@ import {
 import {
   buildJitsiRoomUrl,
   createDemoAppointmentPayload,
+  enrichTelemedicineAppointment,
   formatDateTime,
   getErrorMessage,
   getSessionStateCopy,
-  pickPreferredAppointment,
   READY_POLL_STATUSES,
+  resolveTelemedicineDoctor,
+  SEEDED_TELEMEDICINE_PATIENT,
   toIsoStringFromLocalValue,
 } from '@/features/telemedicine/services/telemedicineTypes'
 
@@ -83,14 +90,18 @@ function actionError(kind, error) {
 }
 
 export default function TelemedicinePage() {
+  const navigate = useNavigate()
+  const { appointmentId: routeAppointmentId } = useParams()
+
   const { user, accessToken } = useAuth()
   const doctorId = user?.id || decodeJwtSubject(accessToken) || user?.email || 'doctor-demo'
+  const doctorDisplay = useMemo(() => resolveTelemedicineDoctor(user, doctorId), [doctorId, user])
 
   const [appointments, setAppointments] = useState([])
-  const deferredAppointments = useDeferredValue(appointments)
   const [appointmentsLoading, setAppointmentsLoading] = useState(true)
   const [appointmentsError, setAppointmentsError] = useState('')
   const [selectedAppointmentId, setSelectedAppointmentId] = useState(null)
+  const selectedAppointmentIdRef = useRef(null)
 
   const [sessionsByAppointmentId, setSessionsByAppointmentId] = useState({})
   const [sessionLookupLoading, setSessionLookupLoading] = useState(false)
@@ -107,16 +118,49 @@ export default function TelemedicinePage() {
   const [prescriptionActionState, setPrescriptionActionState] = useState(EMPTY_ACTION_STATE)
   const [manualToolsActionState, setManualToolsActionState] = useState(EMPTY_ACTION_STATE)
 
-  const selectedAppointment = appointments.find((appointment) => appointment.id === selectedAppointmentId) || null
+  const enrichedAppointments = useMemo(
+    () => appointments.map((appointment) => enrichTelemedicineAppointment(appointment, user, doctorId)),
+    [appointments, doctorId, user]
+  )
+  const deferredAppointments = useDeferredValue(enrichedAppointments)
+  const selectedAppointment = enrichedAppointments.find((appointment) => appointment.id === selectedAppointmentId) || null
   const selectedSession = selectedAppointment ? sessionsByAppointmentId[selectedAppointment.id] || null : null
   const selectedReadiness = selectedSession ? readinessBySessionId[selectedSession.id] || null : null
   const selectedConsultation = selectedSession ? consultationsBySessionId[selectedSession.id] || null : null
   const selectedPrescriptions = selectedConsultation ? prescriptionsByConsultationId[selectedConsultation.id] || [] : []
+  const selectedSessionId = selectedSession?.id || null
+  const selectedSessionAppointmentId = selectedSession?.appointmentId || null
+  const selectedSessionStatus = selectedSession?.sessionStatus || null
+  const appointmentCounts = useMemo(
+    () =>
+      enrichedAppointments.reduce(
+        (counts, appointment) => {
+          if (appointment.status === 'PENDING') counts.pending += 1
+          if (appointment.status === 'ACCEPTED') counts.accepted += 1
+          if (appointment.status === 'RESCHEDULED') counts.rescheduled += 1
+          return counts
+        },
+        { pending: 0, accepted: 0, rescheduled: 0 }
+      ),
+    [enrichedAppointments]
+  )
+  const nextAcceptedAppointment =
+    enrichedAppointments
+      .filter((appointment) => appointment.status === 'ACCEPTED')
+      .sort((left, right) => new Date(left.scheduledAt).getTime() - new Date(right.scheduledAt).getTime())[0] || null
   const workspaceSummary = selectedSession
     ? getSessionStateCopy(selectedSession.sessionStatus)
     : selectedAppointment
       ? 'Appointment selected. Review it, then create or manage the session from the next section.'
       : 'No appointment selected yet. Use the inbox or demo tools to begin.'
+
+  useEffect(() => {
+    selectedAppointmentIdRef.current = selectedAppointmentId
+  }, [selectedAppointmentId])
+
+  useEffect(() => {
+    setSelectedAppointmentId(routeAppointmentId || null)
+  }, [routeAppointmentId])
 
   const refreshAppointments = useCallback(async ({ preferredAppointmentId = null, preserveSelection = true } = {}) => {
     setAppointmentsLoading(true)
@@ -134,12 +178,12 @@ export default function TelemedicinePage() {
           nextSelectedAppointmentId = preferredAppointmentId
         } else if (
           preserveSelection &&
-          selectedAppointmentId &&
-          nextAppointments.some((appointment) => appointment.id === selectedAppointmentId)
+          selectedAppointmentIdRef.current &&
+          nextAppointments.some((appointment) => appointment.id === selectedAppointmentIdRef.current)
         ) {
-          nextSelectedAppointmentId = selectedAppointmentId
+          nextSelectedAppointmentId = selectedAppointmentIdRef.current
         } else {
-          nextSelectedAppointmentId = pickPreferredAppointment(nextAppointments)?.id || nextAppointments[0]?.id || null
+          nextSelectedAppointmentId = null
         }
 
         setSelectedAppointmentId(nextSelectedAppointmentId)
@@ -149,7 +193,7 @@ export default function TelemedicinePage() {
     } finally {
       setAppointmentsLoading(false)
     }
-  }, [selectedAppointmentId])
+  }, [])
 
   const refreshSessionForAppointment = useCallback(async (appointmentId, { showLoading = true } = {}) => {
     if (!appointmentId) return undefined
@@ -187,19 +231,38 @@ export default function TelemedicinePage() {
     try {
       const readiness = await getSessionReady(session.id)
       startTransition(() => {
-        setReadinessBySessionId((current) => ({
-          ...current,
-          [session.id]: readiness,
-        }))
-        setSessionsByAppointmentId((current) => ({
-          ...current,
-          [session.appointmentId]: current[session.appointmentId]
-            ? {
-                ...current[session.appointmentId],
-                sessionStatus: readiness.sessionStatus,
-              }
-            : current[session.appointmentId],
-        }))
+        setReadinessBySessionId((current) => {
+          const currentReadiness = current[session.id]
+          if (
+            currentReadiness &&
+            currentReadiness.doctorJoined === readiness.doctorJoined &&
+            currentReadiness.patientJoined === readiness.patientJoined &&
+            currentReadiness.ready === readiness.ready &&
+            currentReadiness.sessionStatus === readiness.sessionStatus
+          ) {
+            return current
+          }
+
+          return {
+            ...current,
+            [session.id]: readiness,
+          }
+        })
+
+        setSessionsByAppointmentId((current) => {
+          const currentSession = current[session.appointmentId]
+          if (!currentSession || currentSession.sessionStatus === readiness.sessionStatus) {
+            return current
+          }
+
+          return {
+            ...current,
+            [session.appointmentId]: {
+              ...currentSession,
+              sessionStatus: readiness.sessionStatus,
+            },
+          }
+        })
       })
       return readiness
     } catch (error) {
@@ -248,8 +311,8 @@ export default function TelemedicinePage() {
   }, [])
 
   useEffect(() => {
-    refreshAppointments({ preserveSelection: false })
-  }, [refreshAppointments])
+    refreshAppointments({ preserveSelection: Boolean(routeAppointmentId) })
+  }, [refreshAppointments, routeAppointmentId])
 
   useEffect(() => {
     if (!selectedAppointment?.id) {
@@ -261,18 +324,28 @@ export default function TelemedicinePage() {
   }, [refreshSessionForAppointment, selectedAppointment?.id])
 
   useEffect(() => {
-    if (!selectedSession?.id || !READY_POLL_STATUSES.has(selectedSession.sessionStatus)) {
+    if (!selectedSessionId || !READY_POLL_STATUSES.has(selectedSessionStatus)) {
       return undefined
     }
 
-    refreshReadinessForSession(selectedSession)
+    const pollingSession = {
+      id: selectedSessionId,
+      appointmentId: selectedSessionAppointmentId,
+    }
+
+    refreshReadinessForSession(pollingSession)
 
     const intervalId = window.setInterval(() => {
-      refreshReadinessForSession(selectedSession)
+      refreshReadinessForSession(pollingSession)
     }, 5000)
 
     return () => window.clearInterval(intervalId)
-  }, [refreshReadinessForSession, selectedSession])
+  }, [
+    refreshReadinessForSession,
+    selectedSessionAppointmentId,
+    selectedSessionId,
+    selectedSessionStatus,
+  ])
 
   useEffect(() => {
     if (!selectedSession?.id || selectedSession.sessionStatus !== 'COMPLETED') {
@@ -544,7 +617,7 @@ export default function TelemedicinePage() {
       const createdAppointment = await syncAppointment(
         createDemoAppointmentPayload({
           doctorId,
-          patientId: payload.patientId,
+          patientId: SEEDED_TELEMEDICINE_PATIENT.userId,
           scheduledAt: toIsoStringFromLocalValue(payload.scheduledAt),
           reasonForVisit: payload.reasonForVisit,
           notes: payload.notes,
@@ -609,168 +682,216 @@ export default function TelemedicinePage() {
     }
   }
 
+  const handleSelectAppointment = useCallback((appointmentId) => {
+    navigate(`/doctor/telemedicine/${appointmentId}`)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }, [navigate])
+
   return (
     <div className="space-y-6">
-      <section
-        className="relative overflow-hidden rounded-[32px] border px-6 py-6 shadow-[0_30px_120px_-60px_rgba(6,182,212,0.45)] md:px-8 md:py-8"
-        style={{
-          borderColor: 'hsl(var(--border))',
-          background:
-            'radial-gradient(circle at top right, hsl(var(--accent)) 0%, transparent 34%), linear-gradient(135deg, hsl(var(--card)) 0%, hsl(var(--background)) 100%)',
-        }}
-      >
-        <div
-          className="pointer-events-none absolute inset-y-0 right-0 hidden w-72 rounded-full blur-3xl lg:block"
-          style={{ backgroundColor: 'hsl(var(--primary) / 0.18)' }}
-        />
+      
 
-        <div className="relative flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
-          <div className="max-w-3xl space-y-4">
-            <div className="inline-flex items-center gap-3 rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em]" style={{ borderColor: 'hsl(var(--border))', color: 'hsl(var(--primary))' }}>
-              <HeartPulse className="h-4 w-4" />
-              Doctor Telemedicine Workspace
-            </div>
-            <div className="space-y-3">
-              <h1 className="text-3xl font-semibold tracking-tight md:text-4xl" style={{ color: 'hsl(var(--foreground))' }}>
-                Run the entire teleconsultation workflow from one place.
-              </h1>
-              <p className="max-w-2xl text-sm leading-7 md:text-base" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                Review incoming telemedicine appointments, launch the Jitsi room inline, and complete consultation notes and prescriptions without leaving this feature.
-              </p>
-            </div>
-          </div>
+      {!selectedAppointment ? (
+        <>
+          <AppointmentInbox
+            appointments={deferredAppointments}
+            sessionsByAppointmentId={sessionsByAppointmentId}
+            loading={appointmentsLoading}
+            error={appointmentsError}
+            onRefreshAppointments={() => refreshAppointments({ preserveSelection: true })}
+            onSelectAppointment={handleSelectAppointment}
+          />
 
-          <div className="grid gap-4 sm:grid-cols-2 xl:w-[28rem]">
-            <div className="rounded-[24px] border px-4 py-4" style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--card) / 0.88)' }}>
-              <p className="text-xs uppercase tracking-[0.18em]" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                Logged in as
-              </p>
-              <p className="mt-2 text-sm font-semibold" style={{ color: 'hsl(var(--foreground))' }}>
-                {user?.name || 'Doctor'}
-              </p>
-              <p className="mt-1 text-sm" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                {user?.email || doctorId}
-              </p>
-            </div>
-
-            <div className="rounded-[24px] border px-4 py-4" style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--card) / 0.88)' }}>
-              <p className="text-xs uppercase tracking-[0.18em]" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                Current session state
-              </p>
-              <div className="mt-2 flex flex-wrap items-center gap-2">
-                {selectedSession ? <StatusBadge status={selectedSession.sessionStatus} /> : <StatusBadge status={selectedAppointment?.status || 'PENDING'} className="opacity-75" />}
-              </div>
-              <p className="mt-2 text-sm leading-6" style={{ color: 'hsl(var(--foreground))' }}>
-                {workspaceSummary}
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {selectedAppointment ? (
-        <section className="grid gap-4 md:grid-cols-3">
-          <div
-            className="rounded-[24px] border px-5 py-4"
-            style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--card))' }}
-          >
-            <p className="text-xs uppercase tracking-[0.18em]" style={{ color: 'hsl(var(--muted-foreground))' }}>
-              Selected appointment
-            </p>
-            <p className="mt-2 text-sm font-semibold" style={{ color: 'hsl(var(--foreground))' }}>
-              {selectedAppointment.reasonForVisit || 'Consultation request'}
-            </p>
-            <p className="mt-2 text-sm leading-6" style={{ color: 'hsl(var(--muted-foreground))' }}>
-              Patient {selectedAppointment.patientId} - {formatDateTime(selectedAppointment.scheduledAt)}
-            </p>
-          </div>
-
-          <div
-            className="rounded-[24px] border px-5 py-4"
-            style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--card))' }}
-          >
-            <p className="text-xs uppercase tracking-[0.18em]" style={{ color: 'hsl(var(--muted-foreground))' }}>
-              Session room
-            </p>
-            <p className="mt-2 text-sm font-semibold" style={{ color: 'hsl(var(--foreground))' }}>
-              {selectedSession?.jitsiRoomId || 'Not created yet'}
-            </p>
-            <p className="mt-2 text-sm leading-6" style={{ color: 'hsl(var(--muted-foreground))' }}>
-              {selectedSession ? 'Room created and linked to this appointment.' : 'Create the session after accepting the appointment.'}
-            </p>
-          </div>
-
-          <div
-            className="rounded-[24px] border px-5 py-4"
-            style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--card))' }}
-          >
-            <p className="text-xs uppercase tracking-[0.18em]" style={{ color: 'hsl(var(--muted-foreground))' }}>
-              Clinical status
-            </p>
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              {selectedConsultation ? <StatusBadge status="COMPLETED" /> : <StatusBadge status={selectedSession?.sessionStatus || 'PENDING'} className="opacity-75" />}
-            </div>
-            <p className="mt-2 text-sm leading-6" style={{ color: 'hsl(var(--muted-foreground))' }}>
-              {selectedConsultation
-                ? 'Consultation record exists and prescriptions can be managed.'
-                : 'Consultation notes unlock after the session is completed.'}
-            </p>
-          </div>
-        </section>
+        
+        </>
       ) : (
-        <FeatureNotice
-          tone="info"
-          title="No appointment selected yet"
-          message="If your telemedicine backend is empty, use the Manual Test Tools section to seed a demo appointment and continue the flow manually."
-        />
+        <div className="space-y-5">
+          <TelemedicineSection
+            title="Appointment Details Page"
+            description="Review this appointment in full, then continue through session management, live consultation, and clinical wrap-up without losing focus."
+            actions={(
+              <button
+                type="button"
+                onClick={() => navigate('/doctor/telemedicine')}
+                className="inline-flex items-center rounded-2xl border px-4 py-2.5 text-sm font-semibold transition hover:bg-black/[0.03] dark:hover:bg-white/[0.05]"
+                style={{ borderColor: 'hsl(var(--border))', color: 'hsl(var(--foreground))' }}
+              >
+                Back to my appointments
+              </button>
+            )}
+          >
+            <div className="space-y-5">
+              <div
+                className="rounded-[28px] border p-5"
+                style={{
+                  borderColor: 'hsl(var(--border))',
+                  background:
+                    'linear-gradient(135deg, hsl(var(--primary) / 0.16), hsl(var(--accent) / 0.34))',
+                }}
+              >
+                <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                  <div className="space-y-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <StatusBadge status={selectedAppointment.status} />
+                      {selectedSession ? <StatusBadge status={selectedSession.sessionStatus} /> : null}
+                      {selectedConsultation ? <StatusBadge status="COMPLETED" /> : null}
+                    </div>
+                    <div className="space-y-1">
+                      <h2 className="text-2xl font-semibold tracking-tight" style={{ color: 'hsl(var(--foreground))' }}>
+                        {selectedAppointment.patientDisplay?.name || `Patient ${selectedAppointment.patientId}`}
+                      </h2>
+                      <p className="text-sm leading-6" style={{ color: 'hsl(var(--muted-foreground))' }}>
+                        {selectedAppointment.reasonForVisit || 'Consultation request'}
+                      </p>
+                    </div>
+                    <p className="max-w-2xl text-sm leading-6" style={{ color: 'hsl(var(--foreground))' }}>
+                      {workspaceSummary}
+                    </p>
+                  </div>
+
+                  <div className="rounded-[24px] border px-4 py-4" style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--card) / 0.76)' }}>
+                    <p className="text-xs uppercase tracking-[0.18em]" style={{ color: 'hsl(var(--muted-foreground))' }}>
+                      Appointment ID
+                    </p>
+                    <p className="mt-2 break-all text-sm font-semibold" style={{ color: 'hsl(var(--foreground))' }}>
+                      {selectedAppointment.id}
+                    </p>
+                    <p className="mt-2 break-all text-sm" style={{ color: 'hsl(var(--muted-foreground))' }}>
+                      {selectedAppointment.patientDisplay?.userId || selectedAppointment.patientId}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {appointmentActionState.error ? (
+                <FeatureNotice tone="error" title="Appointment action failed" message={appointmentActionState.error} />
+              ) : null}
+              {appointmentActionState.success ? (
+                <FeatureNotice tone="success" title="Appointment updated" message={appointmentActionState.success} />
+              ) : null}
+
+              <AppointmentDetailsPanel
+                selectedAppointment={selectedAppointment}
+                doctorDisplay={doctorDisplay}
+                actionState={appointmentActionState}
+                onAcceptAppointment={handleAcceptAppointment}
+                onRejectAppointment={handleRejectAppointment}
+                onRescheduleAppointment={handleRescheduleAppointment}
+              />
+            </div>
+          </TelemedicineSection>
+
+          <TelemedicineSection
+            title="Appointment Workspace"
+            description="This workspace keeps the current appointment context visible while the doctor manages session readiness, enters the call, and completes clinical outcomes."
+          >
+            <div className="grid gap-4 xl:grid-cols-4">
+              <div
+                className="rounded-[24px] border px-5 py-4"
+                style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--card))' }}
+              >
+                <p className="text-xs uppercase tracking-[0.18em]" style={{ color: 'hsl(var(--muted-foreground))' }}>
+                  Patient
+                </p>
+                <p className="mt-2 text-sm font-semibold" style={{ color: 'hsl(var(--foreground))' }}>
+                  {selectedAppointment.patientDisplay?.name || `Patient ${selectedAppointment.patientId}`}
+                </p>
+                <p className="mt-2 text-sm leading-6" style={{ color: 'hsl(var(--muted-foreground))' }}>
+                  {selectedAppointment.patientDisplay?.email || 'No patient email available'}
+                </p>
+              </div>
+
+              <div
+                className="rounded-[24px] border px-5 py-4"
+                style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--card))' }}
+              >
+                <p className="text-xs uppercase tracking-[0.18em]" style={{ color: 'hsl(var(--muted-foreground))' }}>
+                  Scheduled time
+                </p>
+                <div className="mt-2 flex items-start gap-2">
+                  <CalendarClock className="mt-0.5 h-4 w-4 shrink-0" style={{ color: 'hsl(var(--primary))' }} />
+                  <p className="text-sm font-semibold leading-6" style={{ color: 'hsl(var(--foreground))' }}>
+                    {formatDateTime(selectedAppointment.scheduledAt)}
+                  </p>
+                </div>
+              </div>
+
+              <div
+                className="rounded-[24px] border px-5 py-4"
+                style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--card))' }}
+              >
+                <p className="text-xs uppercase tracking-[0.18em]" style={{ color: 'hsl(var(--muted-foreground))' }}>
+                  Session room
+                </p>
+                <p className="mt-2 text-sm font-semibold" style={{ color: 'hsl(var(--foreground))' }}>
+                  {selectedSession?.jitsiRoomId || 'Not created yet'}
+                </p>
+                <p className="mt-2 text-sm leading-6" style={{ color: 'hsl(var(--muted-foreground))' }}>
+                  {selectedSession ? 'Room created and linked to this appointment.' : 'Create the session once the appointment is accepted.'}
+                </p>
+              </div>
+
+              <div
+                className="rounded-[24px] border px-5 py-4"
+                style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--card))' }}
+              >
+                <p className="text-xs uppercase tracking-[0.18em]" style={{ color: 'hsl(var(--muted-foreground))' }}>
+                  Clinical wrap-up
+                </p>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  {selectedConsultation ? (
+                    <StatusBadge status="COMPLETED" />
+                  ) : (
+                    <StatusBadge status={selectedSession?.sessionStatus || selectedAppointment.status} className="opacity-75" />
+                  )}
+                </div>
+                <p className="mt-2 text-sm leading-6" style={{ color: 'hsl(var(--muted-foreground))' }}>
+                  {selectedConsultation
+                    ? 'Consultation record exists and prescriptions can be managed.'
+                    : 'Consultation notes unlock after the session is completed.'}
+                </p>
+              </div>
+            </div>
+          </TelemedicineSection>
+
+          <div className="grid gap-5 2xl:grid-cols-[0.92fr_1.08fr]">
+            <SessionControlPanel
+              appointment={selectedAppointment}
+              session={selectedSession}
+              readiness={selectedReadiness}
+              joinInfo={doctorJoinInfo}
+              loading={sessionLookupLoading}
+              error={sessionError}
+              actionState={sessionActionState}
+              onRefreshSession={handleRefreshSelectedSession}
+              onCreateSession={handleCreateSession}
+              onCheckReadiness={handleCheckReadiness}
+              onGenerateDoctorJoin={handleGenerateDoctorJoin}
+              onStartSession={handleStartSession}
+              onEndSession={handleEndSession}
+            />
+
+            <LiveConsultationPanel currentUser={user} session={selectedSession} joinInfo={doctorJoinInfo} />
+          </div>
+
+          <ClinicalWrapUpPanel
+            session={selectedSession}
+            consultation={selectedConsultation}
+            prescriptions={selectedPrescriptions}
+            consultationActionState={consultationActionState}
+            prescriptionActionState={prescriptionActionState}
+            onCreateConsultation={handleCreateConsultation}
+            onUpdateConsultation={handleUpdateConsultation}
+            onCreatePrescription={handleCreatePrescription}
+            onUpdatePrescriptionStatus={handleUpdatePrescriptionStatus}
+            onCancelPrescription={handleCancelPrescription}
+          />
+        </div>
       )}
 
-      <AppointmentInbox
-        appointments={deferredAppointments}
-        selectedAppointment={selectedAppointment}
-        loading={appointmentsLoading}
-        error={appointmentsError}
-        actionState={appointmentActionState}
-        onRefreshAppointments={() => refreshAppointments({ preserveSelection: true })}
-        onSelectAppointment={setSelectedAppointmentId}
-        onAcceptAppointment={handleAcceptAppointment}
-        onRejectAppointment={handleRejectAppointment}
-        onRescheduleAppointment={handleRescheduleAppointment}
-      />
-
-      <SessionControlPanel
-        appointment={selectedAppointment}
-        session={selectedSession}
-        readiness={selectedReadiness}
-        joinInfo={doctorJoinInfo}
-        loading={sessionLookupLoading}
-        error={sessionError}
-        actionState={sessionActionState}
-        onRefreshSession={handleRefreshSelectedSession}
-        onCreateSession={handleCreateSession}
-        onCheckReadiness={handleCheckReadiness}
-        onGenerateDoctorJoin={handleGenerateDoctorJoin}
-        onStartSession={handleStartSession}
-        onEndSession={handleEndSession}
-      />
-
-      <LiveConsultationPanel currentUser={user} session={selectedSession} joinInfo={doctorJoinInfo} />
-
-      <ClinicalWrapUpPanel
-        session={selectedSession}
-        consultation={selectedConsultation}
-        prescriptions={selectedPrescriptions}
-        consultationActionState={consultationActionState}
-        prescriptionActionState={prescriptionActionState}
-        onCreateConsultation={handleCreateConsultation}
-        onUpdateConsultation={handleUpdateConsultation}
-        onCreatePrescription={handleCreatePrescription}
-        onUpdatePrescriptionStatus={handleUpdatePrescriptionStatus}
-        onCancelPrescription={handleCancelPrescription}
-      />
-
       <ManualTestToolsPanel
-        doctorId={doctorId}
+        doctorDisplay={doctorDisplay}
+        seededPatient={SEEDED_TELEMEDICINE_PATIENT}
         selectedSession={selectedSession}
         actionState={manualToolsActionState}
         onSeedDemoAppointment={handleSeedDemoAppointment}

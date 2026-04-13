@@ -5,6 +5,7 @@ import FeatureNotice from '@/features/telemedicine/components/FeatureNotice'
 import StatusBadge from '@/features/telemedicine/components/StatusBadge'
 import TelemedicineSection from '@/features/telemedicine/components/TelemedicineSection'
 import {
+  buildJitsiConfigHash,
   buildJitsiOrigin,
   formatDateTime,
 } from '@/features/telemedicine/services/telemedicineTypes'
@@ -13,7 +14,7 @@ import {
   loadJitsiExternalApi,
 } from '@/features/telemedicine/services/loadJitsiExternalApi'
 
-export default function LiveConsultationPanel({ currentUser, session, joinInfo }) {
+export default function LiveConsultationPanel({ currentUser, session, joinInfo, participantLabel = 'participant' }) {
   const containerRef = useRef(null)
   const apiRef = useRef(null)
   const [embedState, setEmbedState] = useState({ status: 'idle', message: '' })
@@ -24,6 +25,7 @@ export default function LiveConsultationPanel({ currentUser, session, joinInfo }
     if (!joinInfo || !containerNode) return undefined
 
     let cancelled = false
+    let teardown = () => {}
 
     async function mountJitsi() {
       setEmbedState({ status: 'loading', message: 'Loading the Jitsi meeting frame...' })
@@ -40,17 +42,31 @@ export default function LiveConsultationPanel({ currentUser, session, joinInfo }
         containerNode.innerHTML = ''
 
         const domain = getNormalizedJitsiDomain(joinInfo.jitsiDomain)
+        const syncLargeVideoLayout = () => {
+          try {
+            const frameWidth = containerNode.clientWidth || 1280
+            const frameHeight = containerNode.clientHeight || 720
+            jitsiApi.executeCommand('resizeLargeVideo', frameWidth, frameHeight)
+          } catch {
+            // Ignore optional layout commands when unsupported.
+          }
+        }
+
         const jitsiOptions = {
           roomName: joinInfo.roomId,
           parentNode: containerNode,
           width: '100%',
           height: '100%',
           userInfo: {
-            displayName: currentUser?.name || 'Doctor',
+            displayName: currentUser?.name || 'Participant',
             email: currentUser?.email,
           },
           configOverwrite: {
             prejoinPageEnabled: false,
+            prejoinConfig: {
+              enabled: false,
+            },
+            requireDisplayName: false,
             disableDeepLinking: true,
           },
           interfaceConfigOverwrite: {
@@ -63,9 +79,52 @@ export default function LiveConsultationPanel({ currentUser, session, joinInfo }
         }
 
         const jitsiApi = new JitsiMeetExternalAPI(domain, jitsiOptions)
+        const configHash = buildJitsiConfigHash()
+        let layoutSyncTimeoutId = null
+
+        jitsiApi.addListener('videoConferenceJoined', () => {
+          try {
+            jitsiApi.executeCommand('setTileView', true)
+          } catch {
+            // Ignore non-critical layout commands when the provider does not support them.
+          }
+
+          window.clearTimeout(layoutSyncTimeoutId)
+          layoutSyncTimeoutId = window.setTimeout(syncLargeVideoLayout, 250)
+        })
+
+        try {
+          jitsiApi.executeCommand('overwriteConfig', {
+            prejoinPageEnabled: false,
+            prejoinConfig: {
+              enabled: false,
+            },
+            requireDisplayName: false,
+            disableDeepLinking: true,
+          })
+        } catch {
+          // Ignore optional runtime config tweaks when the provider does not support them.
+        }
+
+        if (configHash) {
+          try {
+            const iframe = containerNode.querySelector('iframe')
+            if (iframe?.src && !iframe.src.includes('#')) {
+              iframe.src = `${iframe.src}#${configHash}`
+            }
+          } catch {
+            // Ignore iframe src adjustments if the provider changes its embed internals.
+          }
+        }
+
+        window.addEventListener('resize', syncLargeVideoLayout)
 
         apiRef.current = jitsiApi
         setEmbedState({ status: 'ready', message: 'Meeting ready.' })
+        teardown = () => {
+          window.removeEventListener('resize', syncLargeVideoLayout)
+          window.clearTimeout(layoutSyncTimeoutId)
+        }
       } catch (error) {
         if (cancelled) return
         setEmbedState({
@@ -79,6 +138,7 @@ export default function LiveConsultationPanel({ currentUser, session, joinInfo }
 
     return () => {
       cancelled = true
+      teardown()
       if (apiRef.current) {
         apiRef.current.dispose()
         apiRef.current = null
@@ -90,14 +150,14 @@ export default function LiveConsultationPanel({ currentUser, session, joinInfo }
   return (
     <TelemedicineSection
       title="Live Consultation"
-      description="Generate doctor join access, then launch the Jitsi room inline here for the active consultation."
+      description="Prepare join access, then launch the Jitsi room inline here for the active consultation."
     >
       <div className="space-y-5">
         {!session ? (
           <FeatureNotice
             tone="info"
             title="No session selected"
-            message="Create a session from the Session Control panel first. The live meeting embed will appear here when doctor join access is ready."
+            message="The live meeting embed will appear here when consultation join access is ready."
           />
         ) : null}
 
@@ -147,8 +207,8 @@ export default function LiveConsultationPanel({ currentUser, session, joinInfo }
         {!joinInfo && session ? (
           <FeatureNotice
             tone="warning"
-            title="Doctor join access required"
-            message="Use the Session Control panel to prepare doctor join access. If JWT credentials are missing, the telemedicine service will fall back to a public Jitsi room."
+            title="Join access required"
+            message={`Prepare ${participantLabel} join access to launch the Jitsi consultation here. If JWT credentials are missing, the telemedicine service will fall back to a public Jitsi room.`}
           />
         ) : null}
 
@@ -185,7 +245,7 @@ export default function LiveConsultationPanel({ currentUser, session, joinInfo }
             <div className="flex items-center gap-2">
               <Video className="h-4 w-4" style={{ color: 'hsl(var(--primary))' }} />
               <p className="text-sm font-semibold" style={{ color: 'hsl(var(--foreground))' }}>
-                Inline doctor meeting
+                Inline consultation meeting
               </p>
             </div>
             {joinInfo ? (
@@ -196,7 +256,15 @@ export default function LiveConsultationPanel({ currentUser, session, joinInfo }
           </div>
 
           {joinInfo ? (
-            <div ref={containerRef} className="min-h-[34rem] w-full bg-black" />
+            <div
+              ref={containerRef}
+              className="w-full bg-black"
+              style={{
+                aspectRatio: '16 / 9',
+                minHeight: '20rem',
+                maxHeight: '34rem',
+              }}
+            />
           ) : (
             <div className="flex min-h-[24rem] items-center justify-center px-6 py-10 text-center">
               <div className="max-w-md space-y-3">
@@ -204,7 +272,7 @@ export default function LiveConsultationPanel({ currentUser, session, joinInfo }
                   Meeting frame will appear here
                 </p>
                 <p className="text-sm leading-6" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                  Generate doctor join access to mount the live Jitsi room inline. You can still seed appointments, create sessions, and prepare the rest of the telemedicine flow before joining.
+                  Prepare consultation join access to mount the live Jitsi room inline. You can still review the appointment and session status before entering the consultation.
                 </p>
               </div>
             </div>

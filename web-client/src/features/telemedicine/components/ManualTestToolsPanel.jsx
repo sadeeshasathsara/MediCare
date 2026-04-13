@@ -18,14 +18,14 @@ function actionButtonClass(kind = 'secondary') {
 }
 
 export default function ManualTestToolsPanel({
-  doctorId,
+  doctorDisplay,
+  seededPatient,
   selectedSession,
   actionState,
   onSeedDemoAppointment,
   onQuickDemo,
   onOpenPatientTestWindow,
 }) {
-  const [patientId, setPatientId] = useState('patient-demo-001')
   const [scheduledAt, setScheduledAt] = useState(nextLocalDateTimeValue(60))
   const [reasonForVisit, setReasonForVisit] = useState('Follow-up teleconsultation')
   const [notes, setNotes] = useState('Temporary test appointment created from the telemedicine workspace.')
@@ -36,11 +36,7 @@ export default function ManualTestToolsPanel({
       description="Temporary dev support to exercise the telemedicine flow end-to-end without waiting for the other team's appointment UI."
     >
       <div className="space-y-5">
-        <FeatureNotice
-          tone="warning"
-          title="Temporary telemedicine-only helpers"
-          message="These controls exist only to manually validate your telemedicine flow. They stay inside this feature and do not modify other frontend areas."
-        />
+        
 
         {actionState.error ? <FeatureNotice tone="error" title="Manual test action failed" message={actionState.error} /> : null}
         {actionState.success ? <FeatureNotice tone="success" title="Manual test action completed" message={actionState.success} /> : null}
@@ -52,7 +48,6 @@ export default function ManualTestToolsPanel({
             onSubmit={(event) => {
               event.preventDefault()
               onSeedDemoAppointment({
-                patientId,
                 scheduledAt,
                 reasonForVisit,
                 notes,
@@ -73,7 +68,7 @@ export default function ManualTestToolsPanel({
                 </label>
                 <input
                   type="text"
-                  value={doctorId || ''}
+                  value={doctorDisplay?.id || ''}
                   readOnly
                   className="w-full rounded-2xl border px-4 py-3 text-sm"
                   style={{
@@ -86,19 +81,30 @@ export default function ManualTestToolsPanel({
 
               <div className="space-y-2">
                 <label className="text-sm font-medium" style={{ color: 'hsl(var(--foreground))' }}>
-                  Patient ID
+                  Seeded patient
                 </label>
-                <input
-                  type="text"
-                  value={patientId}
-                  onChange={(event) => setPatientId(event.target.value)}
-                  className="w-full rounded-2xl border px-4 py-3 text-sm outline-none transition focus:ring-2"
+                <div
+                  className="rounded-2xl border px-4 py-3 text-sm"
                   style={{
                     borderColor: 'hsl(var(--border))',
                     backgroundColor: 'hsl(var(--background) / 0.55)',
                     color: 'hsl(var(--foreground))',
                   }}
-                />
+                >
+                  <p className="font-semibold">{seededPatient?.name || 'Patient'}</p>
+                  <p className="mt-1" style={{ color: 'hsl(var(--muted-foreground))' }}>
+                    {seededPatient?.email || 'No email available'}
+                  </p>
+                  <p className="mt-1" style={{ color: 'hsl(var(--muted-foreground))' }}>
+                    DOB: {seededPatient?.dob || 'Not available'}
+                  </p>
+                  <p className="mt-1" style={{ color: 'hsl(var(--muted-foreground))' }}>
+                    Status: {seededPatient?.status || 'Unknown'}
+                  </p>
+                  <p className="mt-2 break-all text-xs uppercase tracking-[0.14em]" style={{ color: 'hsl(var(--muted-foreground))' }}>
+                    {seededPatient?.userId || 'No patient id'}
+                  </p>
+                </div>
               </div>
             </div>
 
@@ -167,7 +173,6 @@ export default function ManualTestToolsPanel({
                 type="button"
                 onClick={() =>
                   onQuickDemo({
-                    patientId,
                     scheduledAt,
                     reasonForVisit,
                     notes,
@@ -217,7 +222,7 @@ export default function ManualTestToolsPanel({
                 <FeatureNotice
                   tone="info"
                   title="Popup note"
-                  message="The browser may block popups unless this action is triggered directly by a click. The page opens a temporary patient test window using a fresh patient JWT."
+                  message="The browser may block popups unless this action is triggered directly by a click. The page opens a temporary patient test window using fresh patient join access."
                 />
 
                 <button

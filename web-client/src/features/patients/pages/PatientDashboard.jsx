@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
 import { getPatientHistory, getPatientPrescriptions, getPatientProfile, listPatientReports } from '@/features/patients/services/patientApi'
+import { listAppointments } from '@/features/telemedicine/services/telemedicineApi'
+import { formatDateTime, humanizeStatus } from '@/features/telemedicine/services/telemedicineTypes'
 import { RefreshCcw, Calendar, Bell, CreditCard, Video, Folder, User, Stethoscope, CheckCircle2, XCircle, ArrowRight } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 
 const PROFILE_PROMPT_SNOOZE_MS = 7 * 24 * 60 * 60 * 1000
+const TELEMEDICINE_VISIBLE_STATUSES = new Set(['PENDING', 'ACCEPTED', 'RESCHEDULED'])
 
 function isProfileIncomplete(p) {
     const nameOk = Boolean(p?.name && String(p.name).trim())
@@ -150,8 +153,13 @@ function StatusPill({ tone = 'neutral', children }) {
     )
 }
 
+function telemedicineTone(status) {
+    return status === 'ACCEPTED' ? 'success' : 'neutral'
+}
+
 export default function PatientDashboard() {
     const { user } = useAuth()
+    const navigate = useNavigate()
     const userId = user?.id
 
     const [loading, setLoading] = useState(false)
@@ -161,6 +169,7 @@ export default function PatientDashboard() {
     const [reportsCount, setReportsCount] = useState(null)
     const [historyStatus, setHistoryStatus] = useState('unknown')
     const [prescriptionsStatus, setPrescriptionsStatus] = useState('unknown')
+    const [telemedicineAppointments, setTelemedicineAppointments] = useState([])
     const [profilePromptSnoozedUntil, setProfilePromptSnoozedUntil] = useState(0)
 
     const canUse = useMemo(() => Boolean(userId), [userId])
@@ -194,6 +203,17 @@ export default function PatientDashboard() {
                 setPrescriptionsStatus('ok')
             } catch (e) {
                 setPrescriptionsStatus(e?.response?.status === 503 ? 'unavailable' : 'error')
+            }
+
+            try {
+                const appointments = await listAppointments()
+                const nextTelemedicineAppointments = (Array.isArray(appointments) ? appointments : [])
+                    .filter((appointment) => appointment?.patientId === userId && TELEMEDICINE_VISIBLE_STATUSES.has(appointment?.status))
+                    .sort((left, right) => new Date(left?.scheduledAt || 0).getTime() - new Date(right?.scheduledAt || 0).getTime())
+
+                setTelemedicineAppointments(nextTelemedicineAppointments)
+            } catch {
+                setTelemedicineAppointments([])
             }
         } catch (e) {
             setError(e?.response?.data?.message || e?.message || 'Failed to load dashboard')
@@ -261,6 +281,8 @@ export default function PatientDashboard() {
 
     const historyTone = historyStatus === 'ok' ? 'success' : historyStatus === 'error' ? 'danger' : 'neutral'
     const prescriptionsTone = prescriptionsStatus === 'ok' ? 'success' : prescriptionsStatus === 'error' ? 'danger' : 'neutral'
+    const hasTelemedicineAppointments = telemedicineAppointments.length > 0
+    const nextTelemedicineAppointments = telemedicineAppointments.slice(0, 3)
 
     return (
         <div className="space-y-6">
@@ -351,7 +373,7 @@ export default function PatientDashboard() {
                     </p>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+                <div className={`grid grid-cols-1 gap-4 md:grid-cols-2 ${hasTelemedicineAppointments ? 'xl:grid-cols-5' : 'xl:grid-cols-4'}`}>
                     <QuickActionCard
                         title="Medical reports"
                         icon={<Folder size={16} />}
@@ -373,6 +395,15 @@ export default function PatientDashboard() {
                         hint={prescriptionsHint || 'Check your prescriptions'}
                         to="/patient/prescriptions"
                     />
+                    {hasTelemedicineAppointments ? (
+                        <QuickActionCard
+                            title="Telemedicine"
+                            icon={<Video size={16} />}
+                            value={String(telemedicineAppointments.length)}
+                            hint="Join your scheduled online consultations"
+                            to="/patient/telemedicine"
+                        />
+                    ) : null}
                     <QuickActionCard
                         title="Profile"
                         icon={<User size={16} />}
@@ -476,14 +507,28 @@ export default function PatientDashboard() {
                     </div>
 
                     <div className="mt-5 rounded-lg border p-4" style={{ backgroundColor: 'hsl(var(--secondary))', borderColor: 'hsl(var(--border))' }}>
-                        <div className="text-sm font-medium" style={{ color: 'hsl(var(--foreground))' }}>Care tools (coming soon)</div>
+                        <div className="text-sm font-medium" style={{ color: 'hsl(var(--foreground))' }}>
+                            {hasTelemedicineAppointments ? 'Connected care tools' : 'Care tools (coming soon)'}
+                        </div>
                         <div className="text-sm mt-1" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                            Telemedicine, appointments, payments, and notifications can appear here once connected.
+                            {hasTelemedicineAppointments
+                                ? 'Telemedicine is available for this account. Other tools can appear here once their services are connected.'
+                                : 'Telemedicine, appointments, payments, and notifications can appear here once connected.'}
                         </div>
                         <div className="mt-3 grid grid-cols-2 gap-2">
-                            <div className="flex items-center gap-2 text-sm" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                                <Video size={16} /> Telemedicine
-                            </div>
+                            {hasTelemedicineAppointments ? (
+                                <Link
+                                    to="/patient/telemedicine"
+                                    className="flex items-center gap-2 text-sm font-medium"
+                                    style={{ color: 'hsl(var(--primary))' }}
+                                >
+                                    <Video size={16} /> Telemedicine ready
+                                </Link>
+                            ) : (
+                                <div className="flex items-center gap-2 text-sm" style={{ color: 'hsl(var(--muted-foreground))' }}>
+                                    <Video size={16} /> Telemedicine
+                                </div>
+                            )}
                             <div className="flex items-center gap-2 text-sm" style={{ color: 'hsl(var(--muted-foreground))' }}>
                                 <Bell size={16} /> Notifications
                             </div>
@@ -508,12 +553,17 @@ export default function PatientDashboard() {
                     </div>
                     <button
                         type="button"
-                        disabled
+                        disabled={!hasTelemedicineAppointments}
                         className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-colors"
-                        style={{ backgroundColor: 'transparent', borderColor: 'hsl(var(--border))', color: 'hsl(var(--muted-foreground))', cursor: 'not-allowed' }}
-                        title="Appointments are not connected yet"
+                        style={{ backgroundColor: 'transparent', borderColor: 'hsl(var(--border))', color: hasTelemedicineAppointments ? 'hsl(var(--foreground))' : 'hsl(var(--muted-foreground))', cursor: hasTelemedicineAppointments ? 'pointer' : 'not-allowed' }}
+                        title={hasTelemedicineAppointments ? 'Open your telemedicine appointments' : 'Appointments are not connected yet'}
+                        onClick={() => {
+                            if (hasTelemedicineAppointments) {
+                                navigate('/patient/telemedicine')
+                            }
+                        }}
                     >
-                        View all
+                        {hasTelemedicineAppointments ? 'Open telemedicine' : 'View all'}
                         <ArrowRight size={16} />
                     </button>
                 </div>
@@ -541,6 +591,31 @@ export default function PatientDashboard() {
                                     <Skeleton className="h-4 w-28" />
                                 </div>
                             </div>
+                        </div>
+                    ) : hasTelemedicineAppointments ? (
+                        <div className="space-y-3">
+                            {nextTelemedicineAppointments.map((appointment) => (
+                                <Link
+                                    key={appointment.id}
+                                    to="/patient/telemedicine"
+                                    className="block rounded-lg border p-4 transition-colors hover:bg-black/[0.02] dark:hover:bg-white/[0.02]"
+                                    style={{ borderColor: 'hsl(var(--border))' }}
+                                >
+                                    <div className="flex items-start justify-between gap-3">
+                                        <div className="min-w-0">
+                                            <div className="text-sm font-medium" style={{ color: 'hsl(var(--foreground))' }}>
+                                                {appointment.reasonForVisit || 'Telemedicine consultation'}
+                                            </div>
+                                            <div className="text-sm mt-1" style={{ color: 'hsl(var(--muted-foreground))' }}>
+                                                {formatDateTime(appointment.scheduledAt)}
+                                            </div>
+                                        </div>
+                                        <StatusPill tone={telemedicineTone(appointment.status)}>
+                                            {humanizeStatus(appointment.status)}
+                                        </StatusPill>
+                                    </div>
+                                </Link>
+                            ))}
                         </div>
                     ) : (
                         <div className="rounded-lg border p-4" style={{ backgroundColor: 'hsl(var(--secondary))', borderColor: 'hsl(var(--border))' }}>
@@ -582,11 +657,27 @@ export default function PatientDashboard() {
 
                     <WidgetCard title="Telemedicine" icon={<Video size={16} />}>
                         <div className="text-sm" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                            Join virtual consultations from one place.
+                            {hasTelemedicineAppointments
+                                ? 'Your online consultations are available now.'
+                                : 'Join virtual consultations from one place.'}
                         </div>
                         <div className="mt-2 text-xs" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                            Future sessions can show a join link and readiness checks.
+                            {hasTelemedicineAppointments
+                                ? `${telemedicineAppointments.length} appointment${telemedicineAppointments.length === 1 ? '' : 's'} ready to review in telemedicine.`
+                                : 'Future sessions can show a join link and readiness checks.'}
                         </div>
+                        {hasTelemedicineAppointments ? (
+                            <div className="mt-3">
+                                <Link
+                                    to="/patient/telemedicine"
+                                    className="inline-flex items-center gap-2 text-sm font-medium"
+                                    style={{ color: 'hsl(var(--primary))' }}
+                                >
+                                    Open telemedicine
+                                    <ArrowRight size={16} />
+                                </Link>
+                            </div>
+                        ) : null}
                     </WidgetCard>
 
                     <WidgetCard title="Notifications" icon={<Bell size={16} />}>

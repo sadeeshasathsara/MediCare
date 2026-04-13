@@ -2,6 +2,13 @@ export const APPOINTMENT_STATUSES = ['PENDING', 'ACCEPTED', 'RESCHEDULED', 'REJE
 export const SESSION_STATUSES = ['SCHEDULED', 'WAITING', 'LIVE', 'COMPLETED', 'MISSED', 'CANCELLED']
 export const PRESCRIPTION_STATUSES = ['DRAFT', 'ISSUED', 'DISPENSED', 'CANCELLED']
 export const READY_POLL_STATUSES = new Set(['SCHEDULED', 'WAITING', 'LIVE'])
+export const SEEDED_TELEMEDICINE_PATIENT = {
+  userId: '69cd4dc01d72c817c641a3e3',
+  name: 'Sadeesha Sathsara',
+  email: 'sadeesha.patient@gmail.com',
+  dob: '2003-06-21',
+  status: 'ACTIVE',
+}
 
 const PREFERRED_APPOINTMENT_ORDER = ['PENDING', 'ACCEPTED', 'RESCHEDULED']
 
@@ -16,8 +23,32 @@ const PREFERRED_APPOINTMENT_ORDER = ['PENDING', 'ACCEPTED', 'RESCHEDULED']
  *   notes?: string,
  *   rejectionReason?: string,
  *   rescheduleReason?: string,
- *   proposedScheduledAt?: string
+ *   proposedScheduledAt?: string,
+ *   patientDisplay?: TelemedicinePatientDisplay,
+ *   doctorDisplay?: TelemedicineDoctorDisplay
  * }} TelemedicineAppointment
+ */
+
+/**
+ * @typedef {{
+ *   userId: string,
+ *   name: string,
+ *   email?: string,
+ *   dob?: string,
+ *   status?: string,
+ *   knownPatient: boolean
+ * }} TelemedicinePatientDisplay
+ */
+
+/**
+ * @typedef {{
+ *   id: string,
+ *   name: string,
+ *   email?: string,
+ *   role?: string,
+ *   doctorVerified?: boolean,
+ *   knownDoctor: boolean
+ * }} TelemedicineDoctorDisplay
  */
 
 /**
@@ -169,12 +200,30 @@ export function buildJitsiOrigin(domain) {
   return normalized ? `https://${normalized}` : ''
 }
 
+export function buildJitsiConfigHash() {
+  const configParams = new URLSearchParams({
+    'config.prejoinConfig.enabled': 'false',
+    'config.prejoinPageEnabled': 'false',
+    'config.requireDisplayName': 'false',
+    'config.disableDeepLinking': 'true',
+  })
+
+  return configParams.toString()
+}
+
 export function buildJitsiRoomUrl(domain, roomId, token) {
   const origin = buildJitsiOrigin(domain)
   if (!origin || !roomId) return ''
 
   const roomUrl = `${origin}/${encodeURIComponent(roomId)}`
-  return token ? `${roomUrl}?jwt=${encodeURIComponent(token)}` : roomUrl
+  const searchParams = new URLSearchParams()
+  if (token) {
+    searchParams.set('jwt', token)
+  }
+
+  const queryString = searchParams.toString()
+  const configHash = buildJitsiConfigHash()
+  return `${roomUrl}${queryString ? `?${queryString}` : ''}${configHash ? `#${configHash}` : ''}`
 }
 
 export function pickPreferredAppointment(appointments) {
@@ -210,12 +259,51 @@ export function getSessionStateCopy(sessionStatus) {
 export function createDemoAppointmentPayload({ doctorId, patientId, scheduledAt, reasonForVisit, notes }) {
   return {
     id: `demo-${Date.now()}`,
-    patientId: patientId || 'patient-demo-001',
+    patientId: patientId || SEEDED_TELEMEDICINE_PATIENT.userId,
     doctorId,
     scheduledAt,
     status: 'PENDING',
     reasonForVisit: reasonForVisit || 'Telemedicine follow-up consultation',
     notes: notes || 'Temporary demo appointment seeded from telemedicine workspace.',
+  }
+}
+
+export function resolveTelemedicinePatient(patientId) {
+  if (patientId === SEEDED_TELEMEDICINE_PATIENT.userId) {
+    return {
+      ...SEEDED_TELEMEDICINE_PATIENT,
+      knownPatient: true,
+    }
+  }
+
+  return {
+    userId: patientId || 'Unknown patient',
+    name: patientId ? `Patient ${patientId}` : 'Unknown patient',
+    email: '',
+    dob: '',
+    status: 'Unknown',
+    knownPatient: false,
+  }
+}
+
+export function resolveTelemedicineDoctor(user, fallbackDoctorId) {
+  const resolvedId = user?.id || fallbackDoctorId || 'Unknown doctor'
+
+  return {
+    id: resolvedId,
+    name: user?.name || (resolvedId === 'Unknown doctor' ? 'Unknown doctor' : 'Doctor'),
+    email: user?.email || '',
+    role: user?.role || 'DOCTOR',
+    doctorVerified: Boolean(user?.doctorVerified),
+    knownDoctor: Boolean(user?.id || user?.email || user?.name),
+  }
+}
+
+export function enrichTelemedicineAppointment(appointment, user, fallbackDoctorId) {
+  return {
+    ...appointment,
+    patientDisplay: resolveTelemedicinePatient(appointment?.patientId),
+    doctorDisplay: resolveTelemedicineDoctor(user, appointment?.doctorId || fallbackDoctorId),
   }
 }
 
