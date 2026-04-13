@@ -2,13 +2,10 @@ package com.healthcare.telemedicine.service.impl;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
-import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Sort;
@@ -18,28 +15,34 @@ import org.springframework.util.StringUtils;
 import com.healthcare.telemedicine.dto.session.JoinTokenResponse;
 import com.healthcare.telemedicine.dto.session.SessionReadyResponse;
 import com.healthcare.telemedicine.event.TelemedicineEventPublisher;
+import com.healthcare.telemedicine.exception.ApiException;
 import com.healthcare.telemedicine.exception.BadRequestException;
 import com.healthcare.telemedicine.exception.ConflictException;
 import com.healthcare.telemedicine.exception.ForbiddenException;
 import com.healthcare.telemedicine.exception.NotFoundException;
-import com.healthcare.telemedicine.model.Appointment;
+import com.healthcare.telemedicine.integration.appointment.AppointmentGateway;
+import com.healthcare.telemedicine.integration.appointment.ExternalAppointment;
+import com.healthcare.telemedicine.integration.appointment.ExternalAppointmentStatus;
+import com.healthcare.telemedicine.integration.appointment.TelemedicineAppointmentAdapter;
 import com.healthcare.telemedicine.model.ConsultationSession;
-import com.healthcare.telemedicine.model.enums.AppointmentStatus;
 import com.healthcare.telemedicine.model.enums.SessionStatus;
-import com.healthcare.telemedicine.repository.AppointmentRepository;
 import com.healthcare.telemedicine.repository.ConsultationSessionRepository;
 import com.healthcare.telemedicine.service.AuditLogService;
 import com.healthcare.telemedicine.service.JitsiService;
 import com.healthcare.telemedicine.service.SessionService;
 
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
 @Service
 public class SessionServiceImpl implements SessionService {
 
     private static final Sort SESSION_SORT_DESC = Sort.by(Sort.Direction.DESC, "scheduledAt");
-    private static final String SEEDED_PATIENT_USER_ID = "69cd4dc01d72c817c641a3e3";
-    private static final String SEEDED_PATIENT_PROFILE_ID = "69d1ec55acc43c5456fe30a2";
+    private static final String DOCTOR_ROLE = "DOCTOR";
+    private static final String PATIENT_ROLE = "PATIENT";
 
-    private final AppointmentRepository appointmentRepository;
+    private final AppointmentGateway appointmentGateway;
+    private final TelemedicineAppointmentAdapter appointmentAdapter;
     private final ConsultationSessionRepository sessionRepository;
     private final JitsiService jitsiService;
     private final AuditLogService auditLogService;
@@ -47,13 +50,15 @@ public class SessionServiceImpl implements SessionService {
     private final int sessionGraceMinutes;
 
     public SessionServiceImpl(
-            AppointmentRepository appointmentRepository,
+            AppointmentGateway appointmentGateway,
+            TelemedicineAppointmentAdapter appointmentAdapter,
             ConsultationSessionRepository sessionRepository,
             JitsiService jitsiService,
             AuditLogService auditLogService,
             TelemedicineEventPublisher eventPublisher,
             @Value("${telemedicine.session.grace-minutes:15}") int sessionGraceMinutes) {
-        this.appointmentRepository = appointmentRepository;
+        this.appointmentGateway = appointmentGateway;
+        this.appointmentAdapter = appointmentAdapter;
         this.sessionRepository = sessionRepository;
         this.jitsiService = jitsiService;
         this.auditLogService = auditLogService;
@@ -63,14 +68,16 @@ public class SessionServiceImpl implements SessionService {
 
     @Override
     public ConsultationSession createSession(String appointmentId, String actorId) {
-        Appointment appointment = appointmentRepository.findByIdAndDeletedAtIsNull(appointmentId)
-                .orElseThrow(() -> new NotFoundException("Appointment not found"));
+        ExternalAppointment appointment = appointmentGateway.getById(appointmentId, actorId, DOCTOR_ROLE);
 
-        if (!Objects.equals(appointment.getDoctorId(), actorId)) {
+        if (!Objects.equals(appointment.doctorId(), actorId)) {
             throw new ForbiddenException("Doctor can only create sessions for own appointments");
         }
-        if (appointment.getStatus() != AppointmentStatus.ACCEPTED) {
-            throw new ConflictException("Session can only be created for ACCEPTED appointments");
+        if (!appointmentAdapter.isTelemedicineAppointment(appointment)) {
+            throw new NotFoundException("Appointment not found");
+        }
+        if (!appointmentAdapter.isEligibleForSession(appointment)) {
+            throw new ConflictException("Session can only be created for confirmed appointments");
         }
 
         sessionRepository.findByAppointmentIdAndDeletedAtIsNull(appointmentId).ifPresent(existing -> {
@@ -82,9 +89,9 @@ public class SessionServiceImpl implements SessionService {
 
         ConsultationSession session = ConsultationSession.builder()
                 .appointmentId(appointmentId)
-                .patientId(appointment.getPatientId())
-                .doctorId(appointment.getDoctorId())
-                .scheduledAt(appointment.getScheduledAt())
+                .patientId(appointment.patientId())
+                .doctorId(appointment.doctorId())
+                .scheduledAt(appointment.scheduledAt())
                 .jitsiRoomId(roomId)
                 .jitsiRoomToken(roomToken)
                 .sessionStatus(SessionStatus.SCHEDULED)
@@ -175,6 +182,7 @@ public class SessionServiceImpl implements SessionService {
         ConsultationSession saved = sessionRepository.save(session);
         auditStatusChange(saved, previous, saved.getSessionStatus(), actorId, "session.ended", null);
         eventPublisher.publishConsultationCompleted(saved);
+        syncAppointmentCompletion(saved, actorId);
         return saved;
     }
 
@@ -185,7 +193,7 @@ public class SessionServiceImpl implements SessionService {
             SessionStatus status,
             String actorId,
             String actorRole) {
-        if ("DOCTOR".equals(actorRole)) {
+        if (DOCTOR_ROLE.equals(actorRole)) {
             String resolvedDoctorId = StringUtils.hasText(doctorId) ? doctorId : actorId;
             if (!Objects.equals(resolvedDoctorId, actorId)) {
                 throw new ForbiddenException("Doctors can only access their own sessions");
@@ -198,16 +206,15 @@ public class SessionServiceImpl implements SessionService {
                             SESSION_SORT_DESC);
         }
 
-        if ("PATIENT".equals(actorRole)) {
-            List<String> allowedPatientIds = resolveAllowedPatientIds(actorId);
+        if (PATIENT_ROLE.equals(actorRole)) {
             String resolvedPatientId = StringUtils.hasText(patientId) ? patientId : actorId;
-            if (!allowedPatientIds.contains(resolvedPatientId)) {
+            if (!Objects.equals(resolvedPatientId, actorId)) {
                 throw new ForbiddenException("Patients can only access their own sessions");
             }
             return status == null
-                    ? sessionRepository.findByPatientIdInAndDeletedAtIsNull(allowedPatientIds, SESSION_SORT_DESC)
-                    : sessionRepository.findByPatientIdInAndSessionStatusAndDeletedAtIsNull(
-                            allowedPatientIds,
+                    ? sessionRepository.findByPatientIdAndDeletedAtIsNull(resolvedPatientId, SESSION_SORT_DESC)
+                    : sessionRepository.findByPatientIdAndSessionStatusAndDeletedAtIsNull(
+                            resolvedPatientId,
                             status,
                             SESSION_SORT_DESC);
         }
@@ -257,10 +264,10 @@ public class SessionServiceImpl implements SessionService {
     }
 
     private void validateReadAccess(ConsultationSession session, String actorId, String actorRole) {
-        if ("DOCTOR".equals(actorRole) && Objects.equals(session.getDoctorId(), actorId)) {
+        if (DOCTOR_ROLE.equals(actorRole) && Objects.equals(session.getDoctorId(), actorId)) {
             return;
         }
-        if ("PATIENT".equals(actorRole) && canReadPatientOwnedResource(actorId, session.getPatientId())) {
+        if (PATIENT_ROLE.equals(actorRole) && canReadPatientOwnedResource(actorId, session.getPatientId())) {
             return;
         }
         throw new ForbiddenException("You do not have access to this session");
@@ -274,30 +281,16 @@ public class SessionServiceImpl implements SessionService {
         if (!requestedRole.equals(actorRole)) {
             throw new ForbiddenException("Requested join role does not match authenticated role");
         }
-        if ("DOCTOR".equals(requestedRole) && !Objects.equals(session.getDoctorId(), actorId)) {
+        if (DOCTOR_ROLE.equals(requestedRole) && !Objects.equals(session.getDoctorId(), actorId)) {
             throw new ForbiddenException("Doctor can only join own sessions");
         }
-        if ("PATIENT".equals(requestedRole) && !canReadPatientOwnedResource(actorId, session.getPatientId())) {
+        if (PATIENT_ROLE.equals(requestedRole) && !canReadPatientOwnedResource(actorId, session.getPatientId())) {
             throw new ForbiddenException("Patient can only join own sessions");
         }
     }
 
     private boolean canReadPatientOwnedResource(String actorId, String resourcePatientId) {
-        return resolveAllowedPatientIds(actorId).contains(resourcePatientId);
-    }
-
-    private List<String> resolveAllowedPatientIds(String actorId) {
-        Set<String> allowed = new LinkedHashSet<>();
-        if (StringUtils.hasText(actorId)) {
-            allowed.add(actorId);
-        }
-
-        if (Objects.equals(actorId, SEEDED_PATIENT_USER_ID) || Objects.equals(actorId, SEEDED_PATIENT_PROFILE_ID)) {
-            allowed.add(SEEDED_PATIENT_USER_ID);
-            allowed.add(SEEDED_PATIENT_PROFILE_ID);
-        }
-
-        return new ArrayList<>(allowed);
+        return Objects.equals(actorId, resourcePatientId);
     }
 
     private void enforceDoctorOwner(ConsultationSession session, String actorId) {
@@ -341,5 +334,22 @@ public class SessionServiceImpl implements SessionService {
                 toStatus == null ? null : toStatus.name(),
                 actorId,
                 metadata);
+    }
+
+    private void syncAppointmentCompletion(ConsultationSession session, String actorId) {
+        try {
+            appointmentGateway.updateStatus(
+                    session.getAppointmentId(),
+                    ExternalAppointmentStatus.COMPLETED,
+                    "Telemedicine consultation completed",
+                    actorId,
+                    DOCTOR_ROLE);
+        } catch (ApiException ex) {
+            log.warn(
+                    "Session {} completed, but appointment {} completion status update failed: {}",
+                    session.getId(),
+                    session.getAppointmentId(),
+                    ex.getMessage());
+        }
     }
 }

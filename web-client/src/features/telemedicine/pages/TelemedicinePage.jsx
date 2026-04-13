@@ -36,20 +36,17 @@ import {
   rejectAppointment,
   rescheduleAppointment,
   startSession,
-  syncAppointment,
   updateConsultation,
   updatePrescriptionStatus,
 } from '@/features/telemedicine/services/telemedicineApi'
 import {
   buildJitsiRoomUrl,
-  createDemoAppointmentPayload,
   enrichTelemedicineAppointment,
   formatDateTime,
   getErrorMessage,
   getSessionStateCopy,
   READY_POLL_STATUSES,
   resolveTelemedicineDoctor,
-  SEEDED_TELEMEDICINE_PATIENT,
   toIsoStringFromLocalValue,
 } from '@/features/telemedicine/services/telemedicineTypes'
 
@@ -150,7 +147,7 @@ export default function TelemedicinePage() {
     setAppointmentsError('')
 
     try {
-      const nextAppointments = await listAppointments()
+      const nextAppointments = await listAppointments({ doctorId })
 
       startTransition(() => {
         setAppointments(nextAppointments)
@@ -176,7 +173,7 @@ export default function TelemedicinePage() {
     } finally {
       setAppointmentsLoading(false)
     }
-  }, [])
+  }, [doctorId])
 
   const refreshSessionForAppointment = useCallback(async (appointmentId, { showLoading = true } = {}) => {
     if (!appointmentId) return undefined
@@ -593,39 +590,6 @@ export default function TelemedicinePage() {
     }
   }
 
-  const createManualDemoAppointment = async (payload, successMessage, kind) => {
-    setManualToolsActionState(actionLoading(kind))
-
-    try {
-      const createdAppointment = await syncAppointment(
-        createDemoAppointmentPayload({
-          doctorId,
-          patientId: SEEDED_TELEMEDICINE_PATIENT.userId,
-          scheduledAt: toIsoStringFromLocalValue(payload.scheduledAt),
-          reasonForVisit: payload.reasonForVisit,
-          notes: payload.notes,
-        })
-      )
-
-      await refreshAppointments({ preferredAppointmentId: createdAppointment.id, preserveSelection: false })
-      setManualToolsActionState(actionSuccess(kind, successMessage))
-    } catch (error) {
-      setManualToolsActionState(actionError(kind, getErrorMessage(error, 'Unable to seed the demo appointment.')))
-    }
-  }
-
-  const handleSeedDemoAppointment = async (payload) => {
-    await createManualDemoAppointment(payload, 'Demo appointment created and selected in the inbox.', 'seed')
-  }
-
-  const handleQuickDemo = async (payload) => {
-    await createManualDemoAppointment(
-      payload,
-      'Quick demo appointment is ready. Accept it in the inbox and continue through the normal session flow.',
-      'quick-demo'
-    )
-  }
-
   const handleOpenPatientTestWindow = async () => {
     if (!selectedSession || !selectedAppointment) return
 
@@ -874,11 +838,8 @@ export default function TelemedicinePage() {
 
       <ManualTestToolsPanel
         doctorDisplay={doctorDisplay}
-        seededPatient={SEEDED_TELEMEDICINE_PATIENT}
         selectedSession={selectedSession}
         actionState={manualToolsActionState}
-        onSeedDemoAppointment={handleSeedDemoAppointment}
-        onQuickDemo={handleQuickDemo}
         onOpenPatientTestWindow={handleOpenPatientTestWindow}
       />
 
@@ -913,4 +874,3 @@ export default function TelemedicinePage() {
     </div>
   )
 }
-

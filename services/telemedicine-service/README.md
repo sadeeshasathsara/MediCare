@@ -4,14 +4,15 @@ Spring Boot microservice for doctor-patient remote consultations with appointmen
 
 ## Implemented Scope
 
-- Appointment intake and management (`PENDING`, `ACCEPTED`, `REJECTED`, `RESCHEDULED`)
+- Appointment management via Appointment Service APIs (no local appointment ownership)
+- Telemedicine appointment board states (`PENDING`, `ACCEPTED`, `RESCHEDULED`, `REJECTED`, `COMPLETED`)
 - Jitsi session lifecycle (`SCHEDULED`, `WAITING`, `LIVE`, `COMPLETED`, `MISSED`, `CANCELLED`)
 - Consultation records and follow-up tracking
-- Digital prescriptions with status transitions (`DRAFT` → `ISSUED` → `DISPENSED`, cancel support)
+- Digital prescriptions with status transitions (`DRAFT` -> `ISSUED` -> `DISPENSED`, cancel support)
 - Internal event publishing (appointment/session/prescription events)
 - Audit logs for appointment/session/prescription status changes
 - Session readiness check and auto-expiry scheduler
-- Doctor availability slots based on accepted appointments
+- Doctor availability slots based on confirmed telemedicine appointments
 - JWT-protected APIs with doctor/patient role restrictions
 - Standard response envelope: `{ success, data, message, timestamp }`
 
@@ -44,6 +45,8 @@ TELEMEDICINE_AVAILABILITY_SLOT_MINUTES=30
 TELEMEDICINE_AVAILABILITY_START_HOUR=9
 TELEMEDICINE_AVAILABILITY_END_HOUR=17
 TELEMEDICINE_AVAILABILITY_DAYS_AHEAD=7
+TELEMEDICINE_APPOINTMENT_SERVICE_BASE_URL=http://appointment-service:3004
+TELEMEDICINE_APPOINTMENT_TELEMEDICINE_KEYWORDS=telemedicine,teleconsultation,video consultation,video consult,video call,virtual consultation,online consultation,remote consultation,jitsi
 
 TELEMEDICINE_BROKER_ENABLED=false
 TELEMEDICINE_BROKER_EXCHANGE=telemedicine.events
@@ -85,7 +88,6 @@ Base path: `/api/v1`
 - `PATCH /appointments/{id}/reject`
 - `PATCH /appointments/{id}/reschedule`
 - `GET /appointments/upcoming?doctorId=`
-- `POST /appointments/sync` (internal intake from Appointment Service)
 
 ### Jitsi Session Management
 - `POST /sessions`
