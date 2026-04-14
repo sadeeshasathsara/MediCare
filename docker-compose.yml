@@ -66,6 +66,8 @@ services:
     build: ./services/ai-symptom-service
     expose:
       - "3008"
+    env_file:
+      - ./services/ai-symptom-service/.env
     environment:
       SPRING_DATA_MONGODB_URI: ${MONGO_URI_AI}
 
