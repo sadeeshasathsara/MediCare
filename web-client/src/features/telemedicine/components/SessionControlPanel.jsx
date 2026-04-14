@@ -132,64 +132,69 @@ export default function SessionControlPanel({
                   </p>
                 </div>
 
-                <div className="flex flex-wrap gap-3">
-                  <button
-                    type="button"
-                    disabled={createSessionDisabled}
-                    onClick={onCreateSession}
-                    className={actionButtonClass('primary')}
-                    style={{ backgroundColor: 'hsl(var(--primary))' }}
-                  >
-                    {actionState.loading && actionState.kind === 'create' ? 'Creating...' : 'Create Session'}
-                  </button>
+                {/* ── Phase 1: no session yet — show only Create Session ── */}
+                {!session && (
+                  <div className="space-y-3">
+                    <button
+                      type="button"
+                      disabled={createSessionDisabled}
+                      onClick={onCreateSession}
+                      className={actionButtonClass('primary')}
+                      style={{ backgroundColor: 'hsl(var(--primary))' }}
+                    >
+                      {actionState.loading && actionState.kind === 'create' ? 'Creating...' : 'Create Session'}
+                    </button>
 
-                  <button
-                    type="button"
-                    disabled={joinDisabled}
-                    onClick={onGenerateDoctorJoin}
-                    className={actionButtonClass()}
-                    style={{ borderColor: 'hsl(var(--border))', color: 'hsl(var(--foreground))' }}
-                  >
-                    {actionState.loading && actionState.kind === 'join' ? 'Preparing...' : 'Generate Doctor Join'}
-                  </button>
+                    {appointment.status !== 'ACCEPTED' ? (
+                      <FeatureNotice
+                        tone="warning"
+                        title="Session creation is locked"
+                        message="Only accepted appointments can create a teleconsultation session."
+                      />
+                    ) : null}
+                  </div>
+                )}
 
-                  <button
-                    type="button"
-                    disabled={!session || actionState.loading}
-                    onClick={onCheckReadiness}
-                    className={actionButtonClass()}
-                    style={{ borderColor: 'hsl(var(--border))', color: 'hsl(var(--foreground))' }}
-                  >
-                    Check Readiness
-                  </button>
+                {/* ── Phase 2: session exists — show join + start/end ── */}
+                {session && (
+                  <div className="flex flex-wrap gap-3">
+                    {/* Generate Doctor Join — always available once session exists */}
+                    <button
+                      type="button"
+                      disabled={joinDisabled}
+                      onClick={onGenerateDoctorJoin}
+                      className={actionButtonClass()}
+                      style={{ borderColor: 'hsl(var(--border))', color: 'hsl(var(--foreground))' }}
+                    >
+                      {actionState.loading && actionState.kind === 'join' ? 'Preparing...' : 'Generate Doctor Join'}
+                    </button>
 
-                  <button
-                    type="button"
-                    disabled={startDisabled}
-                    onClick={onStartSession}
-                    className={actionButtonClass('success')}
-                  >
-                    <PlayCircle className="mr-2 h-4 w-4" />
-                    {actionState.loading && actionState.kind === 'start' ? 'Starting...' : 'Start Session'}
-                  </button>
+                    {/* Start Session — shown when not yet live */}
+                    {session.sessionStatus !== 'LIVE' && session.sessionStatus !== 'COMPLETED' && (
+                      <button
+                        type="button"
+                        disabled={startDisabled}
+                        onClick={onStartSession}
+                        className={actionButtonClass('success')}
+                      >
+                        <PlayCircle className="mr-2 h-4 w-4" />
+                        {actionState.loading && actionState.kind === 'start' ? 'Starting...' : 'Start Session'}
+                      </button>
+                    )}
 
-                  <button
-                    type="button"
-                    disabled={endDisabled}
-                    onClick={onEndSession}
-                    className={actionButtonClass('danger')}
-                  >
-                    {actionState.loading && actionState.kind === 'end' ? 'Ending...' : 'End Session'}
-                  </button>
-                </div>
-
-                {appointment.status !== 'ACCEPTED' && !session ? (
-                  <FeatureNotice
-                    tone="warning"
-                    title="Session creation is locked"
-                    message="Only accepted appointments can create a teleconsultation session."
-                  />
-                ) : null}
+                    {/* End Session — shown only when live */}
+                    {session.sessionStatus === 'LIVE' && (
+                      <button
+                        type="button"
+                        disabled={endDisabled}
+                        onClick={onEndSession}
+                        className={actionButtonClass('danger')}
+                      >
+                        {actionState.loading && actionState.kind === 'end' ? 'Ending...' : 'End Session'}
+                      </button>
+                    )}
+                  </div>
+                )}
 
                 {joinInfo ? (
                   <FeatureNotice

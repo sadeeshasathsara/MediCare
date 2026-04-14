@@ -393,7 +393,7 @@ export default function ClinicalWrapUpPanel({
         ) : null}
 
         <div className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
-          <div className="space-y-4 rounded-[24px] border p-5" style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--card))' }}>
+          <div className="space-y-4 rounded-3xl border p-5" style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--card))' }}>
             <div className="flex items-center gap-2">
               <FilePenLine className="h-4 w-4" style={{ color: 'hsl(var(--primary))' }} />
               <p className="text-sm font-semibold" style={{ color: 'hsl(var(--foreground))' }}>
@@ -412,7 +412,7 @@ export default function ClinicalWrapUpPanel({
             />
           </div>
 
-          <div className="space-y-4 rounded-[24px] border p-5" style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--card))' }}>
+          <div className="space-y-4 rounded-3xl border p-5" style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--card))' }}>
             <div className="flex items-center gap-2">
               <Pill className="h-4 w-4" style={{ color: 'hsl(var(--primary))' }} />
               <p className="text-sm font-semibold" style={{ color: 'hsl(var(--foreground))' }}>

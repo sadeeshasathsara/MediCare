@@ -173,6 +173,7 @@ export default function TelemedicinePage() {
   const [consultationActionState, setConsultationActionState] = useState(EMPTY_ACTION_STATE)
   const [prescriptionActionState, setPrescriptionActionState] = useState(EMPTY_ACTION_STATE)
   const [manualToolsActionState, setManualToolsActionState] = useState(EMPTY_ACTION_STATE)
+  const [consultationModalOpen, setConsultationModalOpen] = useState(false)
 
   const enrichedAppointments = useMemo(
     () => appointments.map((appointment) => enrichTelemedicineAppointment(appointment, user, doctorId)),
@@ -430,6 +431,23 @@ export default function TelemedicinePage() {
     }
   }, [doctorJoinInfo, selectedSession])
 
+  useEffect(() => {
+    if (!selectedSession) {
+      setConsultationModalOpen(false)
+    }
+  }, [selectedSession])
+
+  useEffect(() => {
+    if (!consultationModalOpen) return undefined
+
+    const originalOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+
+    return () => {
+      document.body.style.overflow = originalOverflow
+    }
+  }, [consultationModalOpen])
+
   const handleAcceptAppointment = async (appointmentId) => {
     setAppointmentActionState(actionLoading('accept'))
 
@@ -550,13 +568,24 @@ export default function TelemedicinePage() {
 
     try {
       const updatedSession = await startSession(selectedSession.id)
+      let joinInfo = doctorJoinInfo
+
+      if (!joinInfo || joinInfo.sessionId !== updatedSession.id) {
+        joinInfo = await getJoinToken(updatedSession.id, 'doctor', true)
+      }
+
       startTransition(() => {
         setSessionsByAppointmentId((current) => ({
           ...current,
           [selectedAppointment.id]: updatedSession,
         }))
+        if (joinInfo) {
+          setDoctorJoinInfo(joinInfo)
+        }
       })
-      setSessionActionState(actionSuccess('start', 'Session marked as live.'))
+      await refreshReadinessForSession(updatedSession)
+      setConsultationModalOpen(true)
+      setSessionActionState(actionSuccess('start', 'Session marked as live. Consultation workspace opened.'))
     } catch (error) {
       setSessionActionState(actionError('start', getErrorMessage(error, 'Unable to start the session.')))
     }
@@ -576,7 +605,7 @@ export default function TelemedicinePage() {
         }))
       })
       await refreshConsultationForSession(updatedSession)
-      setSessionActionState(actionSuccess('end', 'Session completed. Consultation notes are now unlocked.'))
+      setSessionActionState(actionSuccess('end', 'Session completed. You can now complete consultation notes and prescriptions.'))
     } catch (error) {
       setSessionActionState(actionError('end', getErrorMessage(error, 'Unable to end the session.')))
     }
@@ -765,7 +794,7 @@ export default function TelemedicinePage() {
             </div>
           </TelemedicineSection>
 
-          <div className="grid gap-5 2xl:grid-cols-[0.92fr_1.08fr]">
+          <div className="grid gap-5">
             <SessionControlPanel
               appointment={selectedAppointment}
               session={selectedSession}
@@ -781,24 +810,107 @@ export default function TelemedicinePage() {
               onStartSession={handleStartSession}
               onEndSession={handleEndSession}
             />
-
-            <LiveConsultationPanel currentUser={user} session={selectedSession} joinInfo={doctorJoinInfo} />
           </div>
 
-          <ClinicalWrapUpPanel
-            session={selectedSession}
-            consultation={selectedConsultation}
-            prescriptions={selectedPrescriptions}
-            consultationActionState={consultationActionState}
-            prescriptionActionState={prescriptionActionState}
-            onCreateConsultation={handleCreateConsultation}
-            onUpdateConsultation={handleUpdateConsultation}
-            onCreatePrescription={handleCreatePrescription}
-            onUpdatePrescriptionStatus={handleUpdatePrescriptionStatus}
-            onCancelPrescription={handleCancelPrescription}
-          />
+          {!consultationModalOpen ? (
+            <ClinicalWrapUpPanel
+              session={selectedSession}
+              consultation={selectedConsultation}
+              prescriptions={selectedPrescriptions}
+              consultationActionState={consultationActionState}
+              prescriptionActionState={prescriptionActionState}
+              onCreateConsultation={handleCreateConsultation}
+              onUpdateConsultation={handleUpdateConsultation}
+              onCreatePrescription={handleCreatePrescription}
+              onUpdatePrescriptionStatus={handleUpdatePrescriptionStatus}
+              onCancelPrescription={handleCancelPrescription}
+            />
+          ) : null}
         </div>
       )}
+
+      {consultationModalOpen && selectedSession ? (
+        <div className="fixed inset-0 z-90 bg-black/55">
+          <div
+            className="h-screen w-screen bg-[hsl(var(--background))]"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Live consultation workspace"
+          >
+            <div
+              className="flex items-center justify-between border-b px-4 py-3 lg:px-6"
+              style={{ borderColor: 'hsl(var(--border))' }}
+            >
+              <div>
+                <p className="text-xs uppercase tracking-[0.18em]" style={{ color: 'hsl(var(--muted-foreground))' }}>
+                  {selectedSession.sessionStatus === 'COMPLETED' ? 'Session completed' : 'Consultation in progress'}
+                </p>
+                <p className="mt-1 text-base font-semibold" style={{ color: 'hsl(var(--foreground))' }}>
+                  {selectedSession.jitsiRoomId || selectedSession.id}
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <StatusBadge status={selectedSession.sessionStatus} />
+                <button
+                  type="button"
+                  onClick={handleGenerateDoctorJoin}
+                  disabled={sessionActionState.loading}
+                  className="inline-flex items-center justify-center rounded-2xl border px-4 py-2 text-sm font-semibold transition hover:bg-black/3 disabled:cursor-not-allowed disabled:opacity-60 dark:hover:bg-white/5"
+                  style={{ borderColor: 'hsl(var(--border))', color: 'hsl(var(--foreground))' }}
+                >
+                  Refresh Join Access
+                </button>
+                {selectedSession.sessionStatus === 'LIVE' ? (
+                  <button
+                    type="button"
+                    onClick={handleEndSession}
+                    disabled={sessionActionState.loading}
+                    className="inline-flex items-center justify-center rounded-2xl border border-rose-300 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-900 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {sessionActionState.loading && sessionActionState.kind === 'end' ? 'Ending...' : 'End Session'}
+                  </button>
+                ) : null}
+                {selectedSession.sessionStatus === 'COMPLETED' ? (
+                  <button
+                    type="button"
+                    onClick={() => setConsultationModalOpen(false)}
+                    className="inline-flex items-center justify-center rounded-2xl border px-4 py-2 text-sm font-semibold transition hover:bg-black/3 dark:hover:bg-white/5"
+                    style={{ borderColor: 'hsl(var(--border))', color: 'hsl(var(--foreground))' }}
+                  >
+                    Close
+                  </button>
+                ) : null}
+              </div>
+            </div>
+
+            {selectedSession.sessionStatus === 'LIVE' ? (
+              <div className="h-[calc(100vh-4.5rem)] min-h-0 p-3 lg:p-4">
+                <div className="h-full min-h-0 overflow-y-auto rounded-[20px] border p-2" style={{ borderColor: 'hsl(var(--border))' }}>
+                  <LiveConsultationPanel currentUser={user} session={selectedSession} joinInfo={doctorJoinInfo} />
+                </div>
+              </div>
+            ) : (
+              <div className="h-[calc(100vh-4.5rem)] min-h-0 p-3 lg:p-4">
+                <div className="h-full min-h-0 overflow-y-auto rounded-[20px] border p-2" style={{ borderColor: 'hsl(var(--border))' }}>
+                  <ClinicalWrapUpPanel
+                    session={selectedSession}
+                    consultation={selectedConsultation}
+                    prescriptions={selectedPrescriptions}
+                    consultationActionState={consultationActionState}
+                    prescriptionActionState={prescriptionActionState}
+                    onCreateConsultation={handleCreateConsultation}
+                    onUpdateConsultation={handleUpdateConsultation}
+                    onCreatePrescription={handleCreatePrescription}
+                    onUpdatePrescriptionStatus={handleUpdatePrescriptionStatus}
+                    onCancelPrescription={handleCancelPrescription}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }
