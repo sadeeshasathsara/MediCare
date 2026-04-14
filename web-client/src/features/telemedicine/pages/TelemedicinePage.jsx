@@ -856,7 +856,7 @@ export default function TelemedicinePage() {
                   type="button"
                   onClick={handleGenerateDoctorJoin}
                   disabled={sessionActionState.loading}
-                  className="inline-flex items-center justify-center rounded-2xl border px-4 py-2 text-sm font-semibold transition hover:bg-black/3 disabled:cursor-not-allowed disabled:opacity-60 dark:hover:bg-white/5"
+                  className="inline-flex items-center justify-center rounded-2xl border px-4 py-2 text-sm font-semibold transition hover:bg-black/4 disabled:cursor-not-allowed disabled:opacity-60 dark:hover:bg-white/6"
                   style={{ borderColor: 'hsl(var(--border))', color: 'hsl(var(--foreground))' }}
                 >
                   Refresh Join Access
@@ -866,7 +866,7 @@ export default function TelemedicinePage() {
                     type="button"
                     onClick={handleEndSession}
                     disabled={sessionActionState.loading}
-                    className="inline-flex items-center justify-center rounded-2xl border border-rose-300 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-900 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="inline-flex items-center justify-center rounded-2xl border border-rose-300 bg-rose-100 px-4 py-2 text-sm font-semibold text-rose-900 transition hover:bg-rose-200 disabled:cursor-not-allowed disabled:opacity-60 dark:border-rose-800/70 dark:bg-rose-950/35 dark:text-rose-100 dark:hover:bg-rose-900/45"
                   >
                     {sessionActionState.loading && sessionActionState.kind === 'end' ? 'Ending...' : 'End Session'}
                   </button>
@@ -875,7 +875,7 @@ export default function TelemedicinePage() {
                   <button
                     type="button"
                     onClick={() => setConsultationModalOpen(false)}
-                    className="inline-flex items-center justify-center rounded-2xl border px-4 py-2 text-sm font-semibold transition hover:bg-black/3 dark:hover:bg-white/5"
+                    className="inline-flex items-center justify-center rounded-2xl border px-4 py-2 text-sm font-semibold transition hover:bg-black/4 dark:hover:bg-white/6"
                     style={{ borderColor: 'hsl(var(--border))', color: 'hsl(var(--foreground))' }}
                   >
                     Close

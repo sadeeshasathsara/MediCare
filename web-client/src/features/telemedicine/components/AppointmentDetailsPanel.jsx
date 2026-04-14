@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { createElement, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { CalendarClock, CheckCircle, FileText, X, XCircle } from 'lucide-react'
 
@@ -27,12 +27,12 @@ function Modal({ open, onClose, title, children }) {
   return createPortal(
     <div
       ref={overlayRef}
-      className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
+      className="fixed inset-0 z-9999 flex items-center justify-center p-4"
       style={{ backgroundColor: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(6px)' }}
       onClick={(e) => { if (e.target === overlayRef.current) onClose() }}
     >
       <div
-        className="w-full max-w-md rounded-[24px] border p-6 shadow-2xl"
+        className="w-full max-w-md rounded-3xl border p-6 shadow-2xl"
         style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--card))' }}
       >
         {/* Header */}
@@ -43,7 +43,7 @@ function Modal({ open, onClose, title, children }) {
           <button
             type="button"
             onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center rounded-xl transition hover:bg-black/[0.06] dark:hover:bg-white/[0.08]"
+            className="flex h-8 w-8 items-center justify-center rounded-xl transition hover:bg-black/6 dark:hover:bg-white/8"
             style={{ color: 'hsl(var(--muted-foreground))' }}
           >
             <X className="h-4 w-4" />
@@ -58,14 +58,14 @@ function Modal({ open, onClose, title, children }) {
 
 /* ─── Info grid cell ─────────────────────────────────────────────────────── */
 
-function InfoCell({ icon: Icon, label, value }) {
+function InfoCell({ icon, label, value }) {
   return (
     <div
       className="rounded-2xl border px-4 py-3"
       style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--background) / 0.55)' }}
     >
       <div className="flex items-center gap-1.5 mb-1">
-        <Icon className="h-3.5 w-3.5" style={{ color: 'hsl(var(--primary))' }} />
+        {createElement(icon, { className: 'h-3.5 w-3.5', style: { color: 'hsl(var(--primary))' } })}
         <p className="text-[10px] font-semibold uppercase tracking-[0.16em]" style={{ color: 'hsl(var(--muted-foreground))' }}>
           {label}
         </p>
@@ -202,8 +202,7 @@ export default function AppointmentDetailsPanel({
             type="button"
             disabled={acceptDisabled}
             onClick={() => onAcceptAppointment(selectedAppointment.id)}
-            className="inline-flex items-center gap-2 rounded-2xl px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-            style={{ backgroundColor: 'hsl(var(--primary))' }}
+            className="tm-btn-tone tm-btn-success inline-flex items-center gap-2 rounded-2xl border px-5 py-2.5 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50"
           >
             <CheckCircle className="h-4 w-4" />
             {actionState.loading && actionState.kind === 'accept' ? 'Accepting…' : 'Accept'}
@@ -214,7 +213,7 @@ export default function AppointmentDetailsPanel({
             type="button"
             disabled={actionState.loading}
             onClick={() => setRejectOpen(true)}
-            className="inline-flex items-center gap-2 rounded-2xl border border-rose-300 bg-rose-50 px-5 py-2.5 text-sm font-semibold text-rose-700 shadow-sm transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-rose-700/50 dark:bg-rose-950/30 dark:text-rose-300 dark:hover:bg-rose-950/50"
+            className="tm-btn-tone tm-btn-danger inline-flex items-center gap-2 rounded-2xl border px-5 py-2.5 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50"
           >
             <XCircle className="h-4 w-4" />
             {actionState.loading && actionState.kind === 'reject' ? 'Rejecting…' : 'Reject'}
@@ -225,7 +224,7 @@ export default function AppointmentDetailsPanel({
             type="button"
             disabled={actionState.loading}
             onClick={() => setRescheduleOpen(true)}
-            className="inline-flex items-center gap-2 rounded-2xl border border-sky-300 bg-sky-50 px-5 py-2.5 text-sm font-semibold text-sky-700 shadow-sm transition hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-sky-700/50 dark:bg-sky-950/30 dark:text-sky-300 dark:hover:bg-sky-950/50"
+            className="tm-btn-tone tm-btn-info inline-flex items-center gap-2 rounded-2xl border px-5 py-2.5 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50"
           >
             <CalendarClock className="h-4 w-4" />
             {actionState.loading && actionState.kind === 'reschedule' ? 'Saving…' : 'Reschedule'}
@@ -256,15 +255,14 @@ export default function AppointmentDetailsPanel({
             <button
               type="button"
               onClick={() => setRejectOpen(false)}
-              className="rounded-xl border px-4 py-2 text-sm font-semibold transition hover:bg-black/[0.04]"
-              style={{ borderColor: 'hsl(var(--border))', color: 'hsl(var(--foreground))' }}
+              className="tm-btn-tone tm-btn-neutral rounded-xl border px-4 py-2 text-sm font-semibold"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={rejectDisabled}
-              className="inline-flex items-center gap-2 rounded-xl border border-rose-300 bg-rose-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-rose-600 disabled:cursor-not-allowed disabled:opacity-50"
+              className="tm-btn-tone tm-btn-solid-danger inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50"
             >
               <XCircle className="h-4 w-4" />
               Confirm Rejection
@@ -312,15 +310,14 @@ export default function AppointmentDetailsPanel({
             <button
               type="button"
               onClick={() => setRescheduleOpen(false)}
-              className="rounded-xl border px-4 py-2 text-sm font-semibold transition hover:bg-black/[0.04]"
-              style={{ borderColor: 'hsl(var(--border))', color: 'hsl(var(--foreground))' }}
+              className="tm-btn-tone tm-btn-neutral rounded-xl border px-4 py-2 text-sm font-semibold"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={rescheduleDisabled}
-              className="inline-flex items-center gap-2 rounded-xl border border-sky-300 bg-sky-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-sky-600 disabled:cursor-not-allowed disabled:opacity-50"
+              className="tm-btn-tone tm-btn-solid-info inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50"
             >
               <CalendarClock className="h-4 w-4" />
               Confirm Reschedule

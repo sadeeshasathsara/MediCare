@@ -11,18 +11,18 @@ import {
 
 function actionButtonClass(kind = 'secondary') {
   if (kind === 'primary') {
-    return 'inline-flex items-center justify-center rounded-2xl px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60'
+    return 'tm-btn-tone tm-btn-primary inline-flex items-center justify-center rounded-2xl border px-4 py-2.5 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60'
   }
 
   if (kind === 'success') {
-    return 'inline-flex items-center justify-center rounded-2xl border border-emerald-300 bg-emerald-50 px-4 py-2.5 text-sm font-semibold text-emerald-900 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-100'
+    return 'tm-btn-tone tm-btn-success inline-flex items-center justify-center rounded-2xl border px-4 py-2.5 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60'
   }
 
   if (kind === 'danger') {
-    return 'inline-flex items-center justify-center rounded-2xl border border-rose-300 bg-rose-50 px-4 py-2.5 text-sm font-semibold text-rose-900 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-rose-800 dark:bg-rose-950/30 dark:text-rose-100'
+    return 'tm-btn-tone tm-btn-danger inline-flex items-center justify-center rounded-2xl border px-4 py-2.5 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60'
   }
 
-  return 'inline-flex items-center justify-center rounded-2xl border px-4 py-2.5 text-sm font-semibold transition hover:bg-black/[0.03] disabled:cursor-not-allowed disabled:opacity-60 dark:hover:bg-white/[0.05]'
+  return 'tm-btn-tone tm-btn-neutral inline-flex items-center justify-center rounded-2xl border px-4 py-2.5 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60'
 }
 
 export default function SessionControlPanel({
@@ -35,7 +35,6 @@ export default function SessionControlPanel({
   actionState,
   onRefreshSession,
   onCreateSession,
-  onCheckReadiness,
   onGenerateDoctorJoin,
   onStartSession,
   onEndSession,
@@ -56,7 +55,6 @@ export default function SessionControlPanel({
           onClick={onRefreshSession}
           disabled={!appointment || loading}
           className={actionButtonClass()}
-          style={{ borderColor: 'hsl(var(--border))', color: 'hsl(var(--foreground))' }}
         >
           <RefreshCcw className="mr-2 h-4 w-4" />
           Refresh Session
@@ -103,7 +101,7 @@ export default function SessionControlPanel({
                 </div>
 
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="rounded-[24px] border px-4 py-4" style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--card) / 0.7)' }}>
+                  <div className="rounded-3xl border px-4 py-4" style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--card) / 0.7)' }}>
                     <p className="text-xs uppercase tracking-[0.18em]" style={{ color: 'hsl(var(--muted-foreground))' }}>
                       Scheduled time
                     </p>
@@ -111,7 +109,7 @@ export default function SessionControlPanel({
                       {session ? formatDateTime(session.scheduledAt) : formatDateTime(appointment.scheduledAt)}
                     </p>
                   </div>
-                  <div className="rounded-[24px] border px-4 py-4" style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--card) / 0.7)' }}>
+                  <div className="rounded-3xl border px-4 py-4" style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--card) / 0.7)' }}>
                     <p className="text-xs uppercase tracking-[0.18em]" style={{ color: 'hsl(var(--muted-foreground))' }}>
                       Session duration
                     </p>
@@ -124,7 +122,7 @@ export default function SessionControlPanel({
             </div>
 
             <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
-              <div className="space-y-4 rounded-[24px] border p-4" style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--card))' }}>
+              <div className="space-y-4 rounded-3xl border p-4" style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--card))' }}>
                 <div className="flex items-center gap-2">
                   <Video className="h-4 w-4" style={{ color: 'hsl(var(--primary))' }} />
                   <p className="text-sm font-semibold" style={{ color: 'hsl(var(--foreground))' }}>
@@ -140,7 +138,6 @@ export default function SessionControlPanel({
                       disabled={createSessionDisabled}
                       onClick={onCreateSession}
                       className={actionButtonClass('primary')}
-                      style={{ backgroundColor: 'hsl(var(--primary))' }}
                     >
                       {actionState.loading && actionState.kind === 'create' ? 'Creating...' : 'Create Session'}
                     </button>
@@ -164,7 +161,6 @@ export default function SessionControlPanel({
                       disabled={joinDisabled}
                       onClick={onGenerateDoctorJoin}
                       className={actionButtonClass()}
-                      style={{ borderColor: 'hsl(var(--border))', color: 'hsl(var(--foreground))' }}
                     >
                       {actionState.loading && actionState.kind === 'join' ? 'Preparing...' : 'Generate Doctor Join'}
                     </button>
@@ -209,7 +205,7 @@ export default function SessionControlPanel({
                 ) : null}
               </div>
 
-              <div className="space-y-4 rounded-[24px] border p-4" style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--background) / 0.6)' }}>
+              <div className="space-y-4 rounded-3xl border p-4" style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--background) / 0.6)' }}>
                 <div className="flex items-center gap-2">
                   <Activity className="h-4 w-4" style={{ color: 'hsl(var(--primary))' }} />
                   <p className="text-sm font-semibold" style={{ color: 'hsl(var(--foreground))' }}>
@@ -244,7 +240,7 @@ export default function SessionControlPanel({
                       </div>
                     </div>
 
-                    <div className="rounded-[24px] border px-4 py-4" style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--card))' }}>
+                    <div className="rounded-3xl border px-4 py-4" style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--card))' }}>
                       <div className="flex items-center gap-2">
                         <Radio className="h-4 w-4" style={{ color: readiness?.ready ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground))' }} />
                         <p className="text-sm font-semibold" style={{ color: 'hsl(var(--foreground))' }}>
