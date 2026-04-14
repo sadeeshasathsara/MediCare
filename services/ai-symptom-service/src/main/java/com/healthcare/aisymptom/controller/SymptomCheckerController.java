@@ -1,7 +1,7 @@
 package com.healthcare.aisymptom.controller;
 
 import com.healthcare.aisymptom.dto.SymptomCheckRequest;
-import com.healthcare.aisymptom.dto.SymptomCheckResponse;
+import com.healthcare.aisymptom.dto.SymptomResponse;
 import com.healthcare.aisymptom.service.OpenAiSymptomService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
@@ -21,7 +21,7 @@ public class SymptomCheckerController {
     }
 
     @PostMapping
-    public ResponseEntity<SymptomCheckResponse> checkSymptoms(@Valid @RequestBody SymptomCheckRequest request) {
+    public ResponseEntity<SymptomResponse> checkSymptoms(@Valid @RequestBody SymptomCheckRequest request) {
         return ResponseEntity.ok(openAiSymptomService.analyzeSymptoms(request));
     }
 }

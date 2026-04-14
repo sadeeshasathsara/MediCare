@@ -1,8 +1,9 @@
 package com.healthcare.aisymptom.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.healthcare.aisymptom.dto.SymptomCheckRequest;
-import com.healthcare.aisymptom.dto.SymptomCheckResponse;
+import com.healthcare.aisymptom.dto.SymptomResponse;
 import com.healthcare.aisymptom.exception.AiIntegrationException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.client.RestTemplateBuilder;
@@ -17,7 +18,8 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
 import java.time.Duration;
-import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -28,6 +30,7 @@ public class OpenAiSymptomService {
             "This response is AI-generated and is not a medical diagnosis. For medical advice, consult a licensed doctor.";
 
     private final RestTemplate restTemplate;
+    private final ObjectMapper objectMapper;
 
     @Value("${openai.api-key:}")
     private String apiKey;
@@ -46,15 +49,17 @@ public class OpenAiSymptomService {
 
     public OpenAiSymptomService(
             RestTemplateBuilder restTemplateBuilder,
+            ObjectMapper objectMapper,
             @Value("${openai.timeout-ms:30000}") int timeoutMs
     ) {
         this.restTemplate = restTemplateBuilder
                 .setConnectTimeout(Duration.ofMillis(timeoutMs))
                 .setReadTimeout(Duration.ofMillis(timeoutMs))
                 .build();
+        this.objectMapper = objectMapper;
     }
 
-    public SymptomCheckResponse analyzeSymptoms(SymptomCheckRequest request) {
+    public SymptomResponse analyzeSymptoms(SymptomCheckRequest request) {
         if (apiKey == null || apiKey.isBlank()) {
             throw new AiIntegrationException(HttpStatus.INTERNAL_SERVER_ERROR,
                     "OpenAI API key is not configured for ai-symptom-service");
@@ -98,7 +103,20 @@ public class OpenAiSymptomService {
                         "OpenAI response did not include generated content");
             }
 
-            return new SymptomCheckResponse(content.trim(), model, Instant.now(), DEFAULT_DISCLAIMER);
+                JsonNode structuredResponse = parseStructuredResponse(content.trim());
+
+                List<String> conditions = readConditions(structuredResponse.path("possibleConditions"));
+                String recommendedDoctor = asTextOrDefault(structuredResponse.path("recommendedDoctor"), "General Physician");
+                String urgencyLevel = asTextOrDefault(structuredResponse.path("urgencyLevel"), "MODERATE");
+                String advice = asTextOrDefault(structuredResponse.path("advice"), "Please consult a licensed clinician.");
+
+                return new SymptomResponse(
+                    conditions,
+                    recommendedDoctor,
+                    urgencyLevel,
+                    advice,
+                    DEFAULT_DISCLAIMER
+                );
         } catch (RestClientException ex) {
             throw new AiIntegrationException(HttpStatus.BAD_GATEWAY,
                     "Failed to get response from OpenAI: " + ex.getMessage());
@@ -119,12 +137,59 @@ public class OpenAiSymptomService {
             prompt.append("Medical history: ").append(request.medicalHistory().trim()).append("\n");
         }
 
-        prompt.append("\nProvide output with these sections:\n")
-                .append("1) Possible causes (top 3)\n")
-                .append("2) Urgency level: LOW/MODERATE/HIGH/EMERGENCY\n")
-                .append("3) Recommended next actions\n")
-                .append("4) Red-flag symptoms to watch for\n");
+        prompt.append("\nReturn ONLY valid JSON with this exact schema:\n")
+                .append("{")
+                .append("\"possibleConditions\":[\"condition1\",\"condition2\",\"condition3\"],")
+                .append("\"recommendedDoctor\":\"doctor specialist type\",")
+                .append("\"urgencyLevel\":\"LOW|MODERATE|HIGH|EMERGENCY\",")
+                .append("\"advice\":\"concise next actions and red flags\"")
+                .append("}\n")
+                .append("Do not include markdown or any extra text outside JSON.");
 
         return prompt.toString();
+    }
+
+    private JsonNode parseStructuredResponse(String content) {
+        try {
+            return objectMapper.readTree(content);
+        } catch (Exception ignored) {
+            int start = content.indexOf('{');
+            int end = content.lastIndexOf('}');
+            if (start >= 0 && end > start) {
+                try {
+                    return objectMapper.readTree(content.substring(start, end + 1));
+                } catch (Exception ignoredAgain) {
+                    // Fall through to integration exception below.
+                }
+            }
+        }
+
+        throw new AiIntegrationException(HttpStatus.BAD_GATEWAY,
+                "OpenAI response format was invalid for SymptomResponse");
+    }
+
+    private List<String> readConditions(JsonNode node) {
+        if (node == null || !node.isArray()) {
+            return Collections.emptyList();
+        }
+
+        List<String> conditions = new ArrayList<>();
+        node.forEach(item -> {
+            String value = item.asText();
+            if (value != null && !value.isBlank()) {
+                conditions.add(value.trim());
+            }
+        });
+
+        return conditions;
+    }
+
+    private String asTextOrDefault(JsonNode node, String fallback) {
+        if (node == null || node.isMissingNode() || node.isNull()) {
+            return fallback;
+        }
+
+        String value = node.asText();
+        return (value == null || value.isBlank()) ? fallback : value.trim();
     }
 }
