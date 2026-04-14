@@ -14,8 +14,10 @@ import {
   CheckCircle2,
   ChevronRight,
   Clock,
+  FileText,
   HeartPulse,
   Loader2,
+  Pill,
   RefreshCcw,
   Stethoscope,
   User,
@@ -32,11 +34,14 @@ import {
   getJoinToken,
   getSessionReady,
   listAppointments,
+  listConsultations,
+  listPrescriptions,
   listSessions,
 } from '@/features/telemedicine/services/telemedicineApi'
 import {
   appointmentBelongsToPatient,
   enrichTelemedicineAppointment,
+  formatDate,
   formatDateTime,
   getErrorMessage,
   getTelemedicinePatientIdentifiers,
@@ -244,6 +249,10 @@ export default function PatientTelemedicinePage() {
   const [readinessBySessionId,    setReadinessBySessionId]    = useState({})
   const [patientJoinInfo,         setPatientJoinInfo]         = useState(null)
   const [sessionActionState,      setSessionActionState]      = useState(EMPTY_ACTION_STATE)
+  const [consultationsBySessionId, setConsultationsBySessionId] = useState({})
+  const [prescriptionsByConsultationId, setPrescriptionsByConsultationId] = useState({})
+  const [clinicalLoading, setClinicalLoading] = useState(false)
+  const [clinicalError, setClinicalError] = useState('')
 
   const patientDisplay = useMemo(() => {
     const resolved = resolveTelemedicinePatient(patientId)
@@ -262,6 +271,8 @@ export default function PatientTelemedicinePage() {
   const selectedAppointment = enrichedAppointments.find((a) => a.id === selectedAppointmentId) || null
   const selectedSession     = selectedAppointment ? sessionsByAppointmentId[selectedAppointment.id] || null : null
   const selectedReadiness   = selectedSession ? readinessBySessionId[selectedSession.id] || null : null
+  const selectedConsultation = selectedSession ? consultationsBySessionId[selectedSession.id] || null : null
+  const selectedPrescriptions = selectedConsultation ? prescriptionsByConsultationId[selectedConsultation.id] || [] : []
 
   const selectedSessionId              = selectedSession?.id || null
   const selectedSessionAppointmentId   = selectedSession?.appointmentId || null
@@ -352,6 +363,57 @@ export default function PatientTelemedicinePage() {
     }
   }, [])
 
+  const refreshConsultationForSession = useCallback(async (session) => {
+    if (!session?.id) return null
+
+    try {
+      const consultations = await listConsultations()
+      const consultation = consultations.find((item) => item.sessionId === session.id) || null
+
+      startTransition(() => {
+        setConsultationsBySessionId((current) => ({
+          ...current,
+          [session.id]: consultation,
+        }))
+      })
+
+      return consultation
+    } catch (err) {
+      setClinicalError(getErrorMessage(err, 'Unable to load consultation details for this session.'))
+      return null
+    }
+  }, [])
+
+  const refreshPrescriptionsForConsultation = useCallback(async (consultationId) => {
+    if (!consultationId) return []
+
+    try {
+      const prescriptions = await listPrescriptions({ consultationId })
+      startTransition(() => {
+        setPrescriptionsByConsultationId((current) => ({
+          ...current,
+          [consultationId]: prescriptions,
+        }))
+      })
+      return prescriptions
+    } catch (err) {
+      setClinicalError(getErrorMessage(err, 'Unable to load prescriptions for this consultation.'))
+      return []
+    }
+  }, [])
+
+  const refreshClinicalDetailsForSession = useCallback(async (session) => {
+    if (!session?.id || session.sessionStatus !== 'COMPLETED') return
+
+    setClinicalError('')
+    setClinicalLoading(true)
+    const consultation = await refreshConsultationForSession(session)
+    if (consultation?.id) {
+      await refreshPrescriptionsForConsultation(consultation.id)
+    }
+    setClinicalLoading(false)
+  }, [refreshConsultationForSession, refreshPrescriptionsForConsultation])
+
   useEffect(() => { refreshAppointments({ preserveSelection: false }) }, [refreshAppointments])
   useEffect(() => { refreshSessionsForAppointments(appointments, { showLoading: false }) }, [appointments, refreshSessionsForAppointments])
 
@@ -367,6 +429,14 @@ export default function PatientTelemedicinePage() {
     if (!selectedSession) { setPatientJoinInfo(null); return }
     if (patientJoinInfo && patientJoinInfo.sessionId !== selectedSession.id) setPatientJoinInfo(null)
   }, [patientJoinInfo, selectedSession])
+
+  useEffect(() => {
+    if (!selectedSession?.id || selectedSession.sessionStatus !== 'COMPLETED') {
+      return
+    }
+
+    refreshClinicalDetailsForSession(selectedSession)
+  }, [refreshClinicalDetailsForSession, selectedSession])
 
   /* ── Handlers ── */
 
@@ -439,7 +509,7 @@ export default function PatientTelemedicinePage() {
                 { label: 'Rooms Ready to Join',   value: joinableCount,                color: 'bg-indigo-500' },
                 { label: 'Live Right Now',         value: liveCount,                   color: 'bg-red-500' },
               ].map((s) => (
-                <div key={s.label} className="flex items-center gap-3 rounded-2xl border px-4 py-3 min-w-[180px]"
+                <div key={s.label} className="flex items-center gap-3 rounded-2xl border px-4 py-3 min-w-45"
                   style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--card) / 0.85)' }}>
                   <div className={`h-2.5 w-2.5 shrink-0 rounded-full ${s.color} ${s.value > 0 && s.color === 'bg-red-500' ? 'animate-pulse' : ''}`} />
                   <span className="flex-1 text-xs font-medium" style={{ color: 'hsl(var(--muted-foreground))' }}>{s.label}</span>
@@ -479,7 +549,7 @@ export default function PatientTelemedicinePage() {
             <button
               type="button"
               onClick={() => refreshAppointments({ preserveSelection: false })}
-              className="inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-semibold transition hover:bg-black/[0.03] dark:hover:bg-white/[0.05]"
+              className="inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-semibold transition hover:bg-black/3 dark:hover:bg-white/5"
               style={{ borderColor: 'hsl(var(--border))', color: 'hsl(var(--foreground))' }}
             >
               <RefreshCcw className={`h-4 w-4 ${appointmentsLoading ? 'animate-spin' : ''}`} />
@@ -514,7 +584,7 @@ export default function PatientTelemedicinePage() {
                 </p>
               </div>
               <Link to="/patient/appointments"
-                className="inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-semibold transition hover:bg-black/[0.03] dark:hover:bg-white/[0.05]"
+                className="inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-semibold transition hover:bg-black/3 dark:hover:bg-white/5"
                 style={{ borderColor: 'hsl(var(--border))', color: 'hsl(var(--foreground))' }}>
                 <CalendarClock className="h-4 w-4" />
                 View Appointments
@@ -615,7 +685,7 @@ export default function PatientTelemedicinePage() {
             <button
               type="button"
               onClick={handleBack}
-              className="inline-flex items-center gap-2 rounded-xl border px-3 py-1.5 text-sm font-medium transition hover:bg-black/[0.04] dark:hover:bg-white/[0.06]"
+              className="inline-flex items-center gap-2 rounded-xl border px-3 py-1.5 text-sm font-medium transition hover:bg-black/4 dark:hover:bg-white/6"
               style={{ borderColor: 'hsl(var(--border))', color: 'hsl(var(--foreground))' }}
             >
               <ArrowLeft className="h-4 w-4" />
@@ -746,8 +816,11 @@ export default function PatientTelemedicinePage() {
                   refreshAppointments({ preferredAppointmentId: selectedAppointment.id })
                   refreshSessionsForAppointments(enrichedAppointments, { showLoading: false })
                   if (selectedSession) refreshReadinessForSession(selectedSession)
+                  if (selectedSession?.sessionStatus === 'COMPLETED') {
+                    refreshClinicalDetailsForSession(selectedSession)
+                  }
                 }}
-                className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition hover:bg-black/[0.04] dark:hover:bg-white/[0.06]"
+                className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition hover:bg-black/4 dark:hover:bg-white/6"
                 style={{ color: 'hsl(var(--foreground))' }}
               >
                 <RefreshCcw className={`h-3.5 w-3.5 ${sessionLookupLoading ? 'animate-spin' : ''}`} />
@@ -823,6 +896,138 @@ export default function PatientTelemedicinePage() {
                 Access ready — scroll down to enter the meeting room below
               </p>
             )}
+          </section>
+
+          <section className="rounded-2xl border p-5" style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--card))' }}>
+            <div className="mb-4 flex items-center gap-2">
+              <FileText className="h-4 w-4" style={{ color: 'hsl(var(--primary))' }} />
+              <p className="text-xs font-semibold uppercase tracking-[0.16em]" style={{ color: 'hsl(var(--muted-foreground))' }}>
+                Clinical Wrap-up
+              </p>
+            </div>
+
+            {clinicalError ? <FeatureNotice tone="error" title="Unable to load wrap-up" message={clinicalError} /> : null}
+
+            {!isCompleted ? (
+              <FeatureNotice
+                tone="info"
+                title="Wrap-up available after consultation"
+                message="Consultation summary and prescriptions will appear here once your doctor completes the session."
+              />
+            ) : null}
+
+            {isCompleted && clinicalLoading ? (
+              <div className="flex items-center gap-2 text-sm" style={{ color: 'hsl(var(--muted-foreground))' }}>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Loading consultation details...
+              </div>
+            ) : null}
+
+            {isCompleted && !clinicalLoading && !selectedConsultation ? (
+              <FeatureNotice
+                tone="warning"
+                title="Wrap-up pending"
+                message="Your consultation has ended, but the doctor has not saved consultation notes yet. Please check again shortly."
+              />
+            ) : null}
+
+            {isCompleted && !clinicalLoading && selectedConsultation ? (
+              <div className="space-y-4">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-xl p-3" style={{ backgroundColor: 'hsl(var(--background) / 0.6)' }}>
+                    <p className="text-[10px] font-medium uppercase tracking-[0.14em]" style={{ color: 'hsl(var(--muted-foreground))' }}>Consultation ID</p>
+                    <p className="mt-1.5 text-sm font-semibold" style={{ color: 'hsl(var(--foreground))' }}>{selectedConsultation.id}</p>
+                  </div>
+                  <div className="rounded-xl p-3" style={{ backgroundColor: 'hsl(var(--background) / 0.6)' }}>
+                    <p className="text-[10px] font-medium uppercase tracking-[0.14em]" style={{ color: 'hsl(var(--muted-foreground))' }}>Follow-up Date</p>
+                    <p className="mt-1.5 text-sm font-semibold" style={{ color: 'hsl(var(--foreground))' }}>
+                      {selectedConsultation.followUpDate ? formatDate(selectedConsultation.followUpDate) : 'Not scheduled'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="rounded-xl p-3" style={{ backgroundColor: 'hsl(var(--background) / 0.6)' }}>
+                  <p className="text-[10px] font-medium uppercase tracking-[0.14em]" style={{ color: 'hsl(var(--muted-foreground))' }}>Diagnosis</p>
+                  <p className="mt-1.5 text-sm leading-6" style={{ color: 'hsl(var(--foreground))' }}>
+                    {selectedConsultation.diagnosis || 'Not provided'}
+                  </p>
+                </div>
+
+                <div className="rounded-xl p-3" style={{ backgroundColor: 'hsl(var(--background) / 0.6)' }}>
+                  <p className="text-[10px] font-medium uppercase tracking-[0.14em]" style={{ color: 'hsl(var(--muted-foreground))' }}>Consultation Notes</p>
+                  <p className="mt-1.5 whitespace-pre-wrap text-sm leading-6" style={{ color: 'hsl(var(--foreground))' }}>
+                    {selectedConsultation.doctorNotes || 'No notes available.'}
+                  </p>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Pill className="h-4 w-4" style={{ color: 'hsl(var(--primary))' }} />
+                    <p className="text-sm font-semibold" style={{ color: 'hsl(var(--foreground))' }}>
+                      Prescriptions
+                    </p>
+                  </div>
+
+                  {selectedPrescriptions.length === 0 ? (
+                    <FeatureNotice
+                      tone="info"
+                      title="No prescriptions issued"
+                      message="Your doctor did not add any prescriptions for this consultation."
+                    />
+                  ) : (
+                    <div className="space-y-3">
+                      {selectedPrescriptions.map((prescription) => (
+                        <div
+                          key={prescription.id}
+                          className="space-y-3 rounded-xl border p-3"
+                          style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--background) / 0.6)' }}
+                        >
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2">
+                                <StatusBadge status={prescription.prescriptionStatus} />
+                                <span className="text-[10px] uppercase tracking-[0.14em]" style={{ color: 'hsl(var(--muted-foreground))' }}>
+                                  {prescription.id}
+                                </span>
+                              </div>
+                              <p className="text-sm font-semibold" style={{ color: 'hsl(var(--foreground))' }}>
+                                {prescription.medications?.length || 0} medication{(prescription.medications?.length || 0) === 1 ? '' : 's'}
+                              </p>
+                            </div>
+                            <div className="text-right text-xs" style={{ color: 'hsl(var(--muted-foreground))' }}>
+                              <p>Issued: {formatDateTime(prescription.issuedAt)}</p>
+                              <p>Expires: {formatDateTime(prescription.expiresAt)}</p>
+                            </div>
+                          </div>
+
+                          <div className="space-y-2">
+                            {(prescription.medications || []).map((medication, index) => (
+                              <div
+                                key={`${prescription.id}-${index}`}
+                                className="rounded-lg border px-3 py-2"
+                                style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--card))' }}
+                              >
+                                <p className="text-sm font-semibold" style={{ color: 'hsl(var(--foreground))' }}>
+                                  {medication.name}
+                                </p>
+                                <p className="mt-1 text-xs" style={{ color: 'hsl(var(--muted-foreground))' }}>
+                                  {medication.dosage} - {medication.frequency} - {medication.durationDays} day(s)
+                                </p>
+                                {medication.instructions ? (
+                                  <p className="mt-1 text-xs" style={{ color: 'hsl(var(--muted-foreground))' }}>
+                                    {medication.instructions}
+                                  </p>
+                                ) : null}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : null}
           </section>
         </div>
       </div>
