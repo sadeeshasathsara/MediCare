@@ -17,7 +17,7 @@ spec:
       containers:
         - name: auth-service
           image: ghcr.io/sadeeshasathsara/medicare/auth-service:latest
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           ports:
             - containerPort: 3001
           env:
@@ -26,20 +26,15 @@ spec:
                 secretKeyRef:
                   name: medicare-secrets
                   key: JWT_SECRET
-
             - name: JWT_ACCESS_TTL_MS
               value: "900000"
-
             - name: JWT_REFRESH_TTL_MS
               value: "604800000"
-
             - name: CORS_ALLOWED_ORIGINS
               valueFrom:
                 secretKeyRef:
                   name: medicare-secrets
                   key: CORS_ALLOWED_ORIGINS
-
-            # Optional: bootstrap initial ADMIN user (disabled by default)
             - name: ADMIN_BOOTSTRAP_ENABLED
               valueFrom:
                 secretKeyRef:
@@ -60,8 +55,6 @@ spec:
                 secretKeyRef:
                   name: medicare-secrets
                   key: ADMIN_BOOTSTRAP_FULL_NAME
-
-            # Update the MongoDB URI below manually
             - name: SPRING_DATA_MONGODB_URI
               valueFrom:
                 secretKeyRef:
@@ -79,5 +72,3 @@ spec:
     - protocol: TCP
       port: 3001
       targetPort: 3001
-
-

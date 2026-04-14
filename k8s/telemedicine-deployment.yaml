@@ -17,17 +17,15 @@ spec:
       containers:
         - name: telemedicine-service
           image: ghcr.io/sadeeshasathsara/medicare/telemedicine-service:latest
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           ports:
             - containerPort: 3005
           env:
-            # Update the MongoDB URI below manually
             - name: SPRING_DATA_MONGODB_URI
               valueFrom:
                 secretKeyRef:
                   name: medicare-secrets
                   key: MONGO_URI_TELEMEDICINE
-
             - name: CORS_ALLOWED_ORIGINS
               valueFrom:
                 secretKeyRef:
@@ -43,7 +41,6 @@ spec:
                 secretKeyRef:
                   name: medicare-secrets
                   key: JWT_ISSUER
-
             - name: JITSI_DOMAIN
               valueFrom:
                 secretKeyRef:
@@ -64,7 +61,6 @@ spec:
                 secretKeyRef:
                   name: medicare-secrets
                   key: JITSI_TOKEN_VALIDITY_MINUTES
-
             - name: TELEMEDICINE_SESSION_GRACE_MINUTES
               valueFrom:
                 secretKeyRef:
@@ -75,7 +71,6 @@ spec:
                 secretKeyRef:
                   name: medicare-secrets
                   key: TELEMEDICINE_SESSION_EXPIRY_JOB_DELAY_MS
-
             - name: TELEMEDICINE_AVAILABILITY_SLOT_MINUTES
               valueFrom:
                 secretKeyRef:
@@ -96,7 +91,6 @@ spec:
                 secretKeyRef:
                   name: medicare-secrets
                   key: TELEMEDICINE_AVAILABILITY_DAYS_AHEAD
-
             - name: TELEMEDICINE_APPOINTMENT_SERVICE_BASE_URL
               valueFrom:
                 secretKeyRef:
@@ -107,7 +101,6 @@ spec:
                 secretKeyRef:
                   name: medicare-secrets
                   key: TELEMEDICINE_APPOINTMENT_TELEMEDICINE_KEYWORDS
-
             - name: RABBITMQ_HOST
               valueFrom:
                 secretKeyRef:
@@ -128,7 +121,6 @@ spec:
                 secretKeyRef:
                   name: medicare-secrets
                   key: RABBITMQ_PASSWORD
-
             - name: TELEMEDICINE_BROKER_ENABLED
               valueFrom:
                 secretKeyRef:
@@ -166,5 +158,3 @@ spec:
     - protocol: TCP
       port: 3005
       targetPort: 3005
-
-
