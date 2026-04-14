@@ -53,7 +53,7 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: medicare-secrets
-                  key: JITSI_APP_IDx
+                  key: JITSI_APP_ID
             - name: JITSI_APP_SECRET
               valueFrom:
                 secretKeyRef:
