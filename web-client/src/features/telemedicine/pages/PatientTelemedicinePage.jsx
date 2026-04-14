@@ -22,9 +22,11 @@ import {
   listSessions,
 } from '@/features/telemedicine/services/telemedicineApi'
 import {
+  appointmentBelongsToPatient,
   enrichTelemedicineAppointment,
   formatDateTime,
   getErrorMessage,
+  getTelemedicinePatientIdentifiers,
   getSessionStateCopy,
   READY_POLL_STATUSES,
   resolveTelemedicinePatient,
@@ -37,6 +39,37 @@ const EMPTY_ACTION_STATE = {
   loading: false,
   error: '',
   success: '',
+}
+
+function decodeJwtSubject(token) {
+  try {
+    const parts = String(token || '').split('.')
+    if (parts.length < 2) return null
+
+    let payload = parts[1].replace(/-/g, '+').replace(/_/g, '/')
+    const remainder = payload.length % 4
+    if (remainder === 2) payload += '=='
+    if (remainder === 3) payload += '='
+
+    const decodedPayload = JSON.parse(atob(payload))
+    return decodedPayload?.sub || null
+  } catch {
+    return null
+  }
+}
+
+function safeJsonParse(value) {
+  if (!value) return null
+  try {
+    return JSON.parse(value)
+  } catch {
+    return null
+  }
+}
+
+function normalizeId(value) {
+  if (value === undefined || value === null) return ''
+  return String(value).trim()
 }
 
 function actionLoading(kind) {
@@ -116,8 +149,22 @@ function PatientAppointmentCard({ appointment, session, onSelect }) {
 }
 
 export default function PatientTelemedicinePage() {
-  const { user } = useAuth()
-  const patientId = user?.id || ''
+  const { user, accessToken } = useAuth()
+  const patientIdentifiers = useMemo(() => {
+    const storedUser = safeJsonParse(localStorage.getItem('user'))
+    const identifiers = new Set([
+      ...getTelemedicinePatientIdentifiers(user),
+      ...getTelemedicinePatientIdentifiers(storedUser),
+    ])
+
+    const tokenSubject = normalizeId(decodeJwtSubject(accessToken || localStorage.getItem('accessToken')))
+    if (tokenSubject) {
+      identifiers.add(tokenSubject)
+    }
+
+    return Array.from(identifiers)
+  }, [accessToken, user])
+  const patientId = patientIdentifiers[0] || ''
   const selectedAppointmentIdRef = useRef(null)
 
   const [appointments, setAppointments] = useState([])
@@ -162,14 +209,47 @@ export default function PatientTelemedicinePage() {
   }, [selectedAppointmentId])
 
   const refreshAppointments = useCallback(async ({ preferredAppointmentId = null, preserveSelection = true } = {}) => {
+    if (!patientIdentifiers.length) {
+      startTransition(() => {
+        setAppointments([])
+        setSelectedAppointmentId(null)
+      })
+      setAppointmentsLoading(false)
+      setAppointmentsError('Unable to resolve your patient account id. Please sign out and sign in again.')
+      return
+    }
+
     setAppointmentsLoading(true)
     setAppointmentsError('')
 
     try {
-      const nextAppointments = (await listAppointments({ patientId })).filter((appointment) => {
-        if (!ACTIVE_PATIENT_STATUSES.has(appointment.status)) return false
-        return true
+      const settledResponses = await Promise.allSettled(
+        patientIdentifiers.map((identifier) => listAppointments({ patientId: identifier }))
+      )
+
+      const successfulResponses = settledResponses
+        .filter((response) => response.status === 'fulfilled')
+        .flatMap((response) => response.value || [])
+
+      if (!successfulResponses.length && settledResponses.every((response) => response.status === 'rejected')) {
+        const firstFailedResponse = settledResponses.find((response) => response.status === 'rejected')
+        throw firstFailedResponse?.reason || new Error('Unable to load your telemedicine appointments.')
+      }
+
+      const patientIdentifierSet = new Set(patientIdentifiers)
+      const nextAppointmentsById = new Map()
+
+      successfulResponses.forEach((appointment) => {
+        if (!appointment?.id) return
+        if (!ACTIVE_PATIENT_STATUSES.has(appointment.status)) return
+        if (!appointmentBelongsToPatient(appointment, { ...user, id: patientId }) && !patientIdentifierSet.has(String(appointment.patientId || ''))) {
+          return
+        }
+        nextAppointmentsById.set(appointment.id, appointment)
       })
+
+      const nextAppointments = Array.from(nextAppointmentsById.values())
+        .sort((left, right) => new Date(left?.scheduledAt || 0).getTime() - new Date(right?.scheduledAt || 0).getTime())
 
       startTransition(() => {
         setAppointments(nextAppointments)
@@ -192,7 +272,7 @@ export default function PatientTelemedicinePage() {
     } finally {
       setAppointmentsLoading(false)
     }
-  }, [patientId])
+  }, [patientId, patientIdentifiers, user])
   const refreshSessionsForAppointments = useCallback(async (appointmentList, { showLoading = true } = {}) => {
     if (showLoading) setSessionLookupLoading(true)
     setSessionError('')
@@ -406,7 +486,7 @@ export default function PatientTelemedicinePage() {
         <TelemedicineSection
           title="My Telemedicine Appointments"
           description="Open any scheduled or accepted appointment to review the details and join when the consultation room is ready."
-          action={(
+          actions={(
             <button
               type="button"
               onClick={() => refreshAppointments({ preserveSelection: false })}
@@ -551,7 +631,7 @@ export default function PatientTelemedicinePage() {
           <TelemedicineSection
             title="Appointment Details"
             description="Review your scheduled visit, doctor reference, and the current telemedicine status before joining."
-            action={(
+            actions={(
               <button
                 type="button"
                 onClick={() => refreshAppointments({ preferredAppointmentId: selectedAppointment.id })}
@@ -685,7 +765,7 @@ export default function PatientTelemedicinePage() {
           <TelemedicineSection
             title="Session Access"
             description="Refresh the room status or prepare your own join access when the consultation is ready."
-            action={(
+            actions={(
               <div className="flex flex-wrap items-center gap-2">
                 <button
                   type="button"

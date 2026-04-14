@@ -74,6 +74,55 @@ function decodeJwtSubject(token) {
   }
 }
 
+function safeJsonParse(value) {
+  if (!value) return null
+  try {
+    return JSON.parse(value)
+  } catch {
+    return null
+  }
+}
+
+function normalizeId(value) {
+  if (value === undefined || value === null) return ''
+  const next = String(value).trim()
+  return next
+}
+
+function resolveDoctorIdFromUserLike(userLike) {
+  if (!userLike || typeof userLike !== 'object') return ''
+
+  const directCandidates = [
+    userLike.id,
+    userLike.userId,
+    userLike._id,
+    userLike.doctorId,
+    userLike.doctorID,
+    userLike.profileId,
+  ]
+
+  for (const candidate of directCandidates) {
+    const normalized = normalizeId(candidate)
+    if (normalized) return normalized
+  }
+
+  const nestedCandidates = [
+    userLike.doctor?.id,
+    userLike.doctor?.userId,
+    userLike.doctor?._id,
+    userLike.profile?.id,
+    userLike.profile?.userId,
+    userLike.profile?._id,
+  ]
+
+  for (const candidate of nestedCandidates) {
+    const normalized = normalizeId(candidate)
+    if (normalized) return normalized
+  }
+
+  return ''
+}
+
 function actionLoading(kind) {
   return { kind, loading: true, error: '', success: '' }
 }
@@ -91,7 +140,17 @@ export default function TelemedicinePage() {
   const { appointmentId: routeAppointmentId } = useParams()
 
   const { user, accessToken } = useAuth()
-  const doctorId = user?.id || decodeJwtSubject(accessToken) || user?.email || 'doctor-demo'
+  const doctorId = useMemo(() => {
+    const storedUser = safeJsonParse(localStorage.getItem('user'))
+    const fromStorage = resolveDoctorIdFromUserLike(storedUser)
+    if (fromStorage) return fromStorage
+
+    const fromAuthContext = resolveDoctorIdFromUserLike(user)
+    if (fromAuthContext) return fromAuthContext
+
+    const fromToken = decodeJwtSubject(accessToken || localStorage.getItem('accessToken'))
+    return normalizeId(fromToken)
+  }, [accessToken, user])
   const doctorDisplay = useMemo(() => resolveTelemedicineDoctor(user, doctorId), [doctorId, user])
 
   const [appointments, setAppointments] = useState([])
@@ -128,6 +187,13 @@ export default function TelemedicinePage() {
   const selectedSessionId = selectedSession?.id || null
   const selectedSessionAppointmentId = selectedSession?.appointmentId || null
   const selectedSessionStatus = selectedSession?.sessionStatus || null
+  const appointmentIdForSessionCreation = useMemo(() => {
+    const routeId = normalizeId(routeAppointmentId)
+    if (routeId) return routeId
+
+    const selectedId = normalizeId(selectedAppointment?.id || selectedAppointmentId)
+    return selectedId
+  }, [routeAppointmentId, selectedAppointment?.id, selectedAppointmentId])
   const workspaceSummary = selectedSession
     ? getSessionStateCopy(selectedSession.sessionStatus)
     : selectedAppointment
@@ -143,6 +209,16 @@ export default function TelemedicinePage() {
   }, [routeAppointmentId])
 
   const refreshAppointments = useCallback(async ({ preferredAppointmentId = null, preserveSelection = true } = {}) => {
+    if (!doctorId) {
+      startTransition(() => {
+        setAppointments([])
+        setSelectedAppointmentId(null)
+      })
+      setAppointmentsLoading(false)
+      setAppointmentsError('Logged-in doctor id was not found in local storage. Please sign in again.')
+      return
+    }
+
     setAppointmentsLoading(true)
     setAppointmentsError('')
 
@@ -398,18 +474,22 @@ export default function TelemedicinePage() {
   }
 
   const handleCreateSession = async () => {
-    if (!selectedAppointment?.id) return
+    if (!appointmentIdForSessionCreation) {
+      setSessionActionState(actionError('create', 'Appointment id is missing. Open a valid appointment and try again.'))
+      return
+    }
 
     setSessionActionState(actionLoading('create'))
 
     try {
-      const createdSession = await createSession(selectedAppointment.id)
+      const createdSession = await createSession(appointmentIdForSessionCreation)
       startTransition(() => {
         setSessionsByAppointmentId((current) => ({
           ...current,
-          [selectedAppointment.id]: createdSession,
+          [appointmentIdForSessionCreation]: createdSession,
         }))
       })
+      await refreshSessionForAppointment(appointmentIdForSessionCreation, { showLoading: false })
       setSessionActionState(actionSuccess('create', 'Session created. Generate doctor join access to open the room.'))
     } catch (error) {
       setSessionActionState(actionError('create', getErrorMessage(error, 'Unable to create the session.')))
