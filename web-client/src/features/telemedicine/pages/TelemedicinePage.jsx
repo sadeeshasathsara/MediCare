@@ -7,16 +7,16 @@ import {
   useRef,
   useState,
 } from 'react'
-import { CalendarClock, HeartPulse, RefreshCcw, Stethoscope } from 'lucide-react'
+import { RefreshCcw } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 
 import { useAuth } from '@/context/AuthContext'
 import AppointmentDetailsPanel from '@/features/telemedicine/components/AppointmentDetailsPanel'
+import ConsultationWorkspaceHeader from '@/features/telemedicine/components/ConsultationWorkspaceHeader'
 import AppointmentInbox from '@/features/telemedicine/components/AppointmentInbox'
 import ClinicalWrapUpPanel from '@/features/telemedicine/components/ClinicalWrapUpPanel'
 import FeatureNotice from '@/features/telemedicine/components/FeatureNotice'
 import LiveConsultationPanel from '@/features/telemedicine/components/LiveConsultationPanel'
-import ManualTestToolsPanel from '@/features/telemedicine/components/ManualTestToolsPanel'
 import SessionControlPanel from '@/features/telemedicine/components/SessionControlPanel'
 import StatusBadge from '@/features/telemedicine/components/StatusBadge'
 import TelemedicineSection from '@/features/telemedicine/components/TelemedicineSection'
@@ -716,7 +716,7 @@ export default function TelemedicinePage() {
 
   return (
     <div className="space-y-6">
-      
+
 
       {!selectedAppointment ? (
         <>
@@ -729,67 +729,24 @@ export default function TelemedicinePage() {
             onSelectAppointment={handleSelectAppointment}
           />
 
-        
+
         </>
       ) : (
         <div className="space-y-5">
+          {/* ── Workspace hero header with progress stepper ── */}
+          <ConsultationWorkspaceHeader
+            appointment={selectedAppointment}
+            session={selectedSession}
+            consultation={selectedConsultation}
+            onBack={() => navigate('/doctor/telemedicine')}
+          />
+
+          {/* ── Appointment decision panel ── */}
           <TelemedicineSection
-            title="Appointment Details Page"
-            description="Review this appointment in full, then continue through session management, live consultation, and clinical wrap-up without losing focus."
-            actions={(
-              <button
-                type="button"
-                onClick={() => navigate('/doctor/telemedicine')}
-                className="inline-flex items-center rounded-2xl border px-4 py-2.5 text-sm font-semibold transition hover:bg-black/[0.03] dark:hover:bg-white/[0.05]"
-                style={{ borderColor: 'hsl(var(--border))', color: 'hsl(var(--foreground))' }}
-              >
-                Back to my appointments
-              </button>
-            )}
+            title="Appointment Details"
+            description="Review patient info, then accept, reject, or propose a new time for the appointment."
           >
             <div className="space-y-5">
-              <div
-                className="rounded-[28px] border p-5"
-                style={{
-                  borderColor: 'hsl(var(--border))',
-                  background:
-                    'linear-gradient(135deg, hsl(var(--primary) / 0.16), hsl(var(--accent) / 0.34))',
-                }}
-              >
-                <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-                  <div className="space-y-3">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <StatusBadge status={selectedAppointment.status} />
-                      {selectedSession ? <StatusBadge status={selectedSession.sessionStatus} /> : null}
-                      {selectedConsultation ? <StatusBadge status="COMPLETED" /> : null}
-                    </div>
-                    <div className="space-y-1">
-                      <h2 className="text-2xl font-semibold tracking-tight" style={{ color: 'hsl(var(--foreground))' }}>
-                        {selectedAppointment.patientDisplay?.name || `Patient ${selectedAppointment.patientId}`}
-                      </h2>
-                      <p className="text-sm leading-6" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                        {selectedAppointment.reasonForVisit || 'Consultation request'}
-                      </p>
-                    </div>
-                    <p className="max-w-2xl text-sm leading-6" style={{ color: 'hsl(var(--foreground))' }}>
-                      {workspaceSummary}
-                    </p>
-                  </div>
-
-                  <div className="rounded-[24px] border px-4 py-4" style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--card) / 0.76)' }}>
-                    <p className="text-xs uppercase tracking-[0.18em]" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                      Appointment ID
-                    </p>
-                    <p className="mt-2 break-all text-sm font-semibold" style={{ color: 'hsl(var(--foreground))' }}>
-                      {selectedAppointment.id}
-                    </p>
-                    <p className="mt-2 break-all text-sm" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                      {selectedAppointment.patientDisplay?.userId || selectedAppointment.patientId}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
               {appointmentActionState.error ? (
                 <FeatureNotice tone="error" title="Appointment action failed" message={appointmentActionState.error} />
               ) : null}
@@ -805,79 +762,6 @@ export default function TelemedicinePage() {
                 onRejectAppointment={handleRejectAppointment}
                 onRescheduleAppointment={handleRescheduleAppointment}
               />
-            </div>
-          </TelemedicineSection>
-
-          <TelemedicineSection
-            title="Appointment Workspace"
-            description="This workspace keeps the current appointment context visible while the doctor manages session readiness, enters the call, and completes clinical outcomes."
-          >
-            <div className="grid gap-4 xl:grid-cols-4">
-              <div
-                className="rounded-[24px] border px-5 py-4"
-                style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--card))' }}
-              >
-                <p className="text-xs uppercase tracking-[0.18em]" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                  Patient
-                </p>
-                <p className="mt-2 text-sm font-semibold" style={{ color: 'hsl(var(--foreground))' }}>
-                  {selectedAppointment.patientDisplay?.name || `Patient ${selectedAppointment.patientId}`}
-                </p>
-                <p className="mt-2 text-sm leading-6" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                  {selectedAppointment.patientDisplay?.email || 'No patient email available'}
-                </p>
-              </div>
-
-              <div
-                className="rounded-[24px] border px-5 py-4"
-                style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--card))' }}
-              >
-                <p className="text-xs uppercase tracking-[0.18em]" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                  Scheduled time
-                </p>
-                <div className="mt-2 flex items-start gap-2">
-                  <CalendarClock className="mt-0.5 h-4 w-4 shrink-0" style={{ color: 'hsl(var(--primary))' }} />
-                  <p className="text-sm font-semibold leading-6" style={{ color: 'hsl(var(--foreground))' }}>
-                    {formatDateTime(selectedAppointment.scheduledAt)}
-                  </p>
-                </div>
-              </div>
-
-              <div
-                className="rounded-[24px] border px-5 py-4"
-                style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--card))' }}
-              >
-                <p className="text-xs uppercase tracking-[0.18em]" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                  Session room
-                </p>
-                <p className="mt-2 text-sm font-semibold" style={{ color: 'hsl(var(--foreground))' }}>
-                  {selectedSession?.jitsiRoomId || 'Not created yet'}
-                </p>
-                <p className="mt-2 text-sm leading-6" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                  {selectedSession ? 'Room created and linked to this appointment.' : 'Create the session once the appointment is accepted.'}
-                </p>
-              </div>
-
-              <div
-                className="rounded-[24px] border px-5 py-4"
-                style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--card))' }}
-              >
-                <p className="text-xs uppercase tracking-[0.18em]" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                  Clinical wrap-up
-                </p>
-                <div className="mt-2 flex flex-wrap items-center gap-2">
-                  {selectedConsultation ? (
-                    <StatusBadge status="COMPLETED" />
-                  ) : (
-                    <StatusBadge status={selectedSession?.sessionStatus || selectedAppointment.status} className="opacity-75" />
-                  )}
-                </div>
-                <p className="mt-2 text-sm leading-6" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                  {selectedConsultation
-                    ? 'Consultation record exists and prescriptions can be managed.'
-                    : 'Consultation notes unlock after the session is completed.'}
-                </p>
-              </div>
             </div>
           </TelemedicineSection>
 
@@ -915,42 +799,6 @@ export default function TelemedicinePage() {
           />
         </div>
       )}
-
-      <ManualTestToolsPanel
-        doctorDisplay={doctorDisplay}
-        selectedSession={selectedSession}
-        actionState={manualToolsActionState}
-        onOpenPatientTestWindow={handleOpenPatientTestWindow}
-      />
-
-      <div className="flex items-center justify-end">
-        <button
-          type="button"
-          onClick={() => refreshAppointments({ preserveSelection: true })}
-          className="inline-flex items-center rounded-2xl border px-4 py-2.5 text-sm font-semibold transition hover:bg-black/[0.03] dark:hover:bg-white/[0.05]"
-          style={{ borderColor: 'hsl(var(--border))', color: 'hsl(var(--foreground))' }}
-        >
-          <RefreshCcw className="mr-2 h-4 w-4" />
-          Refresh workspace
-        </button>
-      </div>
-
-      <div
-        className="rounded-[24px] border px-5 py-5"
-        style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--card))' }}
-      >
-        <div className="flex items-start gap-3">
-          <Stethoscope className="mt-0.5 h-5 w-5 shrink-0" style={{ color: 'hsl(var(--primary))' }} />
-          <div className="space-y-2">
-            <p className="text-sm font-semibold" style={{ color: 'hsl(var(--foreground))' }}>
-              Manual validation checklist
-            </p>
-            <p className="text-sm leading-6" style={{ color: 'hsl(var(--muted-foreground))' }}>
-              Seed a demo appointment if needed, accept it, create a session, generate doctor join access, open the patient test window, then start and end the session. After completion, create the consultation and issue the prescription from this same page.
-            </p>
-          </div>
-        </div>
-      </div>
     </div>
   )
 }
