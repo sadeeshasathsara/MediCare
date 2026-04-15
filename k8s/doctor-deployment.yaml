@@ -26,11 +26,26 @@ spec:
                 secretKeyRef:
                   name: medicare-secrets
                   key: MONGO_URI_DOCTOR
+            - name: MONGO_URI_DOCTOR
+              valueFrom:
+                secretKeyRef:
+                  name: medicare-secrets
+                  key: MONGO_URI_DOCTOR
+            - name: DOCTOR_SERVER_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: medicare-secrets
+                  key: DOCTOR_SERVER_PORT
             - name: CORS_ALLOWED_ORIGINS
               valueFrom:
                 secretKeyRef:
                   name: medicare-secrets
                   key: CORS_ALLOWED_ORIGINS
+            - name: DOCTOR_DEFAULT_SPECIALTIES
+              valueFrom:
+                secretKeyRef:
+                  name: medicare-secrets
+                  key: DOCTOR_DEFAULT_SPECIALTIES
 ---
 apiVersion: v1
 kind: Service
