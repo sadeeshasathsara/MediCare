@@ -1,9 +1,12 @@
 package com.healthcare.aisymptom.dto;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
+
+import java.util.List;
 
 public record SymptomCheckRequest(
         @NotBlank(message = "symptoms is required")
@@ -18,6 +21,10 @@ public record SymptomCheckRequest(
         String gender,
 
         @Size(max = 1000, message = "medicalHistory cannot exceed 1000 characters")
-        String medicalHistory
+        String medicalHistory,
+
+        @Valid
+        @Size(max = 300, message = "availableDoctors cannot exceed 300 entries")
+        List<DoctorCandidateDto> availableDoctors
 ) {
 }

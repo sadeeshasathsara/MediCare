@@ -5,7 +5,9 @@ import java.util.List;
 public class SymptomResponse {
 
     private List<String> possibleConditions;
+    private String recommendedSpecialty;
     private String recommendedDoctor;
+    private List<String> recommendedDoctorIds;
     private String urgencyLevel;
     private String advice;
     private String disclaimer;
@@ -13,10 +15,12 @@ public class SymptomResponse {
     public SymptomResponse() {
     }
 
-    public SymptomResponse(List<String> possibleConditions, String recommendedDoctor, String urgencyLevel, String advice,
-                           String disclaimer) {
+    public SymptomResponse(List<String> possibleConditions, String recommendedSpecialty, String recommendedDoctor,
+                           List<String> recommendedDoctorIds, String urgencyLevel, String advice, String disclaimer) {
         this.possibleConditions = possibleConditions;
+        this.recommendedSpecialty = recommendedSpecialty;
         this.recommendedDoctor = recommendedDoctor;
+        this.recommendedDoctorIds = recommendedDoctorIds;
         this.urgencyLevel = urgencyLevel;
         this.advice = advice;
         this.disclaimer = disclaimer;
@@ -30,12 +34,28 @@ public class SymptomResponse {
         this.possibleConditions = possibleConditions;
     }
 
+    public String getRecommendedSpecialty() {
+        return recommendedSpecialty;
+    }
+
+    public void setRecommendedSpecialty(String recommendedSpecialty) {
+        this.recommendedSpecialty = recommendedSpecialty;
+    }
+
     public String getRecommendedDoctor() {
         return recommendedDoctor;
     }
 
     public void setRecommendedDoctor(String recommendedDoctor) {
         this.recommendedDoctor = recommendedDoctor;
+    }
+
+    public List<String> getRecommendedDoctorIds() {
+        return recommendedDoctorIds;
+    }
+
+    public void setRecommendedDoctorIds(List<String> recommendedDoctorIds) {
+        this.recommendedDoctorIds = recommendedDoctorIds;
     }
 
     public String getUrgencyLevel() {
