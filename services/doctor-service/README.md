@@ -52,6 +52,7 @@ Gateway handles:
 ```
 
 ### Project Structure
+
 ```
 com.healthcare.doctor
 ├── config/                  # CORS configuration
@@ -79,6 +80,7 @@ Before calling any doctor endpoints, you need a JWT token from the Auth Service.
 > **Note:** Auth endpoints (`/api/auth/login`, `/api/auth/register`) do **NOT** require a token.
 
 ### Step 1 – Register a doctor account (one-time)
+
 ```bash
 curl -X POST http://localhost:8088/api/auth/register \
   -H "Content-Type: application/json" \
@@ -98,6 +100,7 @@ curl -X POST http://localhost:8088/api/auth/register \
 > ⚠️ Doctor accounts require admin verification before login. An admin must call `/api/auth/verify-doctor`.
 
 ### Step 2 – Login to get a token
+
 ```bash
 curl -X POST http://localhost:8088/api/auth/login \
   -H "Content-Type: application/json" \
@@ -108,6 +111,7 @@ curl -X POST http://localhost:8088/api/auth/login \
 ```
 
 **Response:**
+
 ```json
 {
   "accessToken": "eyJhbGciOiJIUzI1NiIs...",
@@ -123,6 +127,7 @@ curl -X POST http://localhost:8088/api/auth/login \
 ```
 
 ### Step 3 – Use the token in all doctor endpoints
+
 ```bash
 # Save the token to a variable for convenience
 TOKEN="eyJhbGciOiJIUzI1NiIs..."
@@ -136,12 +141,12 @@ curl http://localhost:8088/api/doctors/doctors \
 
 ## Environment Variables
 
-| Variable | Default | Description |
-|---|---|---|
-| `SPRING_DATA_MONGODB_URI` | `mongodb+srv://...` | MongoDB connection string |
-| `DOCTOR_SERVER_PORT` | `3003` | Internal server port (inside Docker) |
-| `CORS_ALLOWED_ORIGINS` | `http://localhost:5173,http://localhost:3000` | Allowed CORS origins |
-| `DOCTOR_DEFAULT_SPECIALTIES` | *(see .env.example)* | Comma-separated default specialties |
+| Variable                     | Default                                       | Description                          |
+| ---------------------------- | --------------------------------------------- | ------------------------------------ |
+| `SPRING_DATA_MONGODB_URI`    | `mongodb+srv://...`                           | MongoDB connection string            |
+| `DOCTOR_SERVER_PORT`         | `3003`                                        | Internal server port (inside Docker) |
+| `CORS_ALLOWED_ORIGINS`       | `http://localhost:5173,http://localhost:3000` | Allowed CORS origins                 |
+| `DOCTOR_DEFAULT_SPECIALTIES` | _(see .env.example)_                          | Comma-separated default specialties  |
 
 ---
 
@@ -156,6 +161,7 @@ curl http://localhost:8088/api/doctors/health
 ```
 
 **Response `200 OK`:**
+
 ```json
 {
   "status": "UP",
@@ -185,6 +191,7 @@ curl "http://localhost:8088/api/doctors/doctors?specialty=Cardiology" \
 ```
 
 **Response `200 OK`:**
+
 ```json
 [
   {
@@ -197,7 +204,7 @@ curl "http://localhost:8088/api/doctors/doctors?specialty=Cardiology" \
     "bio": "15 years of experience in interventional cardiology",
     "qualifications": ["MBBS", "MD", "FACC"],
     "licenseNumber": "SLMC-12345",
-    "consultationFee": 3500.00,
+    "consultationFee": 3500.0,
     "verified": true,
     "createdAt": "2026-01-15T08:00:00Z",
     "updatedAt": "2026-03-20T10:30:00Z"
@@ -206,6 +213,7 @@ curl "http://localhost:8088/api/doctors/doctors?specialty=Cardiology" \
 ```
 
 **Error `401 Unauthorized` (missing or invalid token):**
+
 > Gateway returns a raw `401` status with no body.
 
 ---
@@ -218,14 +226,9 @@ curl http://localhost:8088/api/doctors/doctors/specialties \
 ```
 
 **Response `200 OK`:**
+
 ```json
-[
-  "Cardiology",
-  "Dermatology",
-  "General Practice",
-  "Neurology",
-  "Pediatrics"
-]
+["Cardiology", "Dermatology", "General Practice", "Neurology", "Pediatrics"]
 ```
 
 ---
@@ -238,6 +241,7 @@ curl http://localhost:8088/api/doctors/doctors/6651abc123def456 \
 ```
 
 **Response `200 OK`:**
+
 ```json
 {
   "id": "6651abc123def456",
@@ -249,7 +253,7 @@ curl http://localhost:8088/api/doctors/doctors/6651abc123def456 \
   "bio": "15 years of experience in interventional cardiology",
   "qualifications": ["MBBS", "MD", "FACC"],
   "licenseNumber": "SLMC-12345",
-  "consultationFee": 3500.00,
+  "consultationFee": 3500.0,
   "verified": true,
   "createdAt": "2026-01-15T08:00:00Z",
   "updatedAt": "2026-03-20T10:30:00Z"
@@ -257,6 +261,7 @@ curl http://localhost:8088/api/doctors/doctors/6651abc123def456 \
 ```
 
 **Error `404 Not Found`:**
+
 ```json
 {
   "timestamp": "2026-04-05T06:00:00Z",
@@ -272,6 +277,7 @@ curl http://localhost:8088/api/doctors/doctors/6651abc123def456 \
 ### `PUT /api/doctors/doctors/{id}` – Update doctor profile
 
 **Request Body (all fields optional):**
+
 ```bash
 curl -X PUT http://localhost:8088/api/doctors/doctors/6651abc123def456 \
   -H "Authorization: Bearer $TOKEN" \
@@ -289,6 +295,7 @@ curl -X PUT http://localhost:8088/api/doctors/doctors/6651abc123def456 \
 **Response `200 OK`:** Returns the full updated doctor profile (same shape as GET).
 
 **Error `400 Bad Request`:**
+
 ```json
 {
   "timestamp": "2026-04-05T06:00:00Z",
@@ -331,6 +338,7 @@ curl -X POST http://localhost:8088/api/doctors/doctors/6651abc123def456/availabi
 ```
 
 **Response `201 Created`:**
+
 ```json
 [
   {
@@ -365,6 +373,7 @@ curl -X POST http://localhost:8088/api/doctors/doctors/6651abc123def456/availabi
 | `slots` | At least one slot required |
 
 **Error `400 Bad Request` (invalid day):**
+
 ```json
 {
   "timestamp": "2026-04-05T06:00:00Z",
@@ -376,6 +385,7 @@ curl -X POST http://localhost:8088/api/doctors/doctors/6651abc123def456/availabi
 ```
 
 **Error `400 Bad Request` (invalid time format):**
+
 ```json
 {
   "timestamp": "2026-04-05T06:00:00Z",
@@ -387,6 +397,7 @@ curl -X POST http://localhost:8088/api/doctors/doctors/6651abc123def456/availabi
 ```
 
 **Error `400 Bad Request` (endTime before startTime):**
+
 ```json
 {
   "timestamp": "2026-04-05T06:00:00Z",
@@ -407,6 +418,7 @@ curl http://localhost:8088/api/doctors/doctors/6651abc123def456/availability \
 ```
 
 **Response `200 OK`:**
+
 ```json
 [
   {
@@ -442,6 +454,7 @@ curl -X PUT http://localhost:8088/api/doctors/doctors/6651abc123def456/availabil
 **Response `200 OK`:** Returns updated slot object.
 
 **Error `403 Forbidden`:**
+
 ```json
 {
   "timestamp": "2026-04-05T06:00:00Z",
@@ -453,6 +466,7 @@ curl -X PUT http://localhost:8088/api/doctors/doctors/6651abc123def456/availabil
 ```
 
 **Error `404 Not Found`:**
+
 ```json
 {
   "timestamp": "2026-04-05T06:00:00Z",
@@ -487,6 +501,7 @@ curl "http://localhost:8088/api/doctors/doctors/6651abc123def456/appointments?st
 ```
 
 **Response `200 OK`:**
+
 ```json
 [
   {
@@ -505,6 +520,7 @@ curl "http://localhost:8088/api/doctors/doctors/6651abc123def456/appointments?st
 ```
 
 **Error `400 Bad Request` (invalid status):**
+
 ```json
 {
   "timestamp": "2026-04-05T06:00:00Z",
@@ -532,6 +548,7 @@ curl -X PATCH http://localhost:8088/api/doctors/doctors/6651abc123def456/appoint
 **Allowed status values:** `ACCEPTED` or `REJECTED` only.
 
 **Response `200 OK`:**
+
 ```json
 {
   "id": "appt-id-001",
@@ -548,6 +565,7 @@ curl -X PATCH http://localhost:8088/api/doctors/doctors/6651abc123def456/appoint
 ```
 
 **Error `400 Bad Request` (invalid decision):**
+
 ```json
 {
   "timestamp": "2026-04-05T06:00:00Z",
@@ -559,6 +577,7 @@ curl -X PATCH http://localhost:8088/api/doctors/doctors/6651abc123def456/appoint
 ```
 
 **Error `403 Forbidden` (not this doctor's appointment):**
+
 ```json
 {
   "timestamp": "2026-04-05T06:00:00Z",
@@ -570,6 +589,7 @@ curl -X PATCH http://localhost:8088/api/doctors/doctors/6651abc123def456/appoint
 ```
 
 **Error `409 Conflict` (appointment already processed):**
+
 ```json
 {
   "timestamp": "2026-04-05T06:00:00Z",
@@ -615,6 +635,7 @@ curl -X POST http://localhost:8088/api/doctors/doctors/6651abc123def456/prescrip
 ```
 
 **Response `201 Created`:**
+
 ```json
 {
   "id": "rx-id-001",
@@ -656,6 +677,7 @@ curl -X POST http://localhost:8088/api/doctors/doctors/6651abc123def456/prescrip
 | `medications[].frequency` | Required |
 
 **Error `400 Bad Request` (validation failure):**
+
 ```json
 {
   "timestamp": "2026-04-05T06:00:00Z",
@@ -691,6 +713,7 @@ curl http://localhost:8088/api/doctors/doctors/6651abc123def456/patients/patient
 ```
 
 **Response `200 OK`:**
+
 ```json
 [
   {
@@ -708,6 +731,7 @@ curl http://localhost:8088/api/doctors/doctors/6651abc123def456/patients/patient
 ```
 
 **Error `403 Forbidden` (no appointment relationship):**
+
 ```json
 {
   "timestamp": "2026-04-05T06:00:00Z",
@@ -748,110 +772,116 @@ All errors from the doctor-service return a consistent JSON structure:
 
 ### HTTP Status Codes Used
 
-| Code | Meaning | When |
-|---|---|---|
-| `200` | OK | Successful GET, PUT, PATCH |
-| `201` | Created | Successful POST (new resource) |
-| `400` | Bad Request | Validation failure, invalid input |
-| `401` | Unauthorized | Missing or invalid JWT (returned by gateway) |
-| `403` | Forbidden | Access denied (wrong doctor, no appointment relationship) |
-| `404` | Not Found | Doctor, slot, appointment, or resource not found |
-| `409` | Conflict | State conflict (e.g., appointment not PENDING) |
-| `500` | Internal Server Error | Unexpected server error |
+| Code  | Meaning               | When                                                      |
+| ----- | --------------------- | --------------------------------------------------------- |
+| `200` | OK                    | Successful GET, PUT, PATCH                                |
+| `201` | Created               | Successful POST (new resource)                            |
+| `400` | Bad Request           | Validation failure, invalid input                         |
+| `401` | Unauthorized          | Missing or invalid JWT (returned by gateway)              |
+| `403` | Forbidden             | Access denied (wrong doctor, no appointment relationship) |
+| `404` | Not Found             | Doctor, slot, appointment, or resource not found          |
+| `409` | Conflict              | State conflict (e.g., appointment not PENDING)            |
+| `500` | Internal Server Error | Unexpected server error                                   |
 
 ---
 
 ## Data Models
 
 ### Doctor
-| Field | Type | Description |
-|---|---|---|
-| `id` | String | MongoDB document ID |
-| `userId` | String | Reference to auth-service User ID |
-| `fullName` | String | Doctor's full name |
-| `email` | String | Email address |
-| `phone` | String | Phone number |
-| `specialty` | String | Medical specialty |
-| `bio` | String | Professional biography |
-| `qualifications` | String[] | List of qualifications (MBBS, MD, etc.) |
-| `licenseNumber` | String | Medical license number |
-| `consultationFee` | Double | Fee per consultation |
-| `verified` | Boolean | Whether doctor is verified by admin |
-| `createdAt` | Instant | Creation timestamp |
-| `updatedAt` | Instant | Last update timestamp |
+
+| Field             | Type     | Description                             |
+| ----------------- | -------- | --------------------------------------- |
+| `id`              | String   | MongoDB document ID                     |
+| `userId`          | String   | Reference to auth-service User ID       |
+| `fullName`        | String   | Doctor's full name                      |
+| `email`           | String   | Email address                           |
+| `phone`           | String   | Phone number                            |
+| `specialty`       | String   | Medical specialty                       |
+| `bio`             | String   | Professional biography                  |
+| `qualifications`  | String[] | List of qualifications (MBBS, MD, etc.) |
+| `licenseNumber`   | String   | Medical license number                  |
+| `consultationFee` | Double   | Fee per consultation                    |
+| `verified`        | Boolean  | Whether doctor is verified by admin     |
+| `createdAt`       | Instant  | Creation timestamp                      |
+| `updatedAt`       | Instant  | Last update timestamp                   |
 
 ### AvailabilitySlot
-| Field | Type | Description |
-|---|---|---|
-| `id` | String | MongoDB document ID |
-| `doctorId` | String | Reference to Doctor ID |
-| `dayOfWeek` | String | `MONDAY` through `SUNDAY` |
-| `startTime` | String | Start time in `HH:mm` format |
-| `endTime` | String | End time in `HH:mm` format |
-| `status` | String | `AVAILABLE`, `BOOKED`, or `BLOCKED` |
+
+| Field       | Type   | Description                         |
+| ----------- | ------ | ----------------------------------- |
+| `id`        | String | MongoDB document ID                 |
+| `doctorId`  | String | Reference to Doctor ID              |
+| `dayOfWeek` | String | `MONDAY` through `SUNDAY`           |
+| `startTime` | String | Start time in `HH:mm` format        |
+| `endTime`   | String | End time in `HH:mm` format          |
+| `status`    | String | `AVAILABLE`, `BOOKED`, or `BLOCKED` |
 
 ### Appointment
-| Field | Type | Description |
-|---|---|---|
-| `id` | String | MongoDB document ID |
-| `doctorId` | String | Reference to Doctor ID |
-| `patientId` | String | Reference to Patient ID |
-| `patientName` | String | Patient's display name |
-| `scheduledAt` | Instant | Appointment date/time |
-| `reason` | String | Reason for visit |
-| `status` | String | `PENDING`, `ACCEPTED`, `REJECTED`, `COMPLETED`, `CANCELLED` |
-| `notes` | String | Doctor's notes |
+
+| Field         | Type    | Description                                                 |
+| ------------- | ------- | ----------------------------------------------------------- |
+| `id`          | String  | MongoDB document ID                                         |
+| `doctorId`    | String  | Reference to Doctor ID                                      |
+| `patientId`   | String  | Reference to Patient ID                                     |
+| `patientName` | String  | Patient's display name                                      |
+| `scheduledAt` | Instant | Appointment date/time                                       |
+| `reason`      | String  | Reason for visit                                            |
+| `status`      | String  | `PENDING`, `ACCEPTED`, `REJECTED`, `COMPLETED`, `CANCELLED` |
+| `notes`       | String  | Doctor's notes                                              |
 
 ### Prescription
-| Field | Type | Description |
-|---|---|---|
-| `id` | String | MongoDB document ID |
-| `doctorId` | String | Reference to Doctor ID |
-| `patientId` | String | Reference to Patient ID |
-| `appointmentId` | String | Reference to Appointment ID |
-| `diagnosis` | String | Diagnosis description |
-| `medications` | Medication[] | List of prescribed medications |
-| `notes` | String | Additional notes |
-| `issuedAt` | Instant | When prescription was issued |
+
+| Field           | Type         | Description                    |
+| --------------- | ------------ | ------------------------------ |
+| `id`            | String       | MongoDB document ID            |
+| `doctorId`      | String       | Reference to Doctor ID         |
+| `patientId`     | String       | Reference to Patient ID        |
+| `appointmentId` | String       | Reference to Appointment ID    |
+| `diagnosis`     | String       | Diagnosis description          |
+| `medications`   | Medication[] | List of prescribed medications |
+| `notes`         | String       | Additional notes               |
+| `issuedAt`      | Instant      | When prescription was issued   |
 
 ### Medication (embedded in Prescription)
-| Field | Type | Description |
-|---|---|---|
-| `name` | String | Medication name |
-| `dosage` | String | Dosage (e.g., "5mg") |
-| `frequency` | String | How often (e.g., "Once daily") |
-| `duration` | String | Duration (e.g., "30 days") |
-| `instructions` | String | Special instructions |
+
+| Field          | Type   | Description                    |
+| -------------- | ------ | ------------------------------ |
+| `name`         | String | Medication name                |
+| `dosage`       | String | Dosage (e.g., "5mg")           |
+| `frequency`    | String | How often (e.g., "Once daily") |
+| `duration`     | String | Duration (e.g., "30 days")     |
+| `instructions` | String | Special instructions           |
 
 ### PatientReport
-| Field | Type | Description |
-|---|---|---|
-| `id` | String | MongoDB document ID |
-| `patientId` | String | Reference to Patient ID |
-| `doctorId` | String | Reference to Doctor ID |
-| `appointmentId` | String | Reference to Appointment ID |
-| `reportType` | String | Type of report (e.g., "Blood Test") |
-| `title` | String | Report title |
-| `description` | String | Report description |
-| `fileUrl` | String | URL to the uploaded file |
-| `uploadedAt` | Instant | Upload timestamp |
+
+| Field           | Type    | Description                         |
+| --------------- | ------- | ----------------------------------- |
+| `id`            | String  | MongoDB document ID                 |
+| `patientId`     | String  | Reference to Patient ID             |
+| `doctorId`      | String  | Reference to Doctor ID              |
+| `appointmentId` | String  | Reference to Appointment ID         |
+| `reportType`    | String  | Type of report (e.g., "Blood Test") |
+| `title`         | String  | Report title                        |
+| `description`   | String  | Report description                  |
+| `fileUrl`       | String  | URL to the uploaded file            |
+| `uploadedAt`    | Instant | Upload timestamp                    |
 
 ---
 
 ## Endpoint Summary Table
 
-| Method | Gateway URL | Description |
-|---|---|---|
-| `GET` | `/api/doctors/health` | Health check |
-| `GET` | `/api/doctors/doctors` | List verified doctors |
-| `GET` | `/api/doctors/doctors/specialties` | List specialties |
-| `GET` | `/api/doctors/doctors/{id}` | Get doctor profile |
-| `PUT` | `/api/doctors/doctors/{id}` | Update doctor profile |
-| `POST` | `/api/doctors/doctors/{id}/availability` | Create availability slots |
-| `GET` | `/api/doctors/doctors/{id}/availability` | Get availability |
-| `PUT` | `/api/doctors/doctors/{id}/availability/{slotId}` | Update/block a slot |
-| `GET` | `/api/doctors/doctors/{id}/appointments` | List appointments |
-| `PATCH` | `/api/doctors/doctors/{id}/appointments/{apptId}/status` | Accept/reject |
-| `POST` | `/api/doctors/doctors/{id}/prescriptions` | Issue prescription |
-| `GET` | `/api/doctors/doctors/{id}/prescriptions` | List prescriptions |
-| `GET` | `/api/doctors/doctors/{id}/patients/{patientId}/reports` | View reports |
+| Method  | Gateway URL                                              | Description               |
+| ------- | -------------------------------------------------------- | ------------------------- |
+| `GET`   | `/api/doctors/health`                                    | Health check              |
+| `GET`   | `/api/doctors/doctors`                                   | List verified doctors     |
+| `GET`   | `/api/doctors/doctors/specialties`                       | List specialties          |
+| `GET`   | `/api/doctors/doctors/{id}`                              | Get doctor profile        |
+| `PUT`   | `/api/doctors/doctors/{id}`                              | Update doctor profile     |
+| `POST`  | `/api/doctors/doctors/{id}/availability`                 | Create availability slots |
+| `GET`   | `/api/doctors/doctors/{id}/availability`                 | Get availability          |
+| `PUT`   | `/api/doctors/doctors/{id}/availability/{slotId}`        | Update/block a slot       |
+| `GET`   | `/api/doctors/doctors/{id}/appointments`                 | List appointments         |
+| `PATCH` | `/api/doctors/doctors/{id}/appointments/{apptId}/status` | Accept/reject             |
+| `POST`  | `/api/doctors/doctors/{id}/prescriptions`                | Issue prescription        |
+| `GET`   | `/api/doctors/doctors/{id}/prescriptions`                | List prescriptions        |
+| `GET`   | `/api/doctors/doctors/{id}/patients/{patientId}/reports` | View reports              |
