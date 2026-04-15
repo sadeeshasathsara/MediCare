@@ -6,9 +6,9 @@ export default function DoctorProfilePage() {
     const { user } = useAuth()
 
     const initials = useMemo(() => {
-        const base = (user?.name || user?.email || 'D').trim()
+        const base = (user?.fullName || user?.email || 'D').trim()
         return base ? base.slice(0, 1).toUpperCase() : 'D'
-    }, [user?.email, user?.name])
+    }, [user?.email, user?.fullName])
 
     return (
         <div className="space-y-6">
@@ -41,7 +41,7 @@ export default function DoctorProfilePage() {
 
                     <div className="mt-4 grid grid-cols-1 gap-3">
                         <Field icon={Mail} label="Email" value={user?.email || ''} disabled={true} helper="Email is managed by the authentication service." />
-                        <Field icon={User} label="Name" value={user?.name || ''} disabled={true} />
+                        <Field icon={User} label="Name" value={user?.fullName || ''} disabled={true} />
                         <Field icon={Phone} label="Phone" value={''} placeholder="Not set" disabled={true} />
                     </div>
                 </section>
