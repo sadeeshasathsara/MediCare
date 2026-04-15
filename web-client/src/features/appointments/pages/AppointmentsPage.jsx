@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from "react";
+import React, { useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useAuth } from "@/context/AuthContext";
 import AppointmentsList from "../components/AppointmentsList";
@@ -12,26 +12,28 @@ import {
 export default function AppointmentsPage() {
   const dispatch = useDispatch();
   const { user } = useAuth();
-
-  const queryParams = useMemo(() => {
-    if (!user?.id) return {};
-    return user.role === "DOCTOR"
-      ? { doctorId: user.id }
-      : { patientId: user.id };
-  }, [user?.id, user?.role]);
+  const userId = user?.id || "";
+  const isDoctor = user?.role === "DOCTOR";
 
   const appointments = useSelector((state) =>
-    selectAppointmentsByParams(state, queryParams),
+    selectAppointmentsByParams(
+      state,
+      userId ? (isDoctor ? { doctorId: userId } : { patientId: userId }) : {},
+    ),
   );
   const status = useSelector((state) =>
-    selectAppointmentsStatusByParams(state, queryParams),
+    selectAppointmentsStatusByParams(
+      state,
+      userId ? (isDoctor ? { doctorId: userId } : { patientId: userId }) : {},
+    ),
   );
   const loading = status === "idle" || status === "loading";
 
   useEffect(() => {
-    if (!user?.id) return;
-    dispatch(fetchAppointments({ params: queryParams }));
-  }, [dispatch, queryParams, user?.id]);
+    if (!userId) return;
+    const params = isDoctor ? { doctorId: userId } : { patientId: userId };
+    dispatch(fetchAppointments({ params }));
+  }, [dispatch, isDoctor, userId]);
 
   const handleStatusUpdate = async (id, status) => {
     try {
@@ -64,7 +66,7 @@ export default function AppointmentsPage() {
       <AppointmentsList
         appointments={appointments}
         handleStatusUpdate={handleStatusUpdate}
-        isDoctor={user?.role === "DOCTOR"}
+        isDoctor={isDoctor}
       />
     </div>
   );
