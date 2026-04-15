@@ -26,6 +26,16 @@ spec:
                 secretKeyRef:
                   name: medicare-secrets
                   key: MONGO_URI_APPOINTMENT
+            - name: MONGO_URI_APPOINTMENT
+              valueFrom:
+                secretKeyRef:
+                  name: medicare-secrets
+                  key: MONGO_URI_APPOINTMENT
+            - name: APPOINTMENT_SERVER_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: medicare-secrets
+                  key: APPOINTMENT_SERVER_PORT
             - name: CORS_ALLOWED_ORIGINS
               valueFrom:
                 secretKeyRef:
