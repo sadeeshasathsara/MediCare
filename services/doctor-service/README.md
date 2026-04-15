@@ -139,7 +139,7 @@ curl http://localhost:8088/api/doctors/doctors \
 | Variable | Default | Description |
 |---|---|---|
 | `SPRING_DATA_MONGODB_URI` | `mongodb+srv://...` | MongoDB connection string |
-| `SERVER_PORT` | `3003` | Internal server port (inside Docker) |
+| `DOCTOR_SERVER_PORT` | `3003` | Internal server port (inside Docker) |
 | `CORS_ALLOWED_ORIGINS` | `http://localhost:5173,http://localhost:3000` | Allowed CORS origins |
 | `DOCTOR_DEFAULT_SPECIALTIES` | *(see .env.example)* | Comma-separated default specialties |
 
