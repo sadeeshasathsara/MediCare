@@ -1,13 +1,9 @@
-import { useState } from 'react'
-import { FlaskConical, Sparkles, UserRoundPlus } from 'lucide-react'
+import { UserRoundPlus } from 'lucide-react'
 
 import FeatureNotice from '@/features/telemedicine/components/FeatureNotice'
 import StatusBadge from '@/features/telemedicine/components/StatusBadge'
 import TelemedicineSection from '@/features/telemedicine/components/TelemedicineSection'
-import {
-  formatDateTime,
-  nextLocalDateTimeValue,
-} from '@/features/telemedicine/services/telemedicineTypes'
+import { formatDateTime } from '@/features/telemedicine/services/telemedicineTypes'
 
 function actionButtonClass(kind = 'secondary') {
   if (kind === 'primary') {
@@ -19,229 +15,77 @@ function actionButtonClass(kind = 'secondary') {
 
 export default function ManualTestToolsPanel({
   doctorDisplay,
-  seededPatient,
   selectedSession,
   actionState,
-  onSeedDemoAppointment,
-  onQuickDemo,
   onOpenPatientTestWindow,
 }) {
-  const [scheduledAt, setScheduledAt] = useState(nextLocalDateTimeValue(60))
-  const [reasonForVisit, setReasonForVisit] = useState('Follow-up teleconsultation')
-  const [notes, setNotes] = useState('Temporary test appointment created from the telemedicine workspace.')
-
   return (
     <TelemedicineSection
       title="Manual Test Tools"
-      description="Temporary dev support to exercise the telemedicine flow end-to-end without waiting for the other team's appointment UI."
+      description="Appointment creation is now owned by Appointment Service. Use this section for patient-side join simulation only."
     >
       <div className="space-y-5">
-        
+        <div className="rounded-[20px] border px-4 py-4" style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--background) / 0.55)' }}>
+          <p className="text-sm" style={{ color: 'hsl(var(--muted-foreground))' }}>
+            Logged doctor reference: <span style={{ color: 'hsl(var(--foreground))', fontWeight: 600 }}>{doctorDisplay?.id || 'Unknown doctor'}</span>
+          </p>
+        </div>
 
         {actionState.error ? <FeatureNotice tone="error" title="Manual test action failed" message={actionState.error} /> : null}
         {actionState.success ? <FeatureNotice tone="success" title="Manual test action completed" message={actionState.success} /> : null}
 
-        <div className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
-          <form
-            className="space-y-4 rounded-[24px] border p-5"
-            style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--card))' }}
-            onSubmit={(event) => {
-              event.preventDefault()
-              onSeedDemoAppointment({
-                scheduledAt,
-                reasonForVisit,
-                notes,
-              })
-            }}
-          >
-            <div className="flex items-center gap-2">
-              <FlaskConical className="h-4 w-4" style={{ color: 'hsl(var(--primary))' }} />
-              <p className="text-sm font-semibold" style={{ color: 'hsl(var(--foreground))' }}>
-                Seed demo appointment
-              </p>
-            </div>
+        <div className="space-y-4 rounded-[24px] border p-5" style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--card))' }}>
+          <div className="flex items-center gap-2">
+            <UserRoundPlus className="h-4 w-4" style={{ color: 'hsl(var(--primary))' }} />
+            <p className="text-sm font-semibold" style={{ color: 'hsl(var(--foreground))' }}>
+              Patient-side manual join
+            </p>
+          </div>
 
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-2">
-                <label className="text-sm font-medium" style={{ color: 'hsl(var(--foreground))' }}>
-                  Doctor ID
-                </label>
-                <input
-                  type="text"
-                  value={doctorDisplay?.id || ''}
-                  readOnly
-                  className="w-full rounded-2xl border px-4 py-3 text-sm"
-                  style={{
-                    borderColor: 'hsl(var(--border))',
-                    backgroundColor: 'hsl(var(--background) / 0.55)',
-                    color: 'hsl(var(--muted-foreground))',
-                  }}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-medium" style={{ color: 'hsl(var(--foreground))' }}>
-                  Seeded patient
-                </label>
-                <div
-                  className="rounded-2xl border px-4 py-3 text-sm"
-                  style={{
-                    borderColor: 'hsl(var(--border))',
-                    backgroundColor: 'hsl(var(--background) / 0.55)',
-                    color: 'hsl(var(--foreground))',
-                  }}
-                >
-                  <p className="font-semibold">{seededPatient?.name || 'Patient'}</p>
-                  <p className="mt-1" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                    {seededPatient?.email || 'No email available'}
-                  </p>
-                  <p className="mt-1" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                    DOB: {seededPatient?.dob || 'Not available'}
-                  </p>
-                  <p className="mt-1" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                    Status: {seededPatient?.status || 'Unknown'}
-                  </p>
-                  <p className="mt-2 break-all text-xs uppercase tracking-[0.14em]" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                    {seededPatient?.userId || 'No patient id'}
-                  </p>
+          {!selectedSession ? (
+            <FeatureNotice
+              tone="info"
+              title="No active session selected"
+              message="Select or create a session first. Then this button will open a temporary patient-side Jitsi window for manual two-party testing."
+            />
+          ) : (
+            <>
+              <div className="rounded-[22px] border px-4 py-4" style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--background) / 0.55)' }}>
+                <div className="flex flex-wrap items-center gap-2">
+                  <StatusBadge status={selectedSession.sessionStatus} />
+                  <span className="text-xs uppercase tracking-[0.18em]" style={{ color: 'hsl(var(--muted-foreground))' }}>
+                    {selectedSession.id}
+                  </span>
                 </div>
+                <p className="mt-3 text-sm font-semibold" style={{ color: 'hsl(var(--foreground))' }}>
+                  {selectedSession.jitsiRoomId}
+                </p>
+                <p className="mt-2 text-sm leading-6" style={{ color: 'hsl(var(--muted-foreground))' }}>
+                  Scheduled {formatDateTime(selectedSession.scheduledAt)}
+                </p>
               </div>
-            </div>
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium" style={{ color: 'hsl(var(--foreground))' }}>
-                Scheduled at
-              </label>
-              <input
-                type="datetime-local"
-                value={scheduledAt}
-                onChange={(event) => setScheduledAt(event.target.value)}
-                className="w-full rounded-2xl border px-4 py-3 text-sm outline-none transition focus:ring-2"
-                style={{
-                  borderColor: 'hsl(var(--border))',
-                  backgroundColor: 'hsl(var(--background) / 0.55)',
-                  color: 'hsl(var(--foreground))',
-                }}
+              <FeatureNotice
+                tone="info"
+                title="Popup note"
+                message="The browser may block popups unless this action is triggered directly by a click. The page opens a temporary patient test window using fresh patient join access."
               />
-            </div>
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium" style={{ color: 'hsl(var(--foreground))' }}>
-                Reason for visit
-              </label>
-              <input
-                type="text"
-                value={reasonForVisit}
-                onChange={(event) => setReasonForVisit(event.target.value)}
-                className="w-full rounded-2xl border px-4 py-3 text-sm outline-none transition focus:ring-2"
-                style={{
-                  borderColor: 'hsl(var(--border))',
-                  backgroundColor: 'hsl(var(--background) / 0.55)',
-                  color: 'hsl(var(--foreground))',
-                }}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium" style={{ color: 'hsl(var(--foreground))' }}>
-                Notes
-              </label>
-              <textarea
-                value={notes}
-                onChange={(event) => setNotes(event.target.value)}
-                rows={3}
-                className="w-full rounded-2xl border px-4 py-3 text-sm outline-none transition focus:ring-2"
-                style={{
-                  borderColor: 'hsl(var(--border))',
-                  backgroundColor: 'hsl(var(--background) / 0.55)',
-                  color: 'hsl(var(--foreground))',
-                }}
-              />
-            </div>
-
-            <div className="flex flex-wrap gap-3">
               <button
-                type="submit"
+                type="button"
+                onClick={onOpenPatientTestWindow}
                 disabled={actionState.loading}
                 className={actionButtonClass('primary')}
                 style={{ backgroundColor: 'hsl(var(--primary))' }}
               >
-                {actionState.loading && actionState.kind === 'seed' ? 'Seeding...' : 'Seed Demo Appointment'}
+                {actionState.loading && actionState.kind === 'patient-window'
+                  ? 'Opening patient window...'
+                  : 'Open Patient Test Window'}
               </button>
-
-              <button
-                type="button"
-                onClick={() =>
-                  onQuickDemo({
-                    scheduledAt,
-                    reasonForVisit,
-                    notes,
-                  })
-                }
-                disabled={actionState.loading}
-                className={actionButtonClass()}
-                style={{ borderColor: 'hsl(var(--border))', color: 'hsl(var(--foreground))' }}
-              >
-                <Sparkles className="mr-2 h-4 w-4" />
-                {actionState.loading && actionState.kind === 'quick-demo' ? 'Preparing...' : 'Quick Demo'}
-              </button>
-            </div>
-          </form>
-
-          <div className="space-y-4 rounded-[24px] border p-5" style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--card))' }}>
-            <div className="flex items-center gap-2">
-              <UserRoundPlus className="h-4 w-4" style={{ color: 'hsl(var(--primary))' }} />
-              <p className="text-sm font-semibold" style={{ color: 'hsl(var(--foreground))' }}>
-                Patient-side manual join
-              </p>
-            </div>
-
-            {!selectedSession ? (
-              <FeatureNotice
-                tone="info"
-                title="No active session selected"
-                message="Select or create a session first. Then this button will open a temporary patient-side Jitsi window for manual two-party testing."
-              />
-            ) : (
-              <>
-                <div className="rounded-[22px] border px-4 py-4" style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--background) / 0.55)' }}>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <StatusBadge status={selectedSession.sessionStatus} />
-                    <span className="text-xs uppercase tracking-[0.18em]" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                      {selectedSession.id}
-                    </span>
-                  </div>
-                  <p className="mt-3 text-sm font-semibold" style={{ color: 'hsl(var(--foreground))' }}>
-                    {selectedSession.jitsiRoomId}
-                  </p>
-                  <p className="mt-2 text-sm leading-6" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                    Scheduled {formatDateTime(selectedSession.scheduledAt)}
-                  </p>
-                </div>
-
-                <FeatureNotice
-                  tone="info"
-                  title="Popup note"
-                  message="The browser may block popups unless this action is triggered directly by a click. The page opens a temporary patient test window using fresh patient join access."
-                />
-
-                <button
-                  type="button"
-                  onClick={onOpenPatientTestWindow}
-                  disabled={actionState.loading}
-                  className={actionButtonClass('primary')}
-                  style={{ backgroundColor: 'hsl(var(--primary))' }}
-                >
-                  {actionState.loading && actionState.kind === 'patient-window'
-                    ? 'Opening patient window...'
-                    : 'Open Patient Test Window'}
-                </button>
-              </>
-            )}
-          </div>
+            </>
+          )}
         </div>
       </div>
     </TelemedicineSection>
   )
 }
-

@@ -9,32 +9,33 @@ import java.util.List;
 import java.util.Objects;
 
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
 import com.healthcare.telemedicine.dto.doctor.DoctorAvailabilityResponse;
 import com.healthcare.telemedicine.exception.ForbiddenException;
-import com.healthcare.telemedicine.model.Appointment;
-import com.healthcare.telemedicine.model.enums.AppointmentStatus;
-import com.healthcare.telemedicine.repository.AppointmentRepository;
+import com.healthcare.telemedicine.integration.appointment.AppointmentGateway;
+import com.healthcare.telemedicine.integration.appointment.TelemedicineAppointmentAdapter;
 import com.healthcare.telemedicine.service.DoctorAvailabilityService;
 
 @Service
 public class DoctorAvailabilityServiceImpl implements DoctorAvailabilityService {
 
-    private final AppointmentRepository appointmentRepository;
+    private final AppointmentGateway appointmentGateway;
+    private final TelemedicineAppointmentAdapter appointmentAdapter;
     private final int slotMinutes;
     private final int startHour;
     private final int endHour;
     private final int daysAhead;
 
     public DoctorAvailabilityServiceImpl(
-            AppointmentRepository appointmentRepository,
+            AppointmentGateway appointmentGateway,
+            TelemedicineAppointmentAdapter appointmentAdapter,
             @Value("${telemedicine.availability.slot-minutes:30}") int slotMinutes,
             @Value("${telemedicine.availability.start-hour:9}") int startHour,
             @Value("${telemedicine.availability.end-hour:17}") int endHour,
             @Value("${telemedicine.availability.days-ahead:7}") int daysAhead) {
-        this.appointmentRepository = appointmentRepository;
+        this.appointmentGateway = appointmentGateway;
+        this.appointmentAdapter = appointmentAdapter;
         this.slotMinutes = slotMinutes;
         this.startHour = startHour;
         this.endHour = endHour;
@@ -52,12 +53,13 @@ public class DoctorAvailabilityServiceImpl implements DoctorAvailabilityService 
         Instant rangeStart = today.atStartOfDay().toInstant(ZoneOffset.UTC);
         Instant rangeEnd = today.plusDays(daysAhead + 1L).atStartOfDay().toInstant(ZoneOffset.UTC);
 
-        List<Appointment> acceptedAppointments = appointmentRepository.findByDoctorIdAndStatusAndScheduledAtBetweenAndDeletedAtIsNull(
-                doctorId,
-                AppointmentStatus.ACCEPTED,
-                rangeStart,
-                rangeEnd,
-                Sort.by(Sort.Direction.ASC, "scheduledAt"));
+        List<Instant> acceptedAppointmentTimes = appointmentGateway.listByDoctorId(doctorId, actorId, actorRole).stream()
+                .filter(appointmentAdapter::isTelemedicineAppointment)
+                .filter(appointmentAdapter::isEligibleForSession)
+                .map(appointment -> appointment.scheduledAt())
+                .filter(Objects::nonNull)
+                .filter(scheduledAt -> !scheduledAt.isBefore(rangeStart) && scheduledAt.isBefore(rangeEnd))
+                .toList();
 
         List<DoctorAvailabilityResponse> availableSlots = new ArrayList<>();
         for (int dayOffset = 0; dayOffset <= daysAhead; dayOffset++) {
@@ -71,7 +73,7 @@ public class DoctorAvailabilityServiceImpl implements DoctorAvailabilityService 
                 Instant slotEnd = slotEndLocal.toInstant(ZoneOffset.UTC);
 
                 boolean past = slotStart.isBefore(now);
-                boolean occupied = acceptedAppointments.stream().anyMatch(a -> inSlot(a.getScheduledAt(), slotStart, slotEnd));
+                boolean occupied = acceptedAppointmentTimes.stream().anyMatch(scheduledAt -> inSlot(scheduledAt, slotStart, slotEnd));
 
                 if (!past && !occupied) {
                     availableSlots.add(DoctorAvailabilityResponse.builder()

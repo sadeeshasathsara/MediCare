@@ -4,28 +4,25 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 
-import com.healthcare.telemedicine.dto.appointment.SyncAppointmentRequest;
-import com.healthcare.telemedicine.model.Appointment;
-import com.healthcare.telemedicine.model.enums.AppointmentStatus;
+import com.healthcare.telemedicine.dto.appointment.TelemedicineAppointmentResponse;
+import com.healthcare.telemedicine.dto.appointment.TelemedicineAppointmentStatus;
 
 public interface AppointmentService {
-    Appointment syncAppointment(SyncAppointmentRequest request, String actorId);
-
-    List<Appointment> listAppointments(
+    List<TelemedicineAppointmentResponse> listAppointments(
             String doctorId,
             String patientId,
-            AppointmentStatus status,
+            TelemedicineAppointmentStatus status,
             LocalDate date,
             String actorId,
             String actorRole);
 
-    Appointment getAppointmentById(String appointmentId, String actorId, String actorRole);
+    TelemedicineAppointmentResponse getAppointmentById(String appointmentId, String actorId, String actorRole);
 
-    Appointment acceptAppointment(String appointmentId, String actorId);
+    TelemedicineAppointmentResponse acceptAppointment(String appointmentId, String actorId);
 
-    Appointment rejectAppointment(String appointmentId, String actorId, String reason);
+    TelemedicineAppointmentResponse rejectAppointment(String appointmentId, String actorId, String reason);
 
-    Appointment rescheduleAppointment(String appointmentId, String actorId, Instant newScheduledAt, String reason);
+    TelemedicineAppointmentResponse rescheduleAppointment(String appointmentId, String actorId, Instant newScheduledAt, String reason);
 
-    List<Appointment> listUpcomingAppointments(String doctorId, String actorId);
+    List<TelemedicineAppointmentResponse> listUpcomingAppointments(String doctorId, String actorId);
 }

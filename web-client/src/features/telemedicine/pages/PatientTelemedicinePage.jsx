@@ -22,7 +22,6 @@ import {
   listSessions,
 } from '@/features/telemedicine/services/telemedicineApi'
 import {
-  appointmentBelongsToPatient,
   enrichTelemedicineAppointment,
   formatDateTime,
   getErrorMessage,
@@ -167,9 +166,9 @@ export default function PatientTelemedicinePage() {
     setAppointmentsError('')
 
     try {
-      const nextAppointments = (await listAppointments()).filter((appointment) => {
+      const nextAppointments = (await listAppointments({ patientId })).filter((appointment) => {
         if (!ACTIVE_PATIENT_STATUSES.has(appointment.status)) return false
-        return appointmentBelongsToPatient(appointment, user)
+        return true
       })
 
       startTransition(() => {
@@ -193,7 +192,7 @@ export default function PatientTelemedicinePage() {
     } finally {
       setAppointmentsLoading(false)
     }
-  }, [user])
+  }, [patientId])
   const refreshSessionsForAppointments = useCallback(async (appointmentList, { showLoading = true } = {}) => {
     if (showLoading) setSessionLookupLoading(true)
     setSessionError('')

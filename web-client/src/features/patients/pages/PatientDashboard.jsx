@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
 import { getPatientHistory, getPatientPrescriptions, getPatientProfile, listPatientReports } from '@/features/patients/services/patientApi'
 import { listAppointments } from '@/features/telemedicine/services/telemedicineApi'
-import { appointmentBelongsToPatient, formatDateTime, humanizeStatus } from '@/features/telemedicine/services/telemedicineTypes'
+import { formatDateTime, humanizeStatus } from '@/features/telemedicine/services/telemedicineTypes'
 import { RefreshCcw, Calendar, Bell, CreditCard, Video, Folder, User, Stethoscope, CheckCircle2, XCircle, ArrowRight } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 
@@ -206,9 +206,9 @@ export default function PatientDashboard() {
             }
 
             try {
-                const appointments = await listAppointments()
+                const appointments = await listAppointments({ patientId: userId })
                 const nextTelemedicineAppointments = (Array.isArray(appointments) ? appointments : [])
-                    .filter((appointment) => appointmentBelongsToPatient(appointment, user) && TELEMEDICINE_VISIBLE_STATUSES.has(appointment?.status))
+                    .filter((appointment) => TELEMEDICINE_VISIBLE_STATUSES.has(appointment?.status))
                     .sort((left, right) => new Date(left?.scheduledAt || 0).getTime() - new Date(right?.scheduledAt || 0).getTime())
 
                 setTelemedicineAppointments(nextTelemedicineAppointments)
