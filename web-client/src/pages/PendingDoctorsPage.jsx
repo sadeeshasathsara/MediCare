@@ -9,7 +9,11 @@ export default function PendingDoctorsPage() {
 
     const [actingDoctorId, setActingDoctorId] = useState(null)
 
-    const pendingCount = useMemo(() => doctors?.length || 0, [doctors])
+    const pendingDoctors = useMemo(
+        () => (Array.isArray(doctors) ? doctors.filter((doc) => doc?.doctorVerified !== true) : []),
+        [doctors],
+    )
+    const pendingCount = useMemo(() => pendingDoctors.length, [pendingDoctors])
 
     const loadPending = useCallback(async () => {
         setLoading(true)
@@ -89,7 +93,7 @@ export default function PendingDoctorsPage() {
                         Pending Doctors
                     </h1>
                     <p className="text-sm mt-1" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                        Review new doctor registrations and approve/reject them.
+                        Registered doctors awaiting admin approval.
                     </p>
                 </div>
 
@@ -151,13 +155,13 @@ export default function PendingDoctorsPage() {
                     </span>
                 </div>
 
-                {doctors.length === 0 ? (
+                {pendingDoctors.length === 0 ? (
                     <div className="text-sm" style={{ color: 'hsl(var(--muted-foreground))' }}>
                         No pending doctors.
                     </div>
                 ) : (
                     <div className="space-y-3">
-                        {doctors.map((doc) => {
+                        {pendingDoctors.map((doc) => {
                             const profile = doc?.doctorProfile || {}
                             const busy = actingDoctorId === doc?.id
 
@@ -192,7 +196,7 @@ export default function PendingDoctorsPage() {
                                                 style={{ backgroundColor: 'hsl(142 71% 45%)', opacity: busy ? 0.7 : 1 }}
                                                 onClick={() => verifyDoctor(doc.id, 'APPROVE')}
                                             >
-                                                {busy ? 'Working…' : 'Approve'}
+                                                {busy ? 'Approving…' : 'Approve'}
                                             </button>
 
                                             <button

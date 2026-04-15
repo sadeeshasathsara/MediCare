@@ -20,6 +20,7 @@ import PatientHistoryPage from '@/features/patients/pages/PatientHistoryPage'
 import PatientPrescriptionsPage from '@/features/patients/pages/PatientPrescriptionsPage'
 import AdminPatientsPage from '@/features/patients/pages/AdminPatientsPage'
 import PatientTelemedicinePage from '@/features/telemedicine/pages/PatientTelemedicinePage'
+import CreatePatientAppointmentPage from '@/features/appointments/pages/CreatePatientAppointmentPage'
 
 // ── Doctors (Member 2) ─────────────────────────────────
 import DoctorDashboard from '@/features/doctors/pages/DoctorDashboard'
@@ -50,6 +51,7 @@ import NotificationsPage from '@/features/notifications/pages/NotificationsPage'
 // --- Navigation Links for Top Nav ---
 const patientLinks = [
   { label: 'Dashboard', path: '/patient/dashboard' },
+  { label: 'Appointments', path: '/patient/appointments/new' },
   { label: 'Reports', path: '/patient/reports' },
   { label: 'History', path: '/patient/history' },
   { label: 'Prescriptions', path: '/patient/prescriptions' },
@@ -188,6 +190,10 @@ export default function AppRoutes() {
       <Route
         path="/patient/telemedicine"
         element={requireRole('PATIENT', <TopNavLayout navLinks={patientLinks}><PatientTelemedicinePage /></TopNavLayout>)}
+      />
+      <Route
+        path="/patient/appointments/new"
+        element={requireRole('PATIENT', <TopNavLayout navLinks={patientLinks}><CreatePatientAppointmentPage /></TopNavLayout>)}
       />
 
       {/* Doctor Routes — wrapped in TopNavLayout */}

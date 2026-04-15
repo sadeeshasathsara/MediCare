@@ -1,50 +1,56 @@
-import React, { useState, useEffect } from "react";
-import { useAuth } from "@/context/AuthContext";
-import { getDoctorAvailability } from "../services/doctorApi";
-import { getAppointments } from "@/features/appointments/services/appointmentApi";
-import DashboardMetrics from "../components/DashboardMetrics";
-import AppointmentsList from "@/features/appointments/components/AppointmentsList";
-import AvailabilitySlots from "../components/AvailabilitySlots";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import React, { useEffect, useMemo } from 'react'
+import { useDispatch, useSelector } from 'react-redux'
+import { useAuth } from '@/context/AuthContext'
+import DashboardMetrics from '../components/DashboardMetrics'
+import AppointmentsList from '@/features/appointments/components/AppointmentsList'
+import AvailabilitySlots from '../components/AvailabilitySlots'
+import {
+  fetchAppointments,
+  selectAppointmentsByParams,
+  selectAppointmentsStatusByParams,
+} from '@/store/slices/appointmentsSlice'
+import {
+  fetchDoctorAvailability,
+  selectDoctorAvailability,
+  selectDoctorAvailabilityStatus,
+} from '@/store/slices/doctorsSlice'
 
 export default function DoctorDashboard() {
-  const { user } = useAuth();
-  const [appointments, setAppointments] = useState([]);
-  const [availability, setAvailability] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const dispatch = useDispatch()
+  const { user } = useAuth()
+  const doctorId = user?.id || ''
+
+  const appointmentParams = useMemo(() => ({ doctorId }), [doctorId])
+  const appointments = useSelector((state) => selectAppointmentsByParams(state, appointmentParams))
+  const appointmentsStatus = useSelector((state) => selectAppointmentsStatusByParams(state, appointmentParams))
+  const availability = useSelector((state) => selectDoctorAvailability(state, doctorId))
+  const availabilityStatus = useSelector((state) => selectDoctorAvailabilityStatus(state, doctorId))
+  const loading =
+    !doctorId ||
+    appointmentsStatus === 'idle' ||
+    appointmentsStatus === 'loading' ||
+    availabilityStatus === 'idle' ||
+    availabilityStatus === 'loading'
 
   useEffect(() => {
-    const fetchDashboardData = async () => {
-      if (!user?.id) return;
-      try {
-        const [appsData, availData] = await Promise.all([
-          getAppointments({ doctorId: user.id }),
-          getDoctorAvailability(user.id),
-        ]);
-        setAppointments(appsData);
-        setAvailability(availData);
-      } catch (error) {
-        console.error("Dashboard fetch error:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchDashboardData();
-  }, [user]);
+    if (!doctorId) return
+    dispatch(fetchAppointments({ params: { doctorId } }))
+    dispatch(fetchDoctorAvailability({ doctorId }))
+  }, [dispatch, doctorId])
 
   const pendingAppointments = appointments.filter(
-    (a) => a.status === "PENDING",
-  );
+    (a) => a.status === 'PENDING',
+  )
   const upcomingAppointments = appointments.filter(
-    (a) => a.status === "CONFIRMED",
-  );
+    (a) => a.status === 'CONFIRMED',
+  )
 
   if (loading)
     return (
       <div className="p-10 text-center animate-pulse text-muted-foreground font-medium">
         Preparing dashboard...
       </div>
-    );
+    )
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto">
@@ -76,7 +82,7 @@ export default function DoctorDashboard() {
               {pendingAppointments.length}
             </span>
           </h3>
-          <div className="max-h-[500px] overflow-y-auto pr-2 pb-2">
+          <div className="max-h-125 overflow-y-auto pr-2 pb-2">
             <AppointmentsList
               appointments={pendingAppointments.slice(0, 4)}
               handleStatusUpdate={() => {}} // Simplified, you'd integrate the actual function here if you wanted interactions from dash
@@ -96,5 +102,5 @@ export default function DoctorDashboard() {
         </div>
       </div>
     </div>
-  );
+  )
 }

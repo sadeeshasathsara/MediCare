@@ -373,7 +373,14 @@ export default function PatientDashboard() {
                     </p>
                 </div>
 
-                <div className={`grid grid-cols-1 gap-4 md:grid-cols-2 ${hasTelemedicineAppointments ? 'xl:grid-cols-5' : 'xl:grid-cols-4'}`}>
+                <div className={`grid grid-cols-1 gap-4 md:grid-cols-2 ${hasTelemedicineAppointments ? 'xl:grid-cols-6' : 'xl:grid-cols-5'}`}>
+                    <QuickActionCard
+                        title="Book appointment"
+                        icon={<Calendar size={16} />}
+                        value="New"
+                        hint="Choose a doctor and reserve a slot"
+                        to="/patient/appointments/new"
+                    />
                     <QuickActionCard
                         title="Medical reports"
                         icon={<Folder size={16} />}
@@ -629,6 +636,16 @@ export default function PatientDashboard() {
                                     </div>
                                     <div className="text-sm mt-1" style={{ color: 'hsl(var(--muted-foreground))' }}>
                                         When appointment scheduling is connected, you’ll see your date, time, doctor, and visit type here.
+                                    </div>
+                                    <div className="mt-3">
+                                        <Link
+                                            to="/patient/appointments/new"
+                                            className="inline-flex items-center gap-2 text-sm font-medium"
+                                            style={{ color: 'hsl(var(--primary))' }}
+                                        >
+                                            Book an appointment
+                                            <ArrowRight size={16} />
+                                        </Link>
                                     </div>
                                 </div>
                             </div>
