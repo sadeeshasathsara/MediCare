@@ -1,154 +1,154 @@
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit'
 import {
-  getDoctorAvailability,
-  listDoctorSpecialties,
-  listDoctors,
+    getDoctorAvailability,
+    listDoctorSpecialties,
+    listDoctors,
 } from '@/features/doctors/services/doctorApi'
 
 const EMPTY_RESOURCE = { items: [], status: 'idle', error: null, lastFetched: 0 }
 
 export const fetchDoctors = createAsyncThunk(
-  'doctors/fetchDoctors',
-  async ({ params = {}, force = false } = {}) => {
-    const data = await listDoctors(params)
-    return {
-      items: Array.isArray(data) ? data : [],
-      force,
-      fetchedAt: Date.now(),
-    }
-  },
-  {
-    condition: ({ force = false } = {}, { getState }) => {
-      if (force) return true
-      const state = getState()
-      const doctors = state.doctors?.doctors
-      return !(doctors && doctors.status === 'succeeded' && Array.isArray(doctors.items) && doctors.items.length > 0)
+    'doctors/fetchDoctors',
+    async ({ params = {}, force = false } = {}) => {
+        const data = await listDoctors(params)
+        return {
+            items: Array.isArray(data) ? data : [],
+            force,
+            fetchedAt: Date.now(),
+        }
     },
-  }
+    {
+        condition: ({ force = false } = {}, { getState }) => {
+            if (force) return true
+            const state = getState()
+            const doctors = state.doctors?.doctors
+            return !(doctors && doctors.status === 'succeeded' && Array.isArray(doctors.items) && doctors.items.length > 0)
+        },
+    }
 )
 
 export const fetchDoctorSpecialties = createAsyncThunk(
-  'doctors/fetchDoctorSpecialties',
-  async ({ force = false } = {}) => {
-    const data = await listDoctorSpecialties()
-    return {
-      items: Array.isArray(data) ? data : [],
-      force,
-      fetchedAt: Date.now(),
-    }
-  },
-  {
-    condition: ({ force = false } = {}, { getState }) => {
-      if (force) return true
-      const state = getState()
-      const specialties = state.doctors?.specialties
-      return !(
-        specialties &&
-        specialties.status === 'succeeded' &&
-        Array.isArray(specialties.items) &&
-        specialties.items.length > 0
-      )
+    'doctors/fetchDoctorSpecialties',
+    async ({ force = false } = {}) => {
+        const data = await listDoctorSpecialties()
+        return {
+            items: Array.isArray(data) ? data : [],
+            force,
+            fetchedAt: Date.now(),
+        }
     },
-  }
+    {
+        condition: ({ force = false } = {}, { getState }) => {
+            if (force) return true
+            const state = getState()
+            const specialties = state.doctors?.specialties
+            return !(
+                specialties &&
+                specialties.status === 'succeeded' &&
+                Array.isArray(specialties.items) &&
+                specialties.items.length > 0
+            )
+        },
+    }
 )
 
 export const fetchDoctorAvailability = createAsyncThunk(
-  'doctors/fetchDoctorAvailability',
-  async ({ doctorId, force = false } = {}) => {
-    const data = await getDoctorAvailability(doctorId)
-    return {
-      doctorId,
-      items: Array.isArray(data) ? data : [],
-      force,
-      fetchedAt: Date.now(),
-    }
-  },
-  {
-    condition: ({ doctorId, force = false } = {}, { getState }) => {
-      if (!doctorId) return false
-      if (force) return true
-      const state = getState()
-      const availability = state.doctors?.availabilityByDoctorId?.[doctorId]
-      return !(availability && availability.status === 'succeeded')
+    'doctors/fetchDoctorAvailability',
+    async ({ doctorId, force = false } = {}) => {
+        const data = await getDoctorAvailability(doctorId)
+        return {
+            doctorId,
+            items: Array.isArray(data) ? data : [],
+            force,
+            fetchedAt: Date.now(),
+        }
     },
-  }
+    {
+        condition: ({ doctorId, force = false } = {}, { getState }) => {
+            if (!doctorId) return false
+            if (force) return true
+            const state = getState()
+            const availability = state.doctors?.availabilityByDoctorId?.[doctorId]
+            return !(availability && availability.status === 'succeeded')
+        },
+    }
 )
 
 const initialState = {
-  doctors: { ...EMPTY_RESOURCE },
-  specialties: { ...EMPTY_RESOURCE },
-  availabilityByDoctorId: {},
+    doctors: { ...EMPTY_RESOURCE },
+    specialties: { ...EMPTY_RESOURCE },
+    availabilityByDoctorId: {},
 }
 
 const doctorsSlice = createSlice({
-  name: 'doctors',
-  initialState,
-  reducers: {},
-  extraReducers: (builder) => {
-    builder
-      .addCase(fetchDoctors.pending, (state) => {
-        state.doctors.status = 'loading'
-        state.doctors.error = null
-      })
-      .addCase(fetchDoctors.fulfilled, (state, action) => {
-        state.doctors = {
-          items: action.payload.items,
-          status: 'succeeded',
-          error: null,
-          lastFetched: action.payload.fetchedAt,
-        }
-      })
-      .addCase(fetchDoctors.rejected, (state, action) => {
-        state.doctors.status = 'failed'
-        state.doctors.error = action.error?.message || 'Failed to load doctors.'
-      })
-      .addCase(fetchDoctorSpecialties.pending, (state) => {
-        state.specialties.status = 'loading'
-        state.specialties.error = null
-      })
-      .addCase(fetchDoctorSpecialties.fulfilled, (state, action) => {
-        state.specialties = {
-          items: action.payload.items,
-          status: 'succeeded',
-          error: null,
-          lastFetched: action.payload.fetchedAt,
-        }
-      })
-      .addCase(fetchDoctorSpecialties.rejected, (state, action) => {
-        state.specialties.status = 'failed'
-        state.specialties.error = action.error?.message || 'Failed to load specialties.'
-      })
-      .addCase(fetchDoctorAvailability.pending, (state, action) => {
-        const doctorId = action.meta.arg?.doctorId
-        if (!doctorId) return
-        const existing = state.availabilityByDoctorId[doctorId] || EMPTY_RESOURCE
-        state.availabilityByDoctorId[doctorId] = {
-          ...existing,
-          status: 'loading',
-          error: null,
-        }
-      })
-      .addCase(fetchDoctorAvailability.fulfilled, (state, action) => {
-        const doctorId = action.payload.doctorId
-        if (!doctorId) return
-        state.availabilityByDoctorId[doctorId] = {
-          items: action.payload.items,
-          status: 'succeeded',
-          error: null,
-          lastFetched: action.payload.fetchedAt,
-        }
-      })
-      .addCase(fetchDoctorAvailability.rejected, (state, action) => {
-        const doctorId = action.meta.arg?.doctorId
-        if (!doctorId) return
-        const existing = state.availabilityByDoctorId[doctorId] || EMPTY_RESOURCE
-        state.availabilityByDoctorId[doctorId] = {
-          ...existing,
-          status: 'failed',
-          error: action.error?.message || 'Failed to load availability.',
-        }
-      })
-  },
+    name: 'doctors',
+    initialState,
+    reducers: {},
+    extraReducers: (builder) => {
+        builder
+            .addCase(fetchDoctors.pending, (state) => {
+                state.doctors.status = 'loading'
+                state.doctors.error = null
+            })
+            .addCase(fetchDoctors.fulfilled, (state, action) => {
+                state.doctors = {
+                    items: action.payload.items,
+                    status: 'succeeded',
+                    error: null,
+                    lastFetched: action.payload.fetchedAt,
+                }
+            })
+            .addCase(fetchDoctors.rejected, (state, action) => {
+                state.doctors.status = 'failed'
+                state.doctors.error = action.error?.message || 'Failed to load doctors.'
+            })
+            .addCase(fetchDoctorSpecialties.pending, (state) => {
+                state.specialties.status = 'loading'
+                state.specialties.error = null
+            })
+            .addCase(fetchDoctorSpecialties.fulfilled, (state, action) => {
+                state.specialties = {
+                    items: action.payload.items,
+                    status: 'succeeded',
+                    error: null,
+                    lastFetched: action.payload.fetchedAt,
+                }
+            })
+            .addCase(fetchDoctorSpecialties.rejected, (state, action) => {
+                state.specialties.status = 'failed'
+                state.specialties.error = action.error?.message || 'Failed to load specialties.'
+            })
+            .addCase(fetchDoctorAvailability.pending, (state, action) => {
+                const doctorId = action.meta.arg?.doctorId
+                if (!doctorId) return
+                const existing = state.availabilityByDoctorId[doctorId] || EMPTY_RESOURCE
+                state.availabilityByDoctorId[doctorId] = {
+                    ...existing,
+                    status: 'loading',
+                    error: null,
+                }
+            })
+            .addCase(fetchDoctorAvailability.fulfilled, (state, action) => {
+                const doctorId = action.payload.doctorId
+                if (!doctorId) return
+                state.availabilityByDoctorId[doctorId] = {
+                    items: action.payload.items,
+                    status: 'succeeded',
+                    error: null,
+                    lastFetched: action.payload.fetchedAt,
+                }
+            })
+            .addCase(fetchDoctorAvailability.rejected, (state, action) => {
+                const doctorId = action.meta.arg?.doctorId
+                if (!doctorId) return
+                const existing = state.availabilityByDoctorId[doctorId] || EMPTY_RESOURCE
+                state.availabilityByDoctorId[doctorId] = {
+                    ...existing,
+                    status: 'failed',
+                    error: action.error?.message || 'Failed to load availability.',
+                }
+            })
+    },
 })
 
 export const selectDoctorsResource = (state) => state.doctors?.doctors || EMPTY_RESOURCE
@@ -160,12 +160,12 @@ export const selectDoctorSpecialties = (state) => selectSpecialtiesResource(stat
 export const selectDoctorSpecialtiesStatus = (state) => selectSpecialtiesResource(state).status
 
 export const selectDoctorAvailabilityResource = (state, doctorId) =>
-  state.doctors?.availabilityByDoctorId?.[doctorId] || EMPTY_RESOURCE
+    state.doctors?.availabilityByDoctorId?.[doctorId] || EMPTY_RESOURCE
 
 export const selectDoctorAvailability = (state, doctorId) =>
-  selectDoctorAvailabilityResource(state, doctorId).items
+    selectDoctorAvailabilityResource(state, doctorId).items
 
 export const selectDoctorAvailabilityStatus = (state, doctorId) =>
-  selectDoctorAvailabilityResource(state, doctorId).status
+    selectDoctorAvailabilityResource(state, doctorId).status
 
 export default doctorsSlice.reducer
