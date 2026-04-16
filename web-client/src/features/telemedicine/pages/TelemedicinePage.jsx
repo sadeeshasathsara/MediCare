@@ -7,16 +7,16 @@ import {
   useRef,
   useState,
 } from 'react'
-import { CalendarClock, HeartPulse, RefreshCcw, Stethoscope } from 'lucide-react'
+import { RefreshCcw } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 
 import { useAuth } from '@/context/AuthContext'
 import AppointmentDetailsPanel from '@/features/telemedicine/components/AppointmentDetailsPanel'
+import ConsultationWorkspaceHeader from '@/features/telemedicine/components/ConsultationWorkspaceHeader'
 import AppointmentInbox from '@/features/telemedicine/components/AppointmentInbox'
 import ClinicalWrapUpPanel from '@/features/telemedicine/components/ClinicalWrapUpPanel'
 import FeatureNotice from '@/features/telemedicine/components/FeatureNotice'
 import LiveConsultationPanel from '@/features/telemedicine/components/LiveConsultationPanel'
-import ManualTestToolsPanel from '@/features/telemedicine/components/ManualTestToolsPanel'
 import SessionControlPanel from '@/features/telemedicine/components/SessionControlPanel'
 import StatusBadge from '@/features/telemedicine/components/StatusBadge'
 import TelemedicineSection from '@/features/telemedicine/components/TelemedicineSection'
@@ -40,11 +40,8 @@ import {
   updatePrescriptionStatus,
 } from '@/features/telemedicine/services/telemedicineApi'
 import {
-  buildJitsiRoomUrl,
   enrichTelemedicineAppointment,
-  formatDateTime,
   getErrorMessage,
-  getSessionStateCopy,
   READY_POLL_STATUSES,
   resolveTelemedicineDoctor,
   toIsoStringFromLocalValue,
@@ -74,6 +71,55 @@ function decodeJwtSubject(token) {
   }
 }
 
+function safeJsonParse(value) {
+  if (!value) return null
+  try {
+    return JSON.parse(value)
+  } catch {
+    return null
+  }
+}
+
+function normalizeId(value) {
+  if (value === undefined || value === null) return ''
+  const next = String(value).trim()
+  return next
+}
+
+function resolveDoctorIdFromUserLike(userLike) {
+  if (!userLike || typeof userLike !== 'object') return ''
+
+  const directCandidates = [
+    userLike.id,
+    userLike.userId,
+    userLike._id,
+    userLike.doctorId,
+    userLike.doctorID,
+    userLike.profileId,
+  ]
+
+  for (const candidate of directCandidates) {
+    const normalized = normalizeId(candidate)
+    if (normalized) return normalized
+  }
+
+  const nestedCandidates = [
+    userLike.doctor?.id,
+    userLike.doctor?.userId,
+    userLike.doctor?._id,
+    userLike.profile?.id,
+    userLike.profile?.userId,
+    userLike.profile?._id,
+  ]
+
+  for (const candidate of nestedCandidates) {
+    const normalized = normalizeId(candidate)
+    if (normalized) return normalized
+  }
+
+  return ''
+}
+
 function actionLoading(kind) {
   return { kind, loading: true, error: '', success: '' }
 }
@@ -91,7 +137,17 @@ export default function TelemedicinePage() {
   const { appointmentId: routeAppointmentId } = useParams()
 
   const { user, accessToken } = useAuth()
-  const doctorId = user?.id || decodeJwtSubject(accessToken) || user?.email || 'doctor-demo'
+  const doctorId = useMemo(() => {
+    const storedUser = safeJsonParse(localStorage.getItem('user'))
+    const fromStorage = resolveDoctorIdFromUserLike(storedUser)
+    if (fromStorage) return fromStorage
+
+    const fromAuthContext = resolveDoctorIdFromUserLike(user)
+    if (fromAuthContext) return fromAuthContext
+
+    const fromToken = decodeJwtSubject(accessToken || localStorage.getItem('accessToken'))
+    return normalizeId(fromToken)
+  }, [accessToken, user])
   const doctorDisplay = useMemo(() => resolveTelemedicineDoctor(user, doctorId), [doctorId, user])
 
   const [appointments, setAppointments] = useState([])
@@ -113,7 +169,7 @@ export default function TelemedicinePage() {
   const [sessionActionState, setSessionActionState] = useState(EMPTY_ACTION_STATE)
   const [consultationActionState, setConsultationActionState] = useState(EMPTY_ACTION_STATE)
   const [prescriptionActionState, setPrescriptionActionState] = useState(EMPTY_ACTION_STATE)
-  const [manualToolsActionState, setManualToolsActionState] = useState(EMPTY_ACTION_STATE)
+  const [consultationModalOpen, setConsultationModalOpen] = useState(false)
 
   const enrichedAppointments = useMemo(
     () => appointments.map((appointment) => enrichTelemedicineAppointment(appointment, user, doctorId)),
@@ -128,11 +184,13 @@ export default function TelemedicinePage() {
   const selectedSessionId = selectedSession?.id || null
   const selectedSessionAppointmentId = selectedSession?.appointmentId || null
   const selectedSessionStatus = selectedSession?.sessionStatus || null
-  const workspaceSummary = selectedSession
-    ? getSessionStateCopy(selectedSession.sessionStatus)
-    : selectedAppointment
-      ? 'Appointment selected. Review it, then create or manage the session from the next section.'
-      : 'No appointment selected yet. Use the inbox or demo tools to begin.'
+  const appointmentIdForSessionCreation = useMemo(() => {
+    const routeId = normalizeId(routeAppointmentId)
+    if (routeId) return routeId
+
+    const selectedId = normalizeId(selectedAppointment?.id || selectedAppointmentId)
+    return selectedId
+  }, [routeAppointmentId, selectedAppointment?.id, selectedAppointmentId])
 
   useEffect(() => {
     selectedAppointmentIdRef.current = selectedAppointmentId
@@ -143,6 +201,16 @@ export default function TelemedicinePage() {
   }, [routeAppointmentId])
 
   const refreshAppointments = useCallback(async ({ preferredAppointmentId = null, preserveSelection = true } = {}) => {
+    if (!doctorId) {
+      startTransition(() => {
+        setAppointments([])
+        setSelectedAppointmentId(null)
+      })
+      setAppointmentsLoading(false)
+      setAppointmentsError('Logged-in doctor id was not found in local storage. Please sign in again.')
+      return
+    }
+
     setAppointmentsLoading(true)
     setAppointmentsError('')
 
@@ -354,6 +422,23 @@ export default function TelemedicinePage() {
     }
   }, [doctorJoinInfo, selectedSession])
 
+  useEffect(() => {
+    if (!selectedSession) {
+      setConsultationModalOpen(false)
+    }
+  }, [selectedSession])
+
+  useEffect(() => {
+    if (!consultationModalOpen) return undefined
+
+    const originalOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+
+    return () => {
+      document.body.style.overflow = originalOverflow
+    }
+  }, [consultationModalOpen])
+
   const handleAcceptAppointment = async (appointmentId) => {
     setAppointmentActionState(actionLoading('accept'))
 
@@ -398,18 +483,22 @@ export default function TelemedicinePage() {
   }
 
   const handleCreateSession = async () => {
-    if (!selectedAppointment?.id) return
+    if (!appointmentIdForSessionCreation) {
+      setSessionActionState(actionError('create', 'Appointment id is missing. Open a valid appointment and try again.'))
+      return
+    }
 
     setSessionActionState(actionLoading('create'))
 
     try {
-      const createdSession = await createSession(selectedAppointment.id)
+      const createdSession = await createSession(appointmentIdForSessionCreation)
       startTransition(() => {
         setSessionsByAppointmentId((current) => ({
           ...current,
-          [selectedAppointment.id]: createdSession,
+          [appointmentIdForSessionCreation]: createdSession,
         }))
       })
+      await refreshSessionForAppointment(appointmentIdForSessionCreation, { showLoading: false })
       setSessionActionState(actionSuccess('create', 'Session created. Generate doctor join access to open the room.'))
     } catch (error) {
       setSessionActionState(actionError('create', getErrorMessage(error, 'Unable to create the session.')))
@@ -470,13 +559,24 @@ export default function TelemedicinePage() {
 
     try {
       const updatedSession = await startSession(selectedSession.id)
+      let joinInfo = doctorJoinInfo
+
+      if (!joinInfo || joinInfo.sessionId !== updatedSession.id) {
+        joinInfo = await getJoinToken(updatedSession.id, 'doctor', true)
+      }
+
       startTransition(() => {
         setSessionsByAppointmentId((current) => ({
           ...current,
           [selectedAppointment.id]: updatedSession,
         }))
+        if (joinInfo) {
+          setDoctorJoinInfo(joinInfo)
+        }
       })
-      setSessionActionState(actionSuccess('start', 'Session marked as live.'))
+      await refreshReadinessForSession(updatedSession)
+      setConsultationModalOpen(true)
+      setSessionActionState(actionSuccess('start', 'Session marked as live. Consultation workspace opened.'))
     } catch (error) {
       setSessionActionState(actionError('start', getErrorMessage(error, 'Unable to start the session.')))
     }
@@ -496,7 +596,7 @@ export default function TelemedicinePage() {
         }))
       })
       await refreshConsultationForSession(updatedSession)
-      setSessionActionState(actionSuccess('end', 'Session completed. Consultation notes are now unlocked.'))
+      setSessionActionState(actionSuccess('end', 'Session completed. You can now complete consultation notes and prescriptions.'))
     } catch (error) {
       setSessionActionState(actionError('end', getErrorMessage(error, 'Unable to end the session.')))
     }
@@ -590,45 +690,6 @@ export default function TelemedicinePage() {
     }
   }
 
-  const handleOpenPatientTestWindow = async () => {
-    if (!selectedSession || !selectedAppointment) return
-
-    const popupWindow = window.open('', 'telemedicine-patient-test', 'width=1200,height=900')
-    if (!popupWindow) {
-      setManualToolsActionState(actionError('patient-window', 'Popup blocked. Allow popups for this site and try again.'))
-      return
-    }
-
-    popupWindow.document.title = 'Opening patient test window...'
-    popupWindow.document.body.innerHTML = '<p style="font-family:sans-serif;padding:24px;">Preparing patient test window...</p>'
-
-    setManualToolsActionState(actionLoading('patient-window'))
-
-    try {
-      const joinInfo = await getJoinToken(selectedSession.id, 'patient', true)
-      const meetingUrl = buildJitsiRoomUrl(joinInfo.jitsiDomain, joinInfo.roomId, joinInfo.token)
-
-      if (!meetingUrl) {
-        throw new Error('The patient join URL could not be created.')
-      }
-
-      popupWindow.location.replace(meetingUrl)
-      await refreshSessionForAppointment(selectedAppointment.id, { showLoading: false })
-      await refreshReadinessForSession(selectedSession)
-      setManualToolsActionState(
-        actionSuccess(
-          'patient-window',
-          joinInfo.publicRoom
-            ? 'Patient test window opened for the public Jitsi room.'
-            : 'Patient test window opened with a fresh join token.'
-        )
-      )
-    } catch (error) {
-      popupWindow.close()
-      setManualToolsActionState(actionError('patient-window', getErrorMessage(error, 'Unable to open the patient test window.')))
-    }
-  }
-
   const handleSelectAppointment = useCallback((appointmentId) => {
     navigate(`/doctor/telemedicine/${appointmentId}`)
     window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -636,7 +697,7 @@ export default function TelemedicinePage() {
 
   return (
     <div className="space-y-6">
-      
+
 
       {!selectedAppointment ? (
         <>
@@ -649,67 +710,24 @@ export default function TelemedicinePage() {
             onSelectAppointment={handleSelectAppointment}
           />
 
-        
+
         </>
       ) : (
         <div className="space-y-5">
+          {/* ── Workspace hero header with progress stepper ── */}
+          <ConsultationWorkspaceHeader
+            appointment={selectedAppointment}
+            session={selectedSession}
+            consultation={selectedConsultation}
+            onBack={() => navigate('/doctor/telemedicine')}
+          />
+
+          {/* ── Appointment decision panel ── */}
           <TelemedicineSection
-            title="Appointment Details Page"
-            description="Review this appointment in full, then continue through session management, live consultation, and clinical wrap-up without losing focus."
-            actions={(
-              <button
-                type="button"
-                onClick={() => navigate('/doctor/telemedicine')}
-                className="inline-flex items-center rounded-2xl border px-4 py-2.5 text-sm font-semibold transition hover:bg-black/[0.03] dark:hover:bg-white/[0.05]"
-                style={{ borderColor: 'hsl(var(--border))', color: 'hsl(var(--foreground))' }}
-              >
-                Back to my appointments
-              </button>
-            )}
+            title="Appointment Details"
+            description="Review patient info, then accept, reject, or propose a new time for the appointment."
           >
             <div className="space-y-5">
-              <div
-                className="rounded-[28px] border p-5"
-                style={{
-                  borderColor: 'hsl(var(--border))',
-                  background:
-                    'linear-gradient(135deg, hsl(var(--primary) / 0.16), hsl(var(--accent) / 0.34))',
-                }}
-              >
-                <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-                  <div className="space-y-3">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <StatusBadge status={selectedAppointment.status} />
-                      {selectedSession ? <StatusBadge status={selectedSession.sessionStatus} /> : null}
-                      {selectedConsultation ? <StatusBadge status="COMPLETED" /> : null}
-                    </div>
-                    <div className="space-y-1">
-                      <h2 className="text-2xl font-semibold tracking-tight" style={{ color: 'hsl(var(--foreground))' }}>
-                        {selectedAppointment.patientDisplay?.name || `Patient ${selectedAppointment.patientId}`}
-                      </h2>
-                      <p className="text-sm leading-6" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                        {selectedAppointment.reasonForVisit || 'Consultation request'}
-                      </p>
-                    </div>
-                    <p className="max-w-2xl text-sm leading-6" style={{ color: 'hsl(var(--foreground))' }}>
-                      {workspaceSummary}
-                    </p>
-                  </div>
-
-                  <div className="rounded-[24px] border px-4 py-4" style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--card) / 0.76)' }}>
-                    <p className="text-xs uppercase tracking-[0.18em]" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                      Appointment ID
-                    </p>
-                    <p className="mt-2 break-all text-sm font-semibold" style={{ color: 'hsl(var(--foreground))' }}>
-                      {selectedAppointment.id}
-                    </p>
-                    <p className="mt-2 break-all text-sm" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                      {selectedAppointment.patientDisplay?.userId || selectedAppointment.patientId}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
               {appointmentActionState.error ? (
                 <FeatureNotice tone="error" title="Appointment action failed" message={appointmentActionState.error} />
               ) : null}
@@ -728,80 +746,7 @@ export default function TelemedicinePage() {
             </div>
           </TelemedicineSection>
 
-          <TelemedicineSection
-            title="Appointment Workspace"
-            description="This workspace keeps the current appointment context visible while the doctor manages session readiness, enters the call, and completes clinical outcomes."
-          >
-            <div className="grid gap-4 xl:grid-cols-4">
-              <div
-                className="rounded-[24px] border px-5 py-4"
-                style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--card))' }}
-              >
-                <p className="text-xs uppercase tracking-[0.18em]" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                  Patient
-                </p>
-                <p className="mt-2 text-sm font-semibold" style={{ color: 'hsl(var(--foreground))' }}>
-                  {selectedAppointment.patientDisplay?.name || `Patient ${selectedAppointment.patientId}`}
-                </p>
-                <p className="mt-2 text-sm leading-6" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                  {selectedAppointment.patientDisplay?.email || 'No patient email available'}
-                </p>
-              </div>
-
-              <div
-                className="rounded-[24px] border px-5 py-4"
-                style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--card))' }}
-              >
-                <p className="text-xs uppercase tracking-[0.18em]" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                  Scheduled time
-                </p>
-                <div className="mt-2 flex items-start gap-2">
-                  <CalendarClock className="mt-0.5 h-4 w-4 shrink-0" style={{ color: 'hsl(var(--primary))' }} />
-                  <p className="text-sm font-semibold leading-6" style={{ color: 'hsl(var(--foreground))' }}>
-                    {formatDateTime(selectedAppointment.scheduledAt)}
-                  </p>
-                </div>
-              </div>
-
-              <div
-                className="rounded-[24px] border px-5 py-4"
-                style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--card))' }}
-              >
-                <p className="text-xs uppercase tracking-[0.18em]" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                  Session room
-                </p>
-                <p className="mt-2 text-sm font-semibold" style={{ color: 'hsl(var(--foreground))' }}>
-                  {selectedSession?.jitsiRoomId || 'Not created yet'}
-                </p>
-                <p className="mt-2 text-sm leading-6" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                  {selectedSession ? 'Room created and linked to this appointment.' : 'Create the session once the appointment is accepted.'}
-                </p>
-              </div>
-
-              <div
-                className="rounded-[24px] border px-5 py-4"
-                style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--card))' }}
-              >
-                <p className="text-xs uppercase tracking-[0.18em]" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                  Clinical wrap-up
-                </p>
-                <div className="mt-2 flex flex-wrap items-center gap-2">
-                  {selectedConsultation ? (
-                    <StatusBadge status="COMPLETED" />
-                  ) : (
-                    <StatusBadge status={selectedSession?.sessionStatus || selectedAppointment.status} className="opacity-75" />
-                  )}
-                </div>
-                <p className="mt-2 text-sm leading-6" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                  {selectedConsultation
-                    ? 'Consultation record exists and prescriptions can be managed.'
-                    : 'Consultation notes unlock after the session is completed.'}
-                </p>
-              </div>
-            </div>
-          </TelemedicineSection>
-
-          <div className="grid gap-5 2xl:grid-cols-[0.92fr_1.08fr]">
+          <div className="grid gap-5">
             <SessionControlPanel
               appointment={selectedAppointment}
               session={selectedSession}
@@ -817,60 +762,107 @@ export default function TelemedicinePage() {
               onStartSession={handleStartSession}
               onEndSession={handleEndSession}
             />
-
-            <LiveConsultationPanel currentUser={user} session={selectedSession} joinInfo={doctorJoinInfo} />
           </div>
 
-          <ClinicalWrapUpPanel
-            session={selectedSession}
-            consultation={selectedConsultation}
-            prescriptions={selectedPrescriptions}
-            consultationActionState={consultationActionState}
-            prescriptionActionState={prescriptionActionState}
-            onCreateConsultation={handleCreateConsultation}
-            onUpdateConsultation={handleUpdateConsultation}
-            onCreatePrescription={handleCreatePrescription}
-            onUpdatePrescriptionStatus={handleUpdatePrescriptionStatus}
-            onCancelPrescription={handleCancelPrescription}
-          />
+          {!consultationModalOpen ? (
+            <ClinicalWrapUpPanel
+              session={selectedSession}
+              consultation={selectedConsultation}
+              prescriptions={selectedPrescriptions}
+              consultationActionState={consultationActionState}
+              prescriptionActionState={prescriptionActionState}
+              onCreateConsultation={handleCreateConsultation}
+              onUpdateConsultation={handleUpdateConsultation}
+              onCreatePrescription={handleCreatePrescription}
+              onUpdatePrescriptionStatus={handleUpdatePrescriptionStatus}
+              onCancelPrescription={handleCancelPrescription}
+            />
+          ) : null}
         </div>
       )}
 
-      <ManualTestToolsPanel
-        doctorDisplay={doctorDisplay}
-        selectedSession={selectedSession}
-        actionState={manualToolsActionState}
-        onOpenPatientTestWindow={handleOpenPatientTestWindow}
-      />
+      {consultationModalOpen && selectedSession ? (
+        <div className="fixed inset-0 z-90 bg-black/55">
+          <div
+            className="h-screen w-screen bg-[hsl(var(--background))]"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Live consultation workspace"
+          >
+            <div
+              className="flex items-center justify-between border-b px-4 py-3 lg:px-6"
+              style={{ borderColor: 'hsl(var(--border))' }}
+            >
+              <div>
+                <p className="text-xs uppercase tracking-[0.18em]" style={{ color: 'hsl(var(--muted-foreground))' }}>
+                  {selectedSession.sessionStatus === 'COMPLETED' ? 'Session completed' : 'Consultation in progress'}
+                </p>
+                <p className="mt-1 text-base font-semibold" style={{ color: 'hsl(var(--foreground))' }}>
+                  {selectedSession.jitsiRoomId || selectedSession.id}
+                </p>
+              </div>
 
-      <div className="flex items-center justify-end">
-        <button
-          type="button"
-          onClick={() => refreshAppointments({ preserveSelection: true })}
-          className="inline-flex items-center rounded-2xl border px-4 py-2.5 text-sm font-semibold transition hover:bg-black/[0.03] dark:hover:bg-white/[0.05]"
-          style={{ borderColor: 'hsl(var(--border))', color: 'hsl(var(--foreground))' }}
-        >
-          <RefreshCcw className="mr-2 h-4 w-4" />
-          Refresh workspace
-        </button>
-      </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <StatusBadge status={selectedSession.sessionStatus} />
+                <button
+                  type="button"
+                  onClick={handleGenerateDoctorJoin}
+                  disabled={sessionActionState.loading}
+                  className="inline-flex items-center justify-center rounded-2xl border px-4 py-2 text-sm font-semibold transition hover:bg-black/4 disabled:cursor-not-allowed disabled:opacity-60 dark:hover:bg-white/6"
+                  style={{ borderColor: 'hsl(var(--border))', color: 'hsl(var(--foreground))' }}
+                >
+                  Refresh Join Access
+                </button>
+                {selectedSession.sessionStatus === 'LIVE' ? (
+                  <button
+                    type="button"
+                    onClick={handleEndSession}
+                    disabled={sessionActionState.loading}
+                    className="inline-flex items-center justify-center rounded-2xl border border-rose-300 bg-rose-100 px-4 py-2 text-sm font-semibold text-rose-900 transition hover:bg-rose-200 disabled:cursor-not-allowed disabled:opacity-60 dark:border-rose-800/70 dark:bg-rose-950/35 dark:text-rose-100 dark:hover:bg-rose-900/45"
+                  >
+                    {sessionActionState.loading && sessionActionState.kind === 'end' ? 'Ending...' : 'End Session'}
+                  </button>
+                ) : null}
+                {selectedSession.sessionStatus === 'COMPLETED' ? (
+                  <button
+                    type="button"
+                    onClick={() => setConsultationModalOpen(false)}
+                    className="inline-flex items-center justify-center rounded-2xl border px-4 py-2 text-sm font-semibold transition hover:bg-black/4 dark:hover:bg-white/6"
+                    style={{ borderColor: 'hsl(var(--border))', color: 'hsl(var(--foreground))' }}
+                  >
+                    Close
+                  </button>
+                ) : null}
+              </div>
+            </div>
 
-      <div
-        className="rounded-[24px] border px-5 py-5"
-        style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--card))' }}
-      >
-        <div className="flex items-start gap-3">
-          <Stethoscope className="mt-0.5 h-5 w-5 shrink-0" style={{ color: 'hsl(var(--primary))' }} />
-          <div className="space-y-2">
-            <p className="text-sm font-semibold" style={{ color: 'hsl(var(--foreground))' }}>
-              Manual validation checklist
-            </p>
-            <p className="text-sm leading-6" style={{ color: 'hsl(var(--muted-foreground))' }}>
-              Seed a demo appointment if needed, accept it, create a session, generate doctor join access, open the patient test window, then start and end the session. After completion, create the consultation and issue the prescription from this same page.
-            </p>
+            {selectedSession.sessionStatus === 'LIVE' ? (
+              <div className="h-[calc(100vh-4.5rem)] min-h-0 p-3 lg:p-4">
+                <div className="h-full min-h-0 overflow-y-auto rounded-[20px] border p-2" style={{ borderColor: 'hsl(var(--border))' }}>
+                  <LiveConsultationPanel currentUser={user} session={selectedSession} joinInfo={doctorJoinInfo} />
+                </div>
+              </div>
+            ) : (
+              <div className="h-[calc(100vh-4.5rem)] min-h-0 p-3 lg:p-4">
+                <div className="h-full min-h-0 overflow-y-auto rounded-[20px] border p-2" style={{ borderColor: 'hsl(var(--border))' }}>
+                  <ClinicalWrapUpPanel
+                    session={selectedSession}
+                    consultation={selectedConsultation}
+                    prescriptions={selectedPrescriptions}
+                    consultationActionState={consultationActionState}
+                    prescriptionActionState={prescriptionActionState}
+                    onCreateConsultation={handleCreateConsultation}
+                    onUpdateConsultation={handleUpdateConsultation}
+                    onCreatePrescription={handleCreatePrescription}
+                    onUpdatePrescriptionStatus={handleUpdatePrescriptionStatus}
+                    onCancelPrescription={handleCancelPrescription}
+                  />
+                </div>
+              </div>
+            )}
           </div>
         </div>
-      </div>
+      ) : null}
     </div>
   )
 }

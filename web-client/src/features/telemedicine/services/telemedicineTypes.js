@@ -281,14 +281,37 @@ export function resolveTelemedicinePatient(patientId) {
 export function getTelemedicinePatientIdentifiers(user) {
   const identifiers = new Set()
   const normalizedEmail = String(user?.email || '').toLowerCase()
-
-  if (user?.id) {
-    identifiers.add(user.id)
+  const addIdentifier = (value) => {
+    if (value === undefined || value === null) return
+    const normalized = String(value).trim()
+    if (!normalized) return
+    identifiers.add(normalized)
   }
 
-  const isSeededPatientById =
-    user?.id === SEEDED_TELEMEDICINE_PATIENT.userId ||
-    user?.id === SEEDED_TELEMEDICINE_PATIENT.profileId
+  const directCandidates = [
+    user?.id,
+    user?.userId,
+    user?._id,
+    user?.patientId,
+    user?.patientID,
+    user?.profileId,
+  ]
+  directCandidates.forEach(addIdentifier)
+
+  const nestedCandidates = [
+    user?.patient?.id,
+    user?.patient?.userId,
+    user?.patient?._id,
+    user?.profile?.id,
+    user?.profile?.userId,
+    user?.profile?._id,
+  ]
+  nestedCandidates.forEach(addIdentifier)
+
+  const isSeededPatientById = Array.from(identifiers).some((value) => (
+    value === SEEDED_TELEMEDICINE_PATIENT.userId ||
+    value === SEEDED_TELEMEDICINE_PATIENT.profileId
+  ))
 
   const isSeededPatientByEmail =
     normalizedEmail &&

@@ -1,5 +1,6 @@
-import { useState } from 'react'
-import { CalendarClock, FileText } from 'lucide-react'
+import { createElement, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
+import { CalendarClock, CheckCircle, FileText, X, XCircle } from 'lucide-react'
 
 import StatusBadge from '@/features/telemedicine/components/StatusBadge'
 import {
@@ -8,248 +9,322 @@ import {
   toDateTimeLocalValue,
 } from '@/features/telemedicine/services/telemedicineTypes'
 
-function actionButtonClass(kind = 'secondary') {
-  if (kind === 'primary') {
-    return 'inline-flex items-center justify-center rounded-2xl px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60'
-  }
+/* ─── Modal backdrop ─────────────────────────────────────────────────────── */
 
-  if (kind === 'danger') {
-    return 'inline-flex items-center justify-center rounded-2xl border border-rose-300 bg-rose-50 px-4 py-2.5 text-sm font-semibold text-rose-900 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-rose-800 dark:bg-rose-950/30 dark:text-rose-100'
-  }
+function Modal({ open, onClose, title, children }) {
+  const overlayRef = useRef(null)
 
-  return 'inline-flex items-center justify-center rounded-2xl border px-4 py-2.5 text-sm font-semibold transition hover:bg-black/[0.03] disabled:cursor-not-allowed disabled:opacity-60 dark:hover:bg-white/[0.05]'
+  /* Close on Escape */
+  useEffect(() => {
+    if (!open) return
+    const handler = (e) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [open, onClose])
+
+  if (!open) return null
+
+  return createPortal(
+    <div
+      ref={overlayRef}
+      className="fixed inset-0 z-9999 flex items-center justify-center p-4"
+      style={{ backgroundColor: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(6px)' }}
+      onClick={(e) => { if (e.target === overlayRef.current) onClose() }}
+    >
+      <div
+        className="w-full max-w-md rounded-3xl border p-6 shadow-2xl"
+        style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--card))' }}
+      >
+        {/* Header */}
+        <div className="mb-5 flex items-center justify-between gap-3">
+          <h3 className="text-base font-semibold" style={{ color: 'hsl(var(--foreground))' }}>
+            {title}
+          </h3>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-8 w-8 items-center justify-center rounded-xl transition hover:bg-black/6 dark:hover:bg-white/8"
+            style={{ color: 'hsl(var(--muted-foreground))' }}
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>,
+    document.body
+  )
 }
+
+/* ─── Info grid cell ─────────────────────────────────────────────────────── */
+
+function InfoCell({ icon, label, value }) {
+  return (
+    <div
+      className="rounded-2xl border px-4 py-3"
+      style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--background) / 0.55)' }}
+    >
+      <div className="flex items-center gap-1.5 mb-1">
+        {createElement(icon, { className: 'h-3.5 w-3.5', style: { color: 'hsl(var(--primary))' } })}
+        <p className="text-[10px] font-semibold uppercase tracking-[0.16em]" style={{ color: 'hsl(var(--muted-foreground))' }}>
+          {label}
+        </p>
+      </div>
+      <p className="text-sm font-semibold" style={{ color: 'hsl(var(--foreground))' }}>
+        {value || '—'}
+      </p>
+    </div>
+  )
+}
+
+/* ─── Shared input styles ────────────────────────────────────────────────── */
+
+const inputClass = 'w-full rounded-2xl border px-4 py-3 text-sm outline-none transition focus:ring-2 focus:ring-primary/30'
+const inputStyle = {
+  borderColor: 'hsl(var(--border))',
+  backgroundColor: 'hsl(var(--background))',
+  color: 'hsl(var(--foreground))',
+}
+
+/* ─── Main component ─────────────────────────────────────────────────────── */
 
 export default function AppointmentDetailsPanel({
   selectedAppointment,
-  doctorDisplay,
   actionState,
   onAcceptAppointment,
   onRejectAppointment,
   onRescheduleAppointment,
 }) {
-  const [rejectReason, setRejectReason] = useState(selectedAppointment.rejectionReason || '')
+  const [rejectOpen,     setRejectOpen]     = useState(false)
+  const [rescheduleOpen, setRescheduleOpen] = useState(false)
+
+  const [rejectReason,    setRejectReason]    = useState(selectedAppointment.rejectionReason || '')
   const [rescheduleReason, setRescheduleReason] = useState(selectedAppointment.rescheduleReason || '')
-  const [rescheduleAt, setRescheduleAt] = useState(
-    toDateTimeLocalValue(
-      selectedAppointment.proposedScheduledAt || selectedAppointment.scheduledAt
-    ) || nextLocalDateTimeValue(45)
+  const [rescheduleAt,    setRescheduleAt]    = useState(
+    toDateTimeLocalValue(selectedAppointment.proposedScheduledAt || selectedAppointment.scheduledAt)
+    || nextLocalDateTimeValue(45)
   )
 
-  const acceptDisabled = selectedAppointment.status === 'ACCEPTED' || actionState.loading
-  const rejectDisabled = actionState.loading
-  const rescheduleDisabled = actionState.loading
+  const acceptDisabled     = selectedAppointment.status === 'ACCEPTED' || actionState.loading
+  const rejectDisabled     = actionState.loading || !rejectReason.trim()
+  const rescheduleDisabled = actionState.loading || !rescheduleAt || !rescheduleReason.trim()
+
+  const handleRejectSubmit = (e) => {
+    e.preventDefault()
+    onRejectAppointment(selectedAppointment.id, rejectReason)
+    setRejectOpen(false)
+  }
+
+  const handleRescheduleSubmit = (e) => {
+    e.preventDefault()
+    onRescheduleAppointment(selectedAppointment.id, {
+      newScheduledAt: rescheduleAt,
+      reason: rescheduleReason,
+    })
+    setRescheduleOpen(false)
+  }
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="space-y-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <StatusBadge status={selectedAppointment.status} />
-            <span className="text-xs uppercase tracking-[0.18em]" style={{ color: 'hsl(var(--muted-foreground))' }}>
-              {selectedAppointment.id}
-            </span>
-          </div>
-          <h3 className="text-xl font-semibold tracking-tight" style={{ color: 'hsl(var(--foreground))' }}>
-            {selectedAppointment.reasonForVisit || 'Consultation request'}
-          </h3>
-        </div>
-        <div className="rounded-[22px] border px-4 py-3 text-right" style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--background) / 0.7)' }}>
-          <p className="text-xs uppercase tracking-[0.18em]" style={{ color: 'hsl(var(--muted-foreground))' }}>
-            Scheduled for
-          </p>
-          <p className="mt-1 text-sm font-semibold" style={{ color: 'hsl(var(--foreground))' }}>
-            {formatDateTime(selectedAppointment.scheduledAt)}
-          </p>
-        </div>
-      </div>
+    <>
+      <div className="space-y-5">
 
-      <div className="grid gap-3 lg:grid-cols-3">
-        <div className="rounded-[22px] border px-4 py-4" style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--background) / 0.6)' }}>
-          <p className="text-xs uppercase tracking-[0.18em]" style={{ color: 'hsl(var(--muted-foreground))' }}>
-            Patient
-          </p>
-          <div className="mt-2 space-y-1 text-sm" style={{ color: 'hsl(var(--foreground))' }}>
-            <p className="font-semibold">
-              {selectedAppointment.patientDisplay?.name || selectedAppointment.patientId}
+        {/* ── Appointment info grid ── */}
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <InfoCell
+            icon={CalendarClock}
+            label="Scheduled for"
+            value={formatDateTime(selectedAppointment.scheduledAt)}
+          />
+          <InfoCell
+            icon={FileText}
+            label="Reason"
+            value={selectedAppointment.reasonForVisit || 'Consultation request'}
+          />
+          <div
+            className="rounded-2xl border px-4 py-3"
+            style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--background) / 0.55)' }}
+          >
+            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] mb-1" style={{ color: 'hsl(var(--muted-foreground))' }}>
+              Status
             </p>
-            <p style={{ color: 'hsl(var(--muted-foreground))' }}>
-              {selectedAppointment.patientDisplay?.email || 'No patient email available'}
-            </p>
-            <p style={{ color: 'hsl(var(--muted-foreground))' }}>
-              DOB: {selectedAppointment.patientDisplay?.dob || 'Not available'}
-            </p>
-            <p style={{ color: 'hsl(var(--muted-foreground))' }}>
-              Status: {selectedAppointment.patientDisplay?.status || 'Unknown'}
-            </p>
-            <p className="break-all text-xs uppercase tracking-[0.14em]" style={{ color: 'hsl(var(--muted-foreground))' }}>
-              {selectedAppointment.patientDisplay?.userId || selectedAppointment.patientId}
-            </p>
-          </div>
-        </div>
-
-        <div className="rounded-[22px] border px-4 py-4" style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--background) / 0.6)' }}>
-          <p className="text-xs uppercase tracking-[0.18em]" style={{ color: 'hsl(var(--muted-foreground))' }}>
-            Doctor
-          </p>
-          <div className="mt-2 space-y-1 text-sm" style={{ color: 'hsl(var(--foreground))' }}>
-            <p className="font-semibold">{doctorDisplay?.name || 'Doctor'}</p>
-            <p style={{ color: 'hsl(var(--muted-foreground))' }}>
-              {doctorDisplay?.email || 'No doctor email available'}
-            </p>
-            <p style={{ color: 'hsl(var(--muted-foreground))' }}>
-              Verification: {doctorDisplay?.doctorVerified ? 'Verified' : 'Not verified'}
-            </p>
-            <p className="break-all text-xs uppercase tracking-[0.14em]" style={{ color: 'hsl(var(--muted-foreground))' }}>
-              {doctorDisplay?.id || selectedAppointment.doctorId}
-            </p>
-          </div>
-        </div>
-
-        <div className="rounded-[22px] border px-4 py-4" style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--background) / 0.6)' }}>
-          <p className="text-xs uppercase tracking-[0.18em]" style={{ color: 'hsl(var(--muted-foreground))' }}>
-            Decision status
-          </p>
-          <div className="mt-2">
             <StatusBadge status={selectedAppointment.status} />
           </div>
-          <p className="mt-3 text-sm leading-6" style={{ color: 'hsl(var(--muted-foreground))' }}>
-            Accept to unlock session creation, reject with a clear reason, or propose a new time that fits your schedule.
-          </p>
         </div>
-      </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <div className="rounded-[24px] border px-4 py-4" style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--background) / 0.55)' }}>
-          <div className="flex items-center gap-2">
-            <CalendarClock className="h-4 w-4" style={{ color: 'hsl(var(--primary))' }} />
-            <p className="text-sm font-semibold" style={{ color: 'hsl(var(--foreground))' }}>
-              Appointment notes
+        {/* Appointment notes */}
+        {selectedAppointment.notes && (
+          <div
+            className="rounded-2xl border px-4 py-4"
+            style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--background) / 0.5)' }}
+          >
+            <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.16em]" style={{ color: 'hsl(var(--muted-foreground))' }}>
+              Patient notes
+            </p>
+            <p className="text-sm leading-6" style={{ color: 'hsl(var(--foreground))' }}>
+              {selectedAppointment.notes}
             </p>
           </div>
-          <p className="mt-3 text-sm leading-6" style={{ color: 'hsl(var(--muted-foreground))' }}>
-            {selectedAppointment.notes || 'No additional notes were provided for this request.'}
-          </p>
-        </div>
+        )}
 
-        <div className="rounded-[24px] border px-4 py-4" style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--background) / 0.55)' }}>
-          <div className="flex items-center gap-2">
-            <FileText className="h-4 w-4" style={{ color: 'hsl(var(--primary))' }} />
-            <p className="text-sm font-semibold" style={{ color: 'hsl(var(--foreground))' }}>
-              Decision summary
+        {/* Previous decision info — shown read-only if exists */}
+        {(selectedAppointment.rejectionReason || selectedAppointment.rescheduleReason) && (
+          <div
+            className="rounded-2xl border px-4 py-4"
+            style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--background) / 0.5)' }}
+          >
+            <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.16em]" style={{ color: 'hsl(var(--muted-foreground))' }}>
+              Previous decision
             </p>
+            {selectedAppointment.rejectionReason && (
+              <p className="text-sm leading-6" style={{ color: 'hsl(var(--foreground))' }}>
+                <span className="font-semibold text-rose-600 dark:text-rose-400">Rejected: </span>
+                {selectedAppointment.rejectionReason}
+              </p>
+            )}
+            {selectedAppointment.rescheduleReason && (
+              <p className="text-sm leading-6" style={{ color: 'hsl(var(--foreground))' }}>
+                <span className="font-semibold text-sky-600 dark:text-sky-400">Rescheduled: </span>
+                {selectedAppointment.rescheduleReason}
+                {selectedAppointment.proposedScheduledAt && (
+                  <span className="ml-2 text-xs" style={{ color: 'hsl(var(--muted-foreground))' }}>
+                    → {formatDateTime(selectedAppointment.proposedScheduledAt)}
+                  </span>
+                )}
+              </p>
+            )}
           </div>
-          <div className="mt-3 space-y-2 text-sm leading-6" style={{ color: 'hsl(var(--muted-foreground))' }}>
-            {selectedAppointment.rejectionReason ? <p>Rejection reason: {selectedAppointment.rejectionReason}</p> : null}
-            {selectedAppointment.rescheduleReason ? <p>Reschedule reason: {selectedAppointment.rescheduleReason}</p> : null}
-            {selectedAppointment.proposedScheduledAt ? <p>Proposed time: {formatDateTime(selectedAppointment.proposedScheduledAt)}</p> : null}
-            {!selectedAppointment.rejectionReason && !selectedAppointment.rescheduleReason ? (
-              <p>No decision notes saved yet.</p>
-            ) : null}
-          </div>
-        </div>
-      </div>
+        )}
 
-      <div className="space-y-4">
+        {/* ── Action buttons ── */}
         <div className="flex flex-wrap items-center gap-3">
+          {/* Accept */}
           <button
             type="button"
             disabled={acceptDisabled}
             onClick={() => onAcceptAppointment(selectedAppointment.id)}
-            className={actionButtonClass('primary')}
-            style={{ backgroundColor: 'hsl(var(--primary))' }}
+            className="tm-btn-tone tm-btn-success inline-flex items-center gap-2 rounded-2xl border px-5 py-2.5 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {actionState.loading && actionState.kind === 'accept' ? 'Accepting...' : 'Accept Appointment'}
+            <CheckCircle className="h-4 w-4" />
+            {actionState.loading && actionState.kind === 'accept' ? 'Accepting…' : 'Accept'}
+          </button>
+
+          {/* Reject */}
+          <button
+            type="button"
+            disabled={actionState.loading}
+            onClick={() => setRejectOpen(true)}
+            className="tm-btn-tone tm-btn-danger inline-flex items-center gap-2 rounded-2xl border px-5 py-2.5 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <XCircle className="h-4 w-4" />
+            {actionState.loading && actionState.kind === 'reject' ? 'Rejecting…' : 'Reject'}
+          </button>
+
+          {/* Reschedule */}
+          <button
+            type="button"
+            disabled={actionState.loading}
+            onClick={() => setRescheduleOpen(true)}
+            className="tm-btn-tone tm-btn-info inline-flex items-center gap-2 rounded-2xl border px-5 py-2.5 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <CalendarClock className="h-4 w-4" />
+            {actionState.loading && actionState.kind === 'reschedule' ? 'Saving…' : 'Reschedule'}
           </button>
         </div>
+      </div>
 
-        <div className="grid gap-4 xl:grid-cols-2">
-          <form
-            className="space-y-3 rounded-[24px] border p-4"
-            style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--background) / 0.55)' }}
-            onSubmit={(event) => {
-              event.preventDefault()
-              onRejectAppointment(selectedAppointment.id, rejectReason)
-            }}
-          >
-            <div>
-              <p className="text-sm font-semibold" style={{ color: 'hsl(var(--foreground))' }}>
-                Reject request
-              </p>
-              <p className="mt-1 text-sm" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                Provide a short reason so the patient can be informed clearly.
-              </p>
-            </div>
-            <textarea
-              value={rejectReason}
-              onChange={(event) => setRejectReason(event.target.value)}
-              rows={4}
-              placeholder="Example: Please upload recent lab results before the consultation."
-              className="w-full rounded-2xl border px-4 py-3 text-sm outline-none transition focus:ring-2"
-              style={{
-                borderColor: 'hsl(var(--border))',
-                backgroundColor: 'hsl(var(--card))',
-                color: 'hsl(var(--foreground))',
-              }}
-            />
-            <button type="submit" disabled={rejectDisabled || !rejectReason.trim()} className={actionButtonClass('danger')}>
-              {actionState.loading && actionState.kind === 'reject' ? 'Rejecting...' : 'Reject Appointment'}
+      {/* ── Reject modal ── */}
+      <Modal
+        open={rejectOpen}
+        onClose={() => setRejectOpen(false)}
+        title="Reject Appointment"
+      >
+        <form onSubmit={handleRejectSubmit} className="space-y-4">
+          <p className="text-sm" style={{ color: 'hsl(var(--muted-foreground))' }}>
+            Provide a short reason so the patient knows why the appointment was declined.
+          </p>
+          <textarea
+            value={rejectReason}
+            onChange={(e) => setRejectReason(e.target.value)}
+            rows={4}
+            placeholder="e.g. Please upload recent lab results before the consultation."
+            className={inputClass}
+            style={inputStyle}
+            autoFocus
+          />
+          <div className="flex justify-end gap-3">
+            <button
+              type="button"
+              onClick={() => setRejectOpen(false)}
+              className="tm-btn-tone tm-btn-neutral rounded-xl border px-4 py-2 text-sm font-semibold"
+            >
+              Cancel
             </button>
-          </form>
+            <button
+              type="submit"
+              disabled={rejectDisabled}
+              className="tm-btn-tone tm-btn-solid-danger inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <XCircle className="h-4 w-4" />
+              Confirm Rejection
+            </button>
+          </div>
+        </form>
+      </Modal>
 
-          <form
-            className="space-y-3 rounded-[24px] border p-4"
-            style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--background) / 0.55)' }}
-            onSubmit={(event) => {
-              event.preventDefault()
-              onRescheduleAppointment(selectedAppointment.id, {
-                newScheduledAt: rescheduleAt,
-                reason: rescheduleReason,
-              })
-            }}
-          >
-            <div>
-              <p className="text-sm font-semibold" style={{ color: 'hsl(var(--foreground))' }}>
-                Propose a new time
-              </p>
-              <p className="mt-1 text-sm" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                Update the appointment time and save the reason for the change.
-              </p>
-            </div>
+      {/* ── Reschedule modal ── */}
+      <Modal
+        open={rescheduleOpen}
+        onClose={() => setRescheduleOpen(false)}
+        title="Propose a New Time"
+      >
+        <form onSubmit={handleRescheduleSubmit} className="space-y-4">
+          <p className="text-sm" style={{ color: 'hsl(var(--muted-foreground))' }}>
+            Choose a new date and time, then provide a brief reason for the change.
+          </p>
+          <div>
+            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.14em]" style={{ color: 'hsl(var(--muted-foreground))' }}>
+              New date &amp; time
+            </label>
             <input
               type="datetime-local"
               value={rescheduleAt}
-              onChange={(event) => setRescheduleAt(event.target.value)}
-              className="w-full rounded-2xl border px-4 py-3 text-sm outline-none transition focus:ring-2"
-              style={{
-                borderColor: 'hsl(var(--border))',
-                backgroundColor: 'hsl(var(--card))',
-                color: 'hsl(var(--foreground))',
-              }}
+              onChange={(e) => setRescheduleAt(e.target.value)}
+              className={inputClass}
+              style={inputStyle}
             />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.14em]" style={{ color: 'hsl(var(--muted-foreground))' }}>
+              Reason
+            </label>
             <textarea
               value={rescheduleReason}
-              onChange={(event) => setRescheduleReason(event.target.value)}
+              onChange={(e) => setRescheduleReason(e.target.value)}
               rows={3}
-              placeholder="Example: Need to shift this follow-up to the afternoon clinic window."
-              className="w-full rounded-2xl border px-4 py-3 text-sm outline-none transition focus:ring-2"
-              style={{
-                borderColor: 'hsl(var(--border))',
-                backgroundColor: 'hsl(var(--card))',
-                color: 'hsl(var(--foreground))',
-              }}
+              placeholder="e.g. Need to shift this to the afternoon clinic window."
+              className={inputClass}
+              style={inputStyle}
             />
+          </div>
+          <div className="flex justify-end gap-3">
+            <button
+              type="button"
+              onClick={() => setRescheduleOpen(false)}
+              className="tm-btn-tone tm-btn-neutral rounded-xl border px-4 py-2 text-sm font-semibold"
+            >
+              Cancel
+            </button>
             <button
               type="submit"
-              disabled={rescheduleDisabled || !rescheduleAt || !rescheduleReason.trim()}
-              className={actionButtonClass()}
-              style={{ borderColor: 'hsl(var(--border))', color: 'hsl(var(--foreground))' }}
+              disabled={rescheduleDisabled}
+              className="tm-btn-tone tm-btn-solid-info inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {actionState.loading && actionState.kind === 'reschedule' ? 'Saving...' : 'Reschedule Appointment'}
+              <CalendarClock className="h-4 w-4" />
+              Confirm Reschedule
             </button>
-          </form>
-        </div>
-      </div>
-    </div>
+          </div>
+        </form>
+      </Modal>
+    </>
   )
 }
