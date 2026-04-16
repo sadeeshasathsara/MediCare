@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   CalendarPlus,
   Clock3,
@@ -98,6 +98,7 @@ function formatAppointmentDate(dateTime) {
 export default function CreatePatientAppointmentPage() {
   const dispatch = useDispatch();
   const { user } = useAuth();
+  const location = useLocation();
   const navigate = useNavigate();
   const userId = user?.id || "";
 
@@ -207,6 +208,43 @@ export default function CreatePatientAppointmentPage() {
     );
   }, [normalizedDoctors, form.doctorId]);
 
+  useEffect(() => {
+    const prefill = location.state?.prefill;
+    if (!prefill) return;
+
+    const normalizedSpecialty = String(prefill.specialty || "").trim();
+    const normalizedDoctorId = String(prefill.doctorId || "").trim();
+    const normalizedDoctorName = String(prefill.doctorName || "").trim().toLowerCase();
+
+    let matchedDoctor = null;
+    if (normalizedDoctorId) {
+      matchedDoctor = normalizedDoctors.find(
+        (doctor) => doctor.appointmentDoctorId === normalizedDoctorId,
+      );
+    }
+
+    if (!matchedDoctor && normalizedDoctorName) {
+      matchedDoctor = normalizedDoctors.find((doctor) => {
+        const name = String(doctor?.fullName || doctor?.email || "").trim().toLowerCase();
+        const specialtyMatches =
+          !normalizedSpecialty ||
+          String(doctor?.specialty || "").toLowerCase() ===
+            normalizedSpecialty.toLowerCase();
+        return name === normalizedDoctorName && specialtyMatches;
+      });
+    }
+
+    setForm((prev) => ({
+      ...prev,
+      specialty:
+        (matchedDoctor?.specialty && String(matchedDoctor.specialty).trim()) ||
+        normalizedSpecialty ||
+        prev.specialty,
+      doctorId: matchedDoctor?.appointmentDoctorId || prev.doctorId,
+      reason: String(prefill.reason || "").trim() || prev.reason,
+    }));
+  }, [location.state, normalizedDoctors]);
+
   const patientName = useMemo(() => {
     const fromProfile = String(profile?.name || "").trim();
     if (fromProfile) return fromProfile;
@@ -302,13 +340,21 @@ export default function CreatePatientAppointmentPage() {
       const response = await dispatch(
         createPatientAppointment(payload),
       ).unwrap();
-      setSuccess(
-        `Appointment created successfully${response?.id ? ` (ID: ${response.id})` : ""}.`,
-      );
+
       setForm((prev) => ({ ...prev, scheduledAt: "", reason: "" }));
       await dispatch(
         fetchAppointments({ params: { patientId: userId }, force: true }),
       );
+
+      navigate("/patient/payments", {
+        state: {
+          appointmentId: response?.id || "",
+          description: response?.id
+            ? `Appointment payment (${response.id})`
+            : "Appointment payment",
+          returnTo: "/patient/appointments/new",
+        },
+      });
     } catch (e) {
       setError(formatApiError(e));
     }

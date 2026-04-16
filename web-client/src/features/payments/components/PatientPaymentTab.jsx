@@ -73,10 +73,18 @@ function PaymentForm({ user, userId, clientSecret, paymentIntentId, onPaid, busy
     )
 }
 
-export default function PatientPaymentTab({ user, userId }) {
-    const [amount, setAmount] = useState('')
-    const [currency, setCurrency] = useState('usd')
-    const [description, setDescription] = useState('Consultation payment')
+export default function PatientPaymentTab({
+    user,
+    userId,
+    historyOnly = false,
+    initialAmount = '',
+    initialCurrency = 'usd',
+    initialDescription = 'Consultation payment',
+    onPaymentSuccess,
+}) {
+    const [amount, setAmount] = useState(initialAmount)
+    const [currency, setCurrency] = useState(initialCurrency)
+    const [description, setDescription] = useState(initialDescription)
 
     const [payments, setPayments] = useState([])
     const [loading, setLoading] = useState(false)
@@ -133,6 +141,9 @@ export default function PatientPaymentTab({ user, userId }) {
         setPaymentIntentId('')
         setAmount('')
         await loadPayments()
+        if (typeof onPaymentSuccess === 'function') {
+            await onPaymentSuccess()
+        }
     }
 
     useEffect(() => {
@@ -145,7 +156,9 @@ export default function PatientPaymentTab({ user, userId }) {
             <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
                     <CircleDollarSign size={16} className="text-muted-foreground" />
-                    <h2 className="text-base font-semibold text-foreground">Payment Method (Stripe)</h2>
+                    <h2 className="text-base font-semibold text-foreground">
+                        {historyOnly ? 'Payment History' : 'Payment Method (Stripe)'}
+                    </h2>
                 </div>
                 <button
                     type="button"
@@ -160,71 +173,75 @@ export default function PatientPaymentTab({ user, userId }) {
 
             {error ? <p className="text-sm text-destructive">{error}</p> : null}
 
-            <form onSubmit={startPayment} className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                <label className="space-y-1 md:col-span-1">
-                    <span className="text-xs font-medium text-muted-foreground">Amount</span>
-                    <input
-                        type="number"
-                        min="1"
-                        step="0.01"
-                        value={amount}
-                        onChange={(e) => setAmount(e.target.value)}
-                        className="w-full rounded-lg border border-border bg-input px-3 py-2.5 text-sm text-foreground outline-none focus-visible:border-primary"
-                        placeholder="100.00"
-                    />
-                </label>
+            {!historyOnly ? (
+                <>
+                    <form onSubmit={startPayment} className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                        <label className="space-y-1 md:col-span-1">
+                            <span className="text-xs font-medium text-muted-foreground">Amount</span>
+                            <input
+                                type="number"
+                                min="1"
+                                step="0.01"
+                                value={amount}
+                                onChange={(e) => setAmount(e.target.value)}
+                                className="w-full rounded-lg border border-border bg-input px-3 py-2.5 text-sm text-foreground outline-none focus-visible:border-primary"
+                                placeholder="100.00"
+                            />
+                        </label>
 
-                <label className="space-y-1 md:col-span-1">
-                    <span className="text-xs font-medium text-muted-foreground">Currency</span>
-                    <select
-                        value={currency}
-                        onChange={(e) => setCurrency(e.target.value)}
-                        className="w-full rounded-lg border border-border bg-input px-3 py-2.5 text-sm text-foreground outline-none focus-visible:border-primary"
-                    >
-                        <option value="usd">USD</option>
-                        <option value="lkr">LKR</option>
-                    </select>
-                </label>
+                        <label className="space-y-1 md:col-span-1">
+                            <span className="text-xs font-medium text-muted-foreground">Currency</span>
+                            <select
+                                value={currency}
+                                onChange={(e) => setCurrency(e.target.value)}
+                                className="w-full rounded-lg border border-border bg-input px-3 py-2.5 text-sm text-foreground outline-none focus-visible:border-primary"
+                            >
+                                <option value="usd">USD</option>
+                                <option value="lkr">LKR</option>
+                            </select>
+                        </label>
 
-                <label className="space-y-1 md:col-span-2">
-                    <span className="text-xs font-medium text-muted-foreground">Description</span>
-                    <input
-                        type="text"
-                        value={description}
-                        onChange={(e) => setDescription(e.target.value)}
-                        className="w-full rounded-lg border border-border bg-input px-3 py-2.5 text-sm text-foreground outline-none focus-visible:border-primary"
-                        placeholder="Consultation payment"
-                    />
-                </label>
+                        <label className="space-y-1 md:col-span-2">
+                            <span className="text-xs font-medium text-muted-foreground">Description</span>
+                            <input
+                                type="text"
+                                value={description}
+                                onChange={(e) => setDescription(e.target.value)}
+                                className="w-full rounded-lg border border-border bg-input px-3 py-2.5 text-sm text-foreground outline-none focus-visible:border-primary"
+                                placeholder="Consultation payment"
+                            />
+                        </label>
 
-                <div className="md:col-span-4">
-                    <button
-                        type="submit"
-                        disabled={!canPay || busy}
-                        className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-60"
-                    >
-                        {busy ? <Loader2 size={14} className="animate-spin" /> : <CircleDollarSign size={14} />}
-                        Start Stripe Payment
-                    </button>
-                </div>
-            </form>
+                        <div className="md:col-span-4">
+                            <button
+                                type="submit"
+                                disabled={!canPay || busy}
+                                className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-60"
+                            >
+                                {busy ? <Loader2 size={14} className="animate-spin" /> : <CircleDollarSign size={14} />}
+                                Start Stripe Payment
+                            </button>
+                        </div>
+                    </form>
 
-            {clientSecret && stripePromise ? (
-                <div className="rounded-lg border border-border bg-background p-4 space-y-3">
-                    <p className="text-sm text-muted-foreground">Enter card details to complete the payment.</p>
-                    <Elements stripe={stripePromise} options={{ clientSecret }}>
-                        <PaymentForm
-                            user={user}
-                            userId={userId}
-                            clientSecret={clientSecret}
-                            paymentIntentId={paymentIntentId}
-                            onPaid={handlePaid}
-                            busy={busy}
-                            setBusy={setBusy}
-                            setError={setError}
-                        />
-                    </Elements>
-                </div>
+                    {clientSecret && stripePromise ? (
+                        <div className="rounded-lg border border-border bg-background p-4 space-y-3">
+                            <p className="text-sm text-muted-foreground">Enter card details to complete the payment.</p>
+                            <Elements stripe={stripePromise} options={{ clientSecret }}>
+                                <PaymentForm
+                                    user={user}
+                                    userId={userId}
+                                    clientSecret={clientSecret}
+                                    paymentIntentId={paymentIntentId}
+                                    onPaid={handlePaid}
+                                    busy={busy}
+                                    setBusy={setBusy}
+                                    setError={setError}
+                                />
+                            </Elements>
+                        </div>
+                    ) : null}
+                </>
             ) : null}
 
             <div className="space-y-2">

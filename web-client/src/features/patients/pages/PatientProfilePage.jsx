@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
 import {
     downloadPatientProfilePhoto,
@@ -35,6 +36,7 @@ function emptyProfile(userId, email) {
 
 export default function PatientProfilePage() {
     const { user } = useAuth()
+    const location = useLocation()
     const userId = user?.id
     const userEmail = user?.email
 
@@ -46,6 +48,7 @@ export default function PatientProfilePage() {
     const [profile, setProfile] = useState(null)
     const [photoUrl, setPhotoUrl] = useState('')
     const [activeTab, setActiveTab] = useState('profile')
+    const [paymentNotice, setPaymentNotice] = useState('')
 
     const [phoneValue, setPhoneValue] = useState('')
 
@@ -106,6 +109,17 @@ export default function PatientProfilePage() {
             if (photoUrl) URL.revokeObjectURL(photoUrl)
         }
     }, [photoUrl])
+
+    useEffect(() => {
+        const nextTab = location.state?.activeTab
+        if (nextTab === 'payments' || nextTab === 'profile') {
+            setActiveTab(nextTab)
+        }
+
+        if (location.state?.paymentSuccess) {
+            setPaymentNotice('Payment successful. Your payment history is updated below.')
+        }
+    }, [location.state])
 
     const uploadPhoto = async (file) => {
         if (!userId || !file) return
@@ -308,6 +322,12 @@ export default function PatientProfilePage() {
                 </div>
             )}
 
+            {paymentNotice && (
+                <div className="rounded-xl border border-border bg-card p-4">
+                    <p className="text-sm text-primary">{paymentNotice}</p>
+                </div>
+            )}
+
             <div className="inline-flex rounded-lg border border-border bg-card p-1">
                 <button
                     type="button"
@@ -429,7 +449,7 @@ export default function PatientProfilePage() {
                     </section>
                 </div>
             ) : (
-                <PatientPaymentTab user={user} userId={userId} />
+                <PatientPaymentTab user={user} userId={userId} historyOnly />
             )}
         </div>
     )
