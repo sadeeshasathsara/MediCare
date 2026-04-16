@@ -5,6 +5,7 @@ import com.healthcare.appointment.dto.CreateAppointmentRequest;
 import com.healthcare.appointment.dto.RescheduleAppointmentRequest;
 import com.healthcare.appointment.dto.UpdateAppointmentStatusRequest;
 import com.healthcare.appointment.event.AppointmentEventPublisher;
+import com.healthcare.appointment.integration.notification.AppointmentNotificationClient;
 import com.healthcare.appointment.model.Appointment;
 import com.healthcare.appointment.model.AppointmentStatus;
 import com.healthcare.appointment.repository.AppointmentRepository;
@@ -21,10 +22,15 @@ public class AppointmentService {
 
     private final AppointmentRepository appointmentRepository;
     private final AppointmentEventPublisher eventPublisher;
+    private final AppointmentNotificationClient notificationClient;
 
-    public AppointmentService(AppointmentRepository appointmentRepository, AppointmentEventPublisher eventPublisher) {
+    public AppointmentService(
+            AppointmentRepository appointmentRepository,
+            AppointmentEventPublisher eventPublisher,
+            AppointmentNotificationClient notificationClient) {
         this.appointmentRepository = appointmentRepository;
         this.eventPublisher = eventPublisher;
+        this.notificationClient = notificationClient;
     }
 
     public AppointmentResponse createAppointment(String patientId, CreateAppointmentRequest request) {
@@ -43,9 +49,7 @@ public class AppointmentService {
         appointment.setUpdatedAt(now);
 
         Appointment saved = appointmentRepository.save(appointment);
-
-        // A brand new appointment doesn't trigger confirmed/completed events. 
-        // We could emit an appointment.created event, but per spec, only confirmed, cancelled, completed are listed.
+        notificationClient.notifyRequested(saved, patientId, "PATIENT");
         return toResponse(saved);
     }
 
@@ -81,10 +85,12 @@ public class AppointmentService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Only PENDING or CONFIRMED appointments can be rescheduled");
         }
 
+        Instant previousScheduledAt = appointment.getScheduledAt();
         appointment.setScheduledAt(request.getScheduledAt());
         appointment.setUpdatedAt(Instant.now());
 
         Appointment saved = appointmentRepository.save(appointment);
+        notificationClient.notifyRescheduled(saved, previousScheduledAt, userId, isDoctor ? "DOCTOR" : "PATIENT");
         return toResponse(saved);
     }
 
@@ -108,10 +114,14 @@ public class AppointmentService {
         // Publish events based on status changes
         if (oldStatus != AppointmentStatus.CONFIRMED && request.getStatus() == AppointmentStatus.CONFIRMED) {
             eventPublisher.publishEvent("appointment.confirmed", saved.getId(), saved.getPatientId(), saved.getDoctorId(), toResponse(saved));
+            notificationClient.notifyConfirmed(saved, doctorId, "DOCTOR");
         } else if (oldStatus != AppointmentStatus.COMPLETED && request.getStatus() == AppointmentStatus.COMPLETED) {
             eventPublisher.publishEvent("appointment.completed", saved.getId(), saved.getPatientId(), saved.getDoctorId(), toResponse(saved));
+            notificationClient.notifyCompleted(saved, doctorId, "DOCTOR");
         } else if (oldStatus != AppointmentStatus.CANCELLED && request.getStatus() == AppointmentStatus.CANCELLED) {
             eventPublisher.publishEvent("appointment.cancelled", saved.getId(), saved.getPatientId(), saved.getDoctorId(), toResponse(saved));
+            String cancellationReason = defaultText(request.getNotes(), "Cancelled by doctor");
+            notificationClient.notifyCancelled(saved, doctorId, "DOCTOR", cancellationReason);
         }
 
         return toResponse(saved);
@@ -136,6 +146,8 @@ public class AppointmentService {
         Appointment saved = appointmentRepository.save(appointment);
 
         eventPublisher.publishEvent("appointment.cancelled", saved.getId(), saved.getPatientId(), saved.getDoctorId(), toResponse(saved));
+        String cancellationReason = isDoctor ? "Cancelled by doctor" : "Cancelled by patient";
+        notificationClient.notifyCancelled(saved, userId, isDoctor ? "DOCTOR" : "PATIENT", cancellationReason);
     }
 
     // A simulated external cross-service call placeholder, because Appointment Service does not own the Doctor data.
@@ -168,5 +180,12 @@ public class AppointmentService {
         response.setCreatedAt(appointment.getCreatedAt());
         response.setUpdatedAt(appointment.getUpdatedAt());
         return response;
+    }
+
+    private static String defaultText(String value, String fallback) {
+        if (value == null || value.isBlank()) {
+            return fallback;
+        }
+        return value.trim();
     }
 }

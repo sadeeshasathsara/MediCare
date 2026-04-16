@@ -53,13 +53,14 @@ class NotificationEventServiceTest {
                 new EventRecipient("patient-1", "Patient One", "patient@medicare.com", null),
                 new EventRecipient("doctor-1", "Doctor One", "doctor@medicare.com", null),
                 Instant.parse("2026-04-06T10:00:00Z"),
+                "General checkup",
                 "video",
                 "N/A");
 
         TriggerAcceptedResponse response = service.handleAppointmentConfirmed(request);
 
         assertEquals(0, response.acceptedRecipients());
-        assertEquals(2, response.duplicateRecipients());
+        assertEquals(4, response.duplicateRecipients());
     }
 
     @Test
@@ -72,12 +73,13 @@ class NotificationEventServiceTest {
                 new EventRecipient("patient-1", "Patient One", "patient@medicare.com", "+94770000001"),
                 new EventRecipient("doctor-1", "Doctor One", "doctor@medicare.com", "+94770000002"),
                 Instant.parse("2026-04-06T10:00:00Z"),
+                "General checkup",
                 "video",
                 "N/A");
 
         TriggerAcceptedResponse response = service.handleAppointmentConfirmed(request);
 
-        assertEquals(6, response.acceptedRecipients());
+        assertEquals(8, response.acceptedRecipients());
         assertEquals(0, response.duplicateRecipients());
     }
 }

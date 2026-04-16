@@ -61,7 +61,10 @@ class TelemedicineNotificationEventServiceTest {
                 "apt-1",
                 "telemedicine-service",
                 "patient-1",
+                "Patient One",
                 "doctor-1",
+                "Doctor One",
+                "Follow-up consultation",
                 TelemedicineAppointmentDecisionStatus.ACCEPTED,
                 Instant.parse("2026-04-20T12:30:00Z"),
                 null,
@@ -70,19 +73,21 @@ class TelemedicineNotificationEventServiceTest {
 
         TriggerAcceptedResponse response = service.handleAppointmentStatus(request);
 
-        assertEquals(2, response.acceptedRecipients());
+        assertEquals(4, response.acceptedRecipients());
         assertEquals(0, response.duplicateRecipients());
 
         ArgumentCaptor<NotificationDelivery> captor = ArgumentCaptor.forClass(NotificationDelivery.class);
-        verify(repository, times(2)).save(captor.capture());
+        verify(repository, times(4)).save(captor.capture());
         List<NotificationDelivery> saved = captor.getAllValues();
 
-        assertEquals(NotificationStatus.FAILED, saved.get(0).getStatus());
-        assertEquals(NotificationStatus.FAILED, saved.get(1).getStatus());
-        assertNull(saved.get(0).getNextAttemptAt());
-        assertNull(saved.get(1).getNextAttemptAt());
-        assertTrue(saved.get(0).getLastError().contains("Failed to resolve"));
-        assertTrue(saved.get(1).getLastError().contains("Failed to resolve"));
+        long failedCount = saved.stream().filter(item -> item.getStatus() == NotificationStatus.FAILED).count();
+        assertEquals(2, failedCount);
+        saved.stream()
+                .filter(item -> item.getStatus() == NotificationStatus.FAILED)
+                .forEach(item -> {
+                    assertNull(item.getNextAttemptAt());
+                    assertTrue(item.getLastError().contains("Failed to resolve"));
+                });
     }
 
     @Test
@@ -108,22 +113,26 @@ class TelemedicineNotificationEventServiceTest {
                 "telemedicine-service",
                 "session-1",
                 "patient-1",
+                "Patient One",
                 "doctor-1",
+                "Doctor One",
+                "Diabetes follow-up",
                 Instant.parse("2026-04-16T11:20:00Z"),
                 1200L);
 
         TriggerAcceptedResponse response = service.handleConsultationCompleted(request);
 
-        assertEquals(2, response.acceptedRecipients());
+        assertEquals(4, response.acceptedRecipients());
         assertEquals(0, response.duplicateRecipients());
 
         ArgumentCaptor<NotificationDelivery> captor = ArgumentCaptor.forClass(NotificationDelivery.class);
-        verify(repository, times(2)).save(captor.capture());
+        verify(repository, times(4)).save(captor.capture());
         List<NotificationDelivery> saved = captor.getAllValues();
 
-        assertEquals(NotificationStatus.PENDING, saved.get(0).getStatus());
-        assertEquals(NotificationStatus.PENDING, saved.get(1).getStatus());
-        assertEquals(NotificationEventType.TELEMEDICINE_CONSULTATION_COMPLETED, saved.get(0).getEventType());
-        assertEquals(NotificationEventType.TELEMEDICINE_CONSULTATION_COMPLETED, saved.get(1).getEventType());
+        long pendingCount = saved.stream().filter(item -> item.getStatus() == NotificationStatus.PENDING).count();
+        long sentCount = saved.stream().filter(item -> item.getStatus() == NotificationStatus.SENT).count();
+        assertEquals(2, pendingCount);
+        assertEquals(2, sentCount);
+        saved.forEach(item -> assertEquals(NotificationEventType.TELEMEDICINE_CONSULTATION_COMPLETED, item.getEventType()));
     }
 }

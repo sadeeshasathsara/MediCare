@@ -54,6 +54,7 @@ const patientLinks = [
   { label: 'Dashboard', path: '/patient/dashboard' },
   { label: "Appointments", path: "/patient/appointments/new" },
   { label: 'Telemedicine', path: '/patient/telemedicine' },
+  { label: 'Notifications', path: '/patient/notifications' },
   { label: 'Reports', path: '/patient/reports' },
   { label: 'History', path: '/patient/history' },
   { label: 'Prescriptions', path: '/patient/prescriptions' },
@@ -288,6 +289,15 @@ export default function AppRoutes() {
       <Route
         path="/patient/ai-checker"
         element={requireRole('PATIENT', <TopNavLayout navLinks={patientLinks}><SymptomCheckerPage /></TopNavLayout>)}
+      />
+      <Route
+        path="/patient/notifications"
+        element={requireRole(
+          "PATIENT",
+          <TopNavLayout navLinks={patientLinks}>
+            <NotificationsPage />
+          </TopNavLayout>,
+        )}
       />
 
       {/* Doctor Routes — wrapped in TopNavLayout */}

@@ -22,6 +22,7 @@ public class DoctorService {
 
     public DoctorResponse getDoctorById(String id) {
         Doctor doctor = doctorRepository.findById(id)
+                .or(() -> doctorRepository.findByUserId(id))
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Doctor not found"));
         return toResponse(doctor);
     }

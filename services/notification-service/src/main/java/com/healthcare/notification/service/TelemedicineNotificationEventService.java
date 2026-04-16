@@ -62,8 +62,8 @@ public class TelemedicineNotificationEventService {
         };
         Instant scheduledAt = Instant.now();
 
-        RecipientContext patient = resolvePatientRecipient(request.patientUserId());
-        RecipientContext doctor = resolveDoctorRecipient(request.doctorUserId());
+        RecipientContext patient = resolvePatientRecipient(request.patientUserId(), request.patientName());
+        RecipientContext doctor = resolveDoctorRecipient(request.doctorUserId(), request.doctorName());
 
         Map<String, Object> patientData = createCommonTemplateData(
                 request.eventId(),
@@ -85,24 +85,51 @@ public class TelemedicineNotificationEventService {
                 "Patient");
         augmentAppointmentStatusTemplateData(doctorData, request);
 
+        String appointmentReason = defaultText(request.appointmentReason(), "General consultation");
         String patientSummary = switch (request.decisionStatus()) {
             case ACCEPTED -> "Telemedicine appointment " + request.appointmentId()
-                    + " accepted by " + doctor.displayName() + ".";
+                    + " accepted by " + doctor.displayName() + ". Reason: " + appointmentReason + ".";
             case REJECTED -> "Telemedicine appointment " + request.appointmentId()
-                    + " rejected. Reason: " + defaultText(request.rejectionReason(), "N/A") + ".";
+                    + " rejected. Reason: " + defaultText(request.rejectionReason(), "N/A")
+                    + ". Visit reason: " + appointmentReason + ".";
             case RESCHEDULED -> "Telemedicine appointment " + request.appointmentId()
-                    + " rescheduled. Proposed time: " + formatInstant(request.proposedScheduledAt()) + ".";
+                    + " rescheduled. Proposed time: " + formatInstant(request.proposedScheduledAt())
+                    + ". Visit reason: " + appointmentReason + ".";
         };
         String doctorSummary = switch (request.decisionStatus()) {
             case ACCEPTED -> "You accepted telemedicine appointment " + request.appointmentId()
-                    + " with " + patient.displayName() + ".";
+                    + " with " + patient.displayName() + ". Reason: " + appointmentReason + ".";
             case REJECTED -> "You rejected telemedicine appointment " + request.appointmentId()
-                    + " with " + patient.displayName() + ".";
+                    + " with " + patient.displayName() + ". Reason: " + appointmentReason + ".";
             case RESCHEDULED -> "You rescheduled telemedicine appointment " + request.appointmentId()
-                    + " with " + patient.displayName() + ".";
+                    + " with " + patient.displayName() + ". Reason: " + appointmentReason + ".";
         };
 
         DeliveryCount counts = DeliveryCount.zero();
+        counts = counts.add(persistInAppForRecipient(
+                eventType,
+                request.eventId(),
+                request.appointmentId(),
+                request.sourceService(),
+                request.occurredAt(),
+                patient,
+                "PATIENT",
+                subject,
+                patientData,
+                patientSummary));
+
+        counts = counts.add(persistInAppForRecipient(
+                eventType,
+                request.eventId(),
+                request.appointmentId(),
+                request.sourceService(),
+                request.occurredAt(),
+                doctor,
+                "DOCTOR",
+                subject,
+                doctorData,
+                doctorSummary));
+
         counts = counts.add(persistEmailForRecipient(
                 eventType,
                 request.eventId(),
@@ -139,8 +166,8 @@ public class TelemedicineNotificationEventService {
         String subject = "Telemedicine consultation completed - " + request.appointmentId();
         Instant scheduledAt = Instant.now();
 
-        RecipientContext patient = resolvePatientRecipient(request.patientUserId());
-        RecipientContext doctor = resolveDoctorRecipient(request.doctorUserId());
+        RecipientContext patient = resolvePatientRecipient(request.patientUserId(), request.patientName());
+        RecipientContext doctor = resolveDoctorRecipient(request.doctorUserId(), request.doctorName());
 
         Map<String, Object> patientData = createCommonTemplateData(
                 request.eventId(),
@@ -162,12 +189,37 @@ public class TelemedicineNotificationEventService {
                 "Patient");
         augmentConsultationTemplateData(doctorData, request);
 
+        String appointmentReason = defaultText(request.appointmentReason(), "General consultation");
         String patientSummary = "Telemedicine consultation completed for appointment " + request.appointmentId()
-                + ". Session ID: " + request.sessionId() + ".";
+                + ". Session ID: " + request.sessionId() + ". Reason: " + appointmentReason + ".";
         String doctorSummary = "Telemedicine consultation completed for appointment " + request.appointmentId()
-                + " with " + patient.displayName() + ".";
+                + " with " + patient.displayName() + ". Reason: " + appointmentReason + ".";
 
         DeliveryCount counts = DeliveryCount.zero();
+        counts = counts.add(persistInAppForRecipient(
+                eventType,
+                request.eventId(),
+                request.appointmentId(),
+                request.sourceService(),
+                request.occurredAt(),
+                patient,
+                "PATIENT",
+                subject,
+                patientData,
+                patientSummary));
+
+        counts = counts.add(persistInAppForRecipient(
+                eventType,
+                request.eventId(),
+                request.appointmentId(),
+                request.sourceService(),
+                request.occurredAt(),
+                doctor,
+                "DOCTOR",
+                subject,
+                doctorData,
+                doctorSummary));
+
         counts = counts.add(persistEmailForRecipient(
                 eventType,
                 request.eventId(),
@@ -204,8 +256,8 @@ public class TelemedicineNotificationEventService {
         String subject = "Telemedicine prescription issued - " + request.appointmentId();
         Instant scheduledAt = Instant.now();
 
-        RecipientContext patient = resolvePatientRecipient(request.patientUserId());
-        RecipientContext doctor = resolveDoctorRecipient(request.doctorUserId());
+        RecipientContext patient = resolvePatientRecipient(request.patientUserId(), request.patientName());
+        RecipientContext doctor = resolveDoctorRecipient(request.doctorUserId(), request.doctorName());
 
         Map<String, Object> patientData = createCommonTemplateData(
                 request.eventId(),
@@ -227,12 +279,37 @@ public class TelemedicineNotificationEventService {
                 "Patient");
         augmentPrescriptionTemplateData(doctorData, request);
 
+        String appointmentReason = defaultText(request.appointmentReason(), "General consultation");
         String patientSummary = "A telemedicine prescription was issued for appointment "
-                + request.appointmentId() + ".";
+                + request.appointmentId() + ". Reason: " + appointmentReason + ".";
         String doctorSummary = "You issued a telemedicine prescription for appointment "
-                + request.appointmentId() + ".";
+                + request.appointmentId() + ". Reason: " + appointmentReason + ".";
 
         DeliveryCount counts = DeliveryCount.zero();
+        counts = counts.add(persistInAppForRecipient(
+                eventType,
+                request.eventId(),
+                request.appointmentId(),
+                request.sourceService(),
+                request.occurredAt(),
+                patient,
+                "PATIENT",
+                subject,
+                patientData,
+                patientSummary));
+
+        counts = counts.add(persistInAppForRecipient(
+                eventType,
+                request.eventId(),
+                request.appointmentId(),
+                request.sourceService(),
+                request.occurredAt(),
+                doctor,
+                "DOCTOR",
+                subject,
+                doctorData,
+                doctorSummary));
+
         counts = counts.add(persistEmailForRecipient(
                 eventType,
                 request.eventId(),
@@ -333,6 +410,46 @@ public class TelemedicineNotificationEventService {
         return persistDelivery(delivery);
     }
 
+    private DeliveryCount persistInAppForRecipient(
+            NotificationEventType eventType,
+            String eventId,
+            String appointmentId,
+            String sourceService,
+            Instant occurredAt,
+            RecipientContext recipient,
+            String recipientRole,
+            String subject,
+            Map<String, Object> templateData,
+            String summary) {
+
+        NotificationDelivery delivery = baseDelivery(
+                eventType,
+                eventId,
+                appointmentId,
+                sourceService,
+                occurredAt,
+                recipient.userId(),
+                recipient.displayName(),
+                recipientRole,
+                subject,
+                "in-app",
+                templateData,
+                summary,
+                Instant.now());
+
+        delivery.setChannel(NotificationChannel.IN_APP);
+        delivery.setRecipientEmail(normalizeEmail(recipient.email()));
+        delivery.setRecipientPhone(normalizePhone(recipient.phone()));
+        delivery.setSmsType(null);
+        delivery.setStatus(NotificationStatus.SENT);
+        delivery.setAttemptCount(1);
+        delivery.setNextAttemptAt(null);
+        delivery.setSentAt(Instant.now());
+        delivery.setReadAt(null);
+
+        return persistDelivery(delivery);
+    }
+
     private DeliveryCount persistFailedEmail(
             NotificationEventType eventType,
             String eventId,
@@ -414,6 +531,7 @@ public class TelemedicineNotificationEventService {
         delivery.setNextAttemptAt(initialAttemptAt);
         delivery.setLastError(null);
         delivery.setSentAt(null);
+        delivery.setReadAt(now);
         delivery.setCreatedAt(now);
         delivery.setUpdatedAt(now);
         delivery.setExpireAt(now.plus(Duration.ofDays(Math.max(1, properties.getRetentionDays()))));
@@ -429,7 +547,7 @@ public class TelemedicineNotificationEventService {
         }
     }
 
-    private RecipientContext resolvePatientRecipient(String userId) {
+    private RecipientContext resolvePatientRecipient(String userId, String preferredName) {
         String safeUserId = defaultText(userId, "");
         try {
             RecipientProfileLookupService.ResolvedRecipient resolved = recipientProfileLookupService.resolvePatient(safeUserId);
@@ -442,12 +560,12 @@ public class TelemedicineNotificationEventService {
         } catch (Exception ex) {
             return RecipientContext.failure(
                     safeUserId,
-                    "Patient",
+                    defaultText(preferredName, "Patient"),
                     "Failed to resolve patient contact for userId=" + safeUserId + ": " + ex.getMessage());
         }
     }
 
-    private RecipientContext resolveDoctorRecipient(String userId) {
+    private RecipientContext resolveDoctorRecipient(String userId, String preferredName) {
         String safeUserId = defaultText(userId, "");
         try {
             RecipientProfileLookupService.ResolvedRecipient resolved = recipientProfileLookupService.resolveDoctor(safeUserId);
@@ -460,7 +578,7 @@ public class TelemedicineNotificationEventService {
         } catch (Exception ex) {
             return RecipientContext.failure(
                     safeUserId,
-                    "Doctor",
+                    defaultText(preferredName, "Doctor"),
                     "Failed to resolve doctor contact for userId=" + safeUserId + ": " + ex.getMessage());
         }
     }
@@ -496,6 +614,9 @@ public class TelemedicineNotificationEventService {
     private static void augmentAppointmentStatusTemplateData(
             Map<String, Object> templateData,
             TelemedicineAppointmentStatusEventRequest request) {
+        templateData.put("patientName", defaultText(request.patientName(), "Patient"));
+        templateData.put("doctorName", defaultText(request.doctorName(), "Doctor"));
+        templateData.put("appointmentReason", defaultText(request.appointmentReason(), "General consultation"));
         templateData.put("decisionStatus", request.decisionStatus().name());
         templateData.put("appointmentDateTime", formatInstant(request.scheduledAt()));
         templateData.put("proposedAppointmentDateTime", formatInstant(request.proposedScheduledAt()));
@@ -506,6 +627,9 @@ public class TelemedicineNotificationEventService {
     private static void augmentConsultationTemplateData(
             Map<String, Object> templateData,
             TelemedicineConsultationCompletedEventRequest request) {
+        templateData.put("patientName", defaultText(request.patientName(), "Patient"));
+        templateData.put("doctorName", defaultText(request.doctorName(), "Doctor"));
+        templateData.put("appointmentReason", defaultText(request.appointmentReason(), "General consultation"));
         templateData.put("sessionId", request.sessionId());
         templateData.put("endedAt", formatInstant(request.endedAt()));
         templateData.put("durationSeconds", request.durationSeconds() == null ? 0 : request.durationSeconds());
@@ -514,6 +638,9 @@ public class TelemedicineNotificationEventService {
     private static void augmentPrescriptionTemplateData(
             Map<String, Object> templateData,
             TelemedicinePrescriptionIssuedEventRequest request) {
+        templateData.put("patientName", defaultText(request.patientName(), "Patient"));
+        templateData.put("doctorName", defaultText(request.doctorName(), "Doctor"));
+        templateData.put("appointmentReason", defaultText(request.appointmentReason(), "General consultation"));
         templateData.put("prescriptionId", request.prescriptionId());
         templateData.put("consultationId", request.consultationId());
         templateData.put("issuedAt", formatInstant(request.issuedAt()));

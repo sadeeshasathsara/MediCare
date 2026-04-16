@@ -10,7 +10,10 @@ public record TelemedicinePrescriptionIssuedEventRequest(
         String prescriptionId,
         String consultationId,
         String patientUserId,
+        String patientName,
         String doctorUserId,
+        String doctorName,
+        String appointmentReason,
         Instant issuedAt,
         Instant expiresAt) {
 }

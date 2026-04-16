@@ -185,7 +185,7 @@ data:
           proxy_set_header X-User-Id $user_id;
           proxy_set_header X-User-Role $user_role;
           proxy_set_header X-User-Verified $user_verified;
-                rewrite ^/api/notifications/(.*)$ /$1 break;
+                rewrite ^/api/notifications/(.*)$ /notifications/$1 break;
                 proxy_pass http://$notification_service;
             }
             location /api/ai/ {
