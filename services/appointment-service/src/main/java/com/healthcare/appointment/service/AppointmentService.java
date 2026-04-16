@@ -11,6 +11,10 @@ import com.healthcare.appointment.repository.AppointmentRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 
 import java.time.Instant;
 import java.util.List;
@@ -55,16 +59,36 @@ public class AppointmentService {
         return toResponse(appointment);
     }
 
-    public List<AppointmentResponse> getAppointmentsByPatientId(String patientId) {
-        return appointmentRepository.findByPatientId(patientId).stream()
-                .map(this::toResponse)
-                .collect(Collectors.toList());
+    public Page<AppointmentResponse> getAppointmentsByPatientId(String patientId, String filter, int page, int limit) {
+        Pageable pageable = createPageable(filter, page, limit);
+        Instant now = Instant.now();
+        
+        if ("UPCOMING".equals(filter)) {
+            return appointmentRepository.findByPatientIdAndScheduledAtGreaterThanEqual(patientId, now, pageable).map(this::toResponse);
+        } else if ("PAST".equals(filter)) {
+            return appointmentRepository.findByPatientIdAndScheduledAtLessThan(patientId, now, pageable).map(this::toResponse);
+        }
+        return appointmentRepository.findByPatientId(patientId, pageable).map(this::toResponse);
     }
 
-    public List<AppointmentResponse> getAppointmentsByDoctorId(String doctorId) {
-        return appointmentRepository.findByDoctorId(doctorId).stream()
-                .map(this::toResponse)
-                .collect(Collectors.toList());
+    public Page<AppointmentResponse> getAppointmentsByDoctorId(String doctorId, String filter, int page, int limit) {
+        Pageable pageable = createPageable(filter, page, limit);
+        Instant now = Instant.now();
+        
+        if ("UPCOMING".equals(filter)) {
+            return appointmentRepository.findByDoctorIdAndScheduledAtGreaterThanEqual(doctorId, now, pageable).map(this::toResponse);
+        } else if ("PAST".equals(filter)) {
+            return appointmentRepository.findByDoctorIdAndScheduledAtLessThan(doctorId, now, pageable).map(this::toResponse);
+        }
+        return appointmentRepository.findByDoctorId(doctorId, pageable).map(this::toResponse);
+    }
+
+    private Pageable createPageable(String filter, int page, int limit) {
+        Sort sort = Sort.by(Sort.Direction.DESC, "scheduledAt"); // Default to DESC (newest past)
+        if ("UPCOMING".equals(filter)) {
+            sort = Sort.by(Sort.Direction.ASC, "scheduledAt"); // ASC for upcoming (soonest first)
+        }
+        return PageRequest.of(page, limit, sort);
     }
 
     public AppointmentResponse rescheduleAppointment(String id, RescheduleAppointmentRequest request, String userId, boolean isDoctor) {

@@ -10,6 +10,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.data.domain.Page;
 
 import java.util.List;
 
@@ -89,9 +90,12 @@ public class AppointmentController {
     }
 
     @GetMapping
-    public ResponseEntity<List<AppointmentResponse>> listAppointments(
+    public ResponseEntity<Page<AppointmentResponse>> listAppointments(
             @RequestParam(required = false) String patientId,
             @RequestParam(required = false) String doctorId,
+            @RequestParam(required = false, defaultValue = "ALL") String filter,
+            @RequestParam(required = false, defaultValue = "0") int page,
+            @RequestParam(required = false, defaultValue = "10") int limit,
             @RequestHeader(value = "X-User-Id", required = false) String userId,
             @RequestHeader(value = "X-User-Role", required = false) String role) {
 
@@ -99,12 +103,12 @@ public class AppointmentController {
             if (!role.equals("ADMIN") && !patientId.equals(userId) && !role.equals("DOCTOR")) {
                 throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied");
             }
-            return ResponseEntity.ok(appointmentService.getAppointmentsByPatientId(patientId));
+            return ResponseEntity.ok(appointmentService.getAppointmentsByPatientId(patientId, filter, page, limit));
         } else if (doctorId != null) {
             if (!role.equals("ADMIN") && !doctorId.equals(userId) && !role.equals("PATIENT")) {
                 throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied");
             }
-            return ResponseEntity.ok(appointmentService.getAppointmentsByDoctorId(doctorId));
+            return ResponseEntity.ok(appointmentService.getAppointmentsByDoctorId(doctorId, filter, page, limit));
         }
 
         throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Must provide either patientId or doctorId");
