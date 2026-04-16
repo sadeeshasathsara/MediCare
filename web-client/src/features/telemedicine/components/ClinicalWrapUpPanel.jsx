@@ -13,14 +13,14 @@ import {
 
 function actionButtonClass(kind = 'secondary') {
   if (kind === 'primary') {
-    return 'inline-flex items-center justify-center rounded-2xl px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60'
+    return 'tm-btn-tone tm-btn-primary inline-flex items-center justify-center rounded-2xl border px-4 py-2.5 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60'
   }
 
   if (kind === 'danger') {
-    return 'inline-flex items-center justify-center rounded-2xl border border-rose-300 bg-rose-50 px-4 py-2.5 text-sm font-semibold text-rose-900 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-rose-800 dark:bg-rose-950/30 dark:text-rose-100'
+    return 'tm-btn-tone tm-btn-danger inline-flex items-center justify-center rounded-2xl border px-4 py-2.5 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60'
   }
 
-  return 'inline-flex items-center justify-center rounded-2xl border px-4 py-2.5 text-sm font-semibold transition hover:bg-black/[0.03] disabled:cursor-not-allowed disabled:opacity-60 dark:hover:bg-white/[0.05]'
+  return 'tm-btn-tone tm-btn-neutral inline-flex items-center justify-center rounded-2xl border px-4 py-2.5 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60'
 }
 
 function emptyMedicationRow() {
@@ -147,7 +147,6 @@ function ConsultationForm({
           type="submit"
           disabled={consultationSubmitDisabled}
           className={actionButtonClass('primary')}
-          style={{ backgroundColor: 'hsl(var(--primary))' }}
         >
           {consultationActionState.loading
             ? consultation
@@ -240,7 +239,6 @@ function PrescriptionComposer({ consultation, prescriptionActionState, onCreateP
             type="button"
             onClick={addMedication}
             className={actionButtonClass()}
-            style={{ borderColor: 'hsl(var(--border))', color: 'hsl(var(--foreground))' }}
           >
             <Plus className="mr-2 h-4 w-4" />
             Add medication
@@ -338,7 +336,6 @@ function PrescriptionComposer({ consultation, prescriptionActionState, onCreateP
         type="submit"
         disabled={prescriptionSubmitDisabled}
         className={actionButtonClass('primary')}
-        style={{ backgroundColor: 'hsl(var(--primary))' }}
       >
         {prescriptionActionState.loading && prescriptionActionState.kind === 'create'
           ? 'Issuing prescription...'
@@ -393,7 +390,7 @@ export default function ClinicalWrapUpPanel({
         ) : null}
 
         <div className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
-          <div className="space-y-4 rounded-[24px] border p-5" style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--card))' }}>
+          <div className="space-y-4 rounded-3xl border p-5" style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--card))' }}>
             <div className="flex items-center gap-2">
               <FilePenLine className="h-4 w-4" style={{ color: 'hsl(var(--primary))' }} />
               <p className="text-sm font-semibold" style={{ color: 'hsl(var(--foreground))' }}>
@@ -412,7 +409,7 @@ export default function ClinicalWrapUpPanel({
             />
           </div>
 
-          <div className="space-y-4 rounded-[24px] border p-5" style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--card))' }}>
+          <div className="space-y-4 rounded-3xl border p-5" style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--card))' }}>
             <div className="flex items-center gap-2">
               <Pill className="h-4 w-4" style={{ color: 'hsl(var(--primary))' }} />
               <p className="text-sm font-semibold" style={{ color: 'hsl(var(--foreground))' }}>
@@ -506,7 +503,6 @@ export default function ClinicalWrapUpPanel({
                           onClick={() => onUpdatePrescriptionStatus(prescription.id, 'ISSUED')}
                           disabled={prescriptionActionState.loading}
                           className={actionButtonClass()}
-                          style={{ borderColor: 'hsl(var(--border))', color: 'hsl(var(--foreground))' }}
                         >
                           Mark as Issued
                         </button>
@@ -519,7 +515,6 @@ export default function ClinicalWrapUpPanel({
                             onClick={() => onUpdatePrescriptionStatus(prescription.id, 'DISPENSED')}
                             disabled={prescriptionActionState.loading}
                             className={actionButtonClass()}
-                            style={{ borderColor: 'hsl(var(--border))', color: 'hsl(var(--foreground))' }}
                           >
                             Mark as Dispensed
                           </button>

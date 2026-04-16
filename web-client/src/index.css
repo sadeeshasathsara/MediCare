@@ -56,6 +56,79 @@
   --sidebar-border: 220 13% 91%;
   --sidebar-accent: 192 60% 94%;
   --sidebar-accent-foreground: 192 91% 28%;
+
+  /* Telemedicine semantic buttons + alerts (light) */
+  --tm-focus-ring: 204 84% 40%;
+
+  --tm-primary-btn-bg: 204 84% 40%;
+  --tm-primary-btn-bg-hover: 204 84% 35%;
+  --tm-primary-btn-border: 204 84% 34%;
+  --tm-primary-btn-text: 0 0% 100%;
+  --tm-primary-btn-shadow: 204 84% 40%;
+
+  --tm-success-btn-bg: 151 67% 37%;
+  --tm-success-btn-bg-hover: 151 71% 31%;
+  --tm-success-btn-border: 151 70% 30%;
+  --tm-success-btn-text: 0 0% 100%;
+  --tm-success-btn-shadow: 151 67% 35%;
+
+  --tm-neutral-btn-bg: 210 33% 98%;
+  --tm-neutral-btn-bg-hover: 210 31% 95%;
+  --tm-neutral-btn-border: 214 20% 84%;
+  --tm-neutral-btn-text: 220 20% 20%;
+  --tm-neutral-btn-shadow: 220 10% 55%;
+
+  --tm-info-btn-bg: 213 100% 96%;
+  --tm-info-btn-bg-hover: 213 100% 93%;
+  --tm-info-btn-border: 214 66% 75%;
+  --tm-info-btn-text: 214 65% 27%;
+  --tm-info-btn-shadow: 214 66% 56%;
+
+  --tm-danger-btn-bg: 0 88% 96%;
+  --tm-danger-btn-bg-hover: 0 88% 93%;
+  --tm-danger-btn-border: 0 58% 74%;
+  --tm-danger-btn-text: 0 65% 28%;
+  --tm-danger-btn-shadow: 0 58% 56%;
+
+  --tm-danger-solid-btn-bg: 0 62% 47%;
+  --tm-danger-solid-btn-bg-hover: 0 62% 42%;
+  --tm-danger-solid-btn-border: 0 65% 39%;
+  --tm-danger-solid-btn-text: 0 0% 100%;
+  --tm-danger-solid-btn-shadow: 0 62% 44%;
+
+  --tm-info-solid-btn-bg: 204 84% 40%;
+  --tm-info-solid-btn-bg-hover: 204 84% 35%;
+  --tm-info-solid-btn-border: 204 84% 34%;
+  --tm-info-solid-btn-text: 0 0% 100%;
+  --tm-info-solid-btn-shadow: 204 84% 40%;
+
+  --tm-info-alert-bg: 213 100% 96%;
+  --tm-info-alert-border: 214 66% 75%;
+  --tm-info-alert-title: 214 65% 27%;
+  --tm-info-alert-body: 214 55% 33%;
+  --tm-info-alert-icon-bg: 213 84% 90%;
+  --tm-info-alert-icon: 214 70% 35%;
+
+  --tm-success-alert-bg: 152 56% 95%;
+  --tm-success-alert-border: 151 41% 63%;
+  --tm-success-alert-title: 151 59% 23%;
+  --tm-success-alert-body: 151 50% 29%;
+  --tm-success-alert-icon-bg: 152 43% 88%;
+  --tm-success-alert-icon: 151 58% 31%;
+
+  --tm-warning-alert-bg: 38 100% 95%;
+  --tm-warning-alert-border: 36 76% 68%;
+  --tm-warning-alert-title: 31 86% 25%;
+  --tm-warning-alert-body: 31 78% 32%;
+  --tm-warning-alert-icon-bg: 38 88% 88%;
+  --tm-warning-alert-icon: 31 82% 34%;
+
+  --tm-error-alert-bg: 0 88% 96%;
+  --tm-error-alert-border: 0 58% 74%;
+  --tm-error-alert-title: 0 65% 28%;
+  --tm-error-alert-body: 0 58% 34%;
+  --tm-error-alert-icon-bg: 0 75% 90%;
+  --tm-error-alert-icon: 0 62% 38%;
 }
 
 /* ── Dark Theme ───────────────────────────────────────── */
@@ -85,6 +158,79 @@
   --sidebar-border: 0 0% 16%;
   --sidebar-accent: 0 0% 10%;
   --sidebar-accent-foreground: 192 80% 60%;
+
+  /* Telemedicine semantic buttons + alerts (dark) */
+  --tm-focus-ring: 192 80% 45%;
+
+  --tm-primary-btn-bg: 192 80% 45%;
+  --tm-primary-btn-bg-hover: 192 82% 50%;
+  --tm-primary-btn-border: 192 85% 38%;
+  --tm-primary-btn-text: 0 0% 100%;
+  --tm-primary-btn-shadow: 192 80% 45%;
+
+  --tm-success-btn-bg: 152 76% 36%;
+  --tm-success-btn-bg-hover: 152 78% 41%;
+  --tm-success-btn-border: 152 74% 28%;
+  --tm-success-btn-text: 0 0% 100%;
+  --tm-success-btn-shadow: 152 76% 36%;
+
+  --tm-neutral-btn-bg: 0 0% 11%;
+  --tm-neutral-btn-bg-hover: 0 0% 15%;
+  --tm-neutral-btn-border: 0 0% 23%;
+  --tm-neutral-btn-text: 210 20% 90%;
+  --tm-neutral-btn-shadow: 220 10% 55%;
+
+  --tm-info-btn-bg: 205 55% 18%;
+  --tm-info-btn-bg-hover: 205 58% 22%;
+  --tm-info-btn-border: 205 62% 36%;
+  --tm-info-btn-text: 198 100% 88%;
+  --tm-info-btn-shadow: 205 62% 46%;
+
+  --tm-danger-btn-bg: 0 52% 19%;
+  --tm-danger-btn-bg-hover: 0 54% 23%;
+  --tm-danger-btn-border: 0 58% 37%;
+  --tm-danger-btn-text: 0 84% 88%;
+  --tm-danger-btn-shadow: 0 58% 40%;
+
+  --tm-danger-solid-btn-bg: 0 68% 43%;
+  --tm-danger-solid-btn-bg-hover: 0 68% 48%;
+  --tm-danger-solid-btn-border: 0 66% 36%;
+  --tm-danger-solid-btn-text: 0 0% 100%;
+  --tm-danger-solid-btn-shadow: 0 68% 44%;
+
+  --tm-info-solid-btn-bg: 205 80% 46%;
+  --tm-info-solid-btn-bg-hover: 205 80% 52%;
+  --tm-info-solid-btn-border: 205 78% 40%;
+  --tm-info-solid-btn-text: 0 0% 100%;
+  --tm-info-solid-btn-shadow: 205 80% 46%;
+
+  --tm-info-alert-bg: 213 45% 15%;
+  --tm-info-alert-border: 213 46% 33%;
+  --tm-info-alert-title: 209 82% 86%;
+  --tm-info-alert-body: 209 72% 80%;
+  --tm-info-alert-icon-bg: 212 44% 22%;
+  --tm-info-alert-icon: 209 82% 86%;
+
+  --tm-success-alert-bg: 152 39% 15%;
+  --tm-success-alert-border: 152 45% 31%;
+  --tm-success-alert-title: 151 68% 82%;
+  --tm-success-alert-body: 151 59% 76%;
+  --tm-success-alert-icon-bg: 152 36% 22%;
+  --tm-success-alert-icon: 151 70% 82%;
+
+  --tm-warning-alert-bg: 35 55% 15%;
+  --tm-warning-alert-border: 35 56% 33%;
+  --tm-warning-alert-title: 40 90% 82%;
+  --tm-warning-alert-body: 40 84% 76%;
+  --tm-warning-alert-icon-bg: 35 52% 22%;
+  --tm-warning-alert-icon: 40 90% 82%;
+
+  --tm-error-alert-bg: 0 45% 15%;
+  --tm-error-alert-border: 0 46% 35%;
+  --tm-error-alert-title: 0 88% 86%;
+  --tm-error-alert-body: 0 77% 80%;
+  --tm-error-alert-icon-bg: 0 44% 23%;
+  --tm-error-alert-icon: 0 88% 86%;
 }
 
 /* ── Base Styles ──────────────────────────────────────── */
@@ -100,6 +246,161 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     transition: background-color 0.2s ease, color 0.2s ease;
+  }
+}
+
+@layer components {
+  .tm-btn-tone {
+    transition:
+      background-color 0.2s ease,
+      border-color 0.2s ease,
+      color 0.2s ease,
+      box-shadow 0.2s ease,
+      transform 0.15s ease;
+    border-color: hsl(var(--tm-btn-border));
+    background-color: hsl(var(--tm-btn-bg));
+    color: hsl(var(--tm-btn-text));
+    box-shadow: 0 2px 10px -8px hsl(var(--tm-btn-shadow) / 0.55);
+  }
+
+  .tm-btn-tone:hover:not(:disabled) {
+    border-color: hsl(var(--tm-btn-border));
+    background-color: hsl(var(--tm-btn-bg-hover));
+  }
+
+  .tm-btn-tone:active:not(:disabled) {
+    transform: translateY(0.5px);
+  }
+
+  .tm-btn-tone:focus-visible {
+    outline: none;
+    box-shadow:
+      0 0 0 3px hsl(var(--tm-btn-ring) / 0.35),
+      0 2px 10px -8px hsl(var(--tm-btn-shadow) / 0.55);
+  }
+
+  .tm-btn-tone:disabled {
+    box-shadow: none;
+  }
+
+  .tm-btn-primary {
+    --tm-btn-bg: var(--tm-primary-btn-bg);
+    --tm-btn-bg-hover: var(--tm-primary-btn-bg-hover);
+    --tm-btn-border: var(--tm-primary-btn-border);
+    --tm-btn-text: var(--tm-primary-btn-text);
+    --tm-btn-shadow: var(--tm-primary-btn-shadow);
+    --tm-btn-ring: var(--tm-focus-ring);
+  }
+
+  .tm-btn-success {
+    --tm-btn-bg: var(--tm-success-btn-bg);
+    --tm-btn-bg-hover: var(--tm-success-btn-bg-hover);
+    --tm-btn-border: var(--tm-success-btn-border);
+    --tm-btn-text: var(--tm-success-btn-text);
+    --tm-btn-shadow: var(--tm-success-btn-shadow);
+    --tm-btn-ring: var(--tm-success-btn-border);
+  }
+
+  .tm-btn-neutral {
+    --tm-btn-bg: var(--tm-neutral-btn-bg);
+    --tm-btn-bg-hover: var(--tm-neutral-btn-bg-hover);
+    --tm-btn-border: var(--tm-neutral-btn-border);
+    --tm-btn-text: var(--tm-neutral-btn-text);
+    --tm-btn-shadow: var(--tm-neutral-btn-shadow);
+    --tm-btn-ring: var(--tm-focus-ring);
+  }
+
+  .tm-btn-info {
+    --tm-btn-bg: var(--tm-info-btn-bg);
+    --tm-btn-bg-hover: var(--tm-info-btn-bg-hover);
+    --tm-btn-border: var(--tm-info-btn-border);
+    --tm-btn-text: var(--tm-info-btn-text);
+    --tm-btn-shadow: var(--tm-info-btn-shadow);
+    --tm-btn-ring: var(--tm-info-btn-border);
+  }
+
+  .tm-btn-danger {
+    --tm-btn-bg: var(--tm-danger-btn-bg);
+    --tm-btn-bg-hover: var(--tm-danger-btn-bg-hover);
+    --tm-btn-border: var(--tm-danger-btn-border);
+    --tm-btn-text: var(--tm-danger-btn-text);
+    --tm-btn-shadow: var(--tm-danger-btn-shadow);
+    --tm-btn-ring: var(--tm-danger-btn-border);
+  }
+
+  .tm-btn-solid-danger {
+    --tm-btn-bg: var(--tm-danger-solid-btn-bg);
+    --tm-btn-bg-hover: var(--tm-danger-solid-btn-bg-hover);
+    --tm-btn-border: var(--tm-danger-solid-btn-border);
+    --tm-btn-text: var(--tm-danger-solid-btn-text);
+    --tm-btn-shadow: var(--tm-danger-solid-btn-shadow);
+    --tm-btn-ring: var(--tm-danger-solid-btn-border);
+  }
+
+  .tm-btn-solid-info {
+    --tm-btn-bg: var(--tm-info-solid-btn-bg);
+    --tm-btn-bg-hover: var(--tm-info-solid-btn-bg-hover);
+    --tm-btn-border: var(--tm-info-solid-btn-border);
+    --tm-btn-text: var(--tm-info-solid-btn-text);
+    --tm-btn-shadow: var(--tm-info-solid-btn-shadow);
+    --tm-btn-ring: var(--tm-info-solid-btn-border);
+  }
+
+  .tm-notice {
+    border-color: hsl(var(--tm-notice-border));
+    background-color: hsl(var(--tm-notice-bg));
+  }
+
+  .tm-notice-title {
+    color: hsl(var(--tm-notice-title));
+  }
+
+  .tm-notice-body {
+    color: hsl(var(--tm-notice-body));
+  }
+
+  .tm-notice-icon-wrap {
+    background-color: hsl(var(--tm-notice-icon-bg));
+  }
+
+  .tm-notice-icon {
+    color: hsl(var(--tm-notice-icon));
+  }
+
+  .tm-notice-info {
+    --tm-notice-bg: var(--tm-info-alert-bg);
+    --tm-notice-border: var(--tm-info-alert-border);
+    --tm-notice-title: var(--tm-info-alert-title);
+    --tm-notice-body: var(--tm-info-alert-body);
+    --tm-notice-icon-bg: var(--tm-info-alert-icon-bg);
+    --tm-notice-icon: var(--tm-info-alert-icon);
+  }
+
+  .tm-notice-success {
+    --tm-notice-bg: var(--tm-success-alert-bg);
+    --tm-notice-border: var(--tm-success-alert-border);
+    --tm-notice-title: var(--tm-success-alert-title);
+    --tm-notice-body: var(--tm-success-alert-body);
+    --tm-notice-icon-bg: var(--tm-success-alert-icon-bg);
+    --tm-notice-icon: var(--tm-success-alert-icon);
+  }
+
+  .tm-notice-warning {
+    --tm-notice-bg: var(--tm-warning-alert-bg);
+    --tm-notice-border: var(--tm-warning-alert-border);
+    --tm-notice-title: var(--tm-warning-alert-title);
+    --tm-notice-body: var(--tm-warning-alert-body);
+    --tm-notice-icon-bg: var(--tm-warning-alert-icon-bg);
+    --tm-notice-icon: var(--tm-warning-alert-icon);
+  }
+
+  .tm-notice-error {
+    --tm-notice-bg: var(--tm-error-alert-bg);
+    --tm-notice-border: var(--tm-error-alert-border);
+    --tm-notice-title: var(--tm-error-alert-title);
+    --tm-notice-body: var(--tm-error-alert-body);
+    --tm-notice-icon-bg: var(--tm-error-alert-icon-bg);
+    --tm-notice-icon: var(--tm-error-alert-icon);
   }
 }
 

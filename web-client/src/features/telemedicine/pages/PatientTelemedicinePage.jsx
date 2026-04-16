@@ -8,215 +8,323 @@ import {
   useState,
 } from 'react'
 import { Link } from 'react-router-dom'
-import { CalendarClock, HeartPulse, RefreshCcw, Video } from 'lucide-react'
+import {
+  ArrowLeft,
+  CalendarClock,
+  CheckCircle2,
+  ChevronRight,
+  Clock,
+  FileText,
+  HeartPulse,
+  Loader2,
+  Pill,
+  RefreshCcw,
+  Stethoscope,
+  User,
+  Video,
+  Wifi,
+  WifiOff,
+} from 'lucide-react'
 
 import { useAuth } from '@/context/AuthContext'
 import FeatureNotice from '@/features/telemedicine/components/FeatureNotice'
 import LiveConsultationPanel from '@/features/telemedicine/components/LiveConsultationPanel'
 import StatusBadge from '@/features/telemedicine/components/StatusBadge'
-import TelemedicineSection from '@/features/telemedicine/components/TelemedicineSection'
 import {
   getJoinToken,
   getSessionReady,
   listAppointments,
+  listConsultations,
+  listPrescriptions,
   listSessions,
 } from '@/features/telemedicine/services/telemedicineApi'
 import {
+  appointmentBelongsToPatient,
   enrichTelemedicineAppointment,
+  formatDate,
   formatDateTime,
   getErrorMessage,
+  getTelemedicinePatientIdentifiers,
   getSessionStateCopy,
   READY_POLL_STATUSES,
   resolveTelemedicinePatient,
 } from '@/features/telemedicine/services/telemedicineTypes'
 
+/* ─── Constants ──────────────────────────────────────────────────────────── */
+
 const SCHEDULED_APPOINTMENT_STATUSES = new Set(['PENDING', 'RESCHEDULED'])
-const ACTIVE_PATIENT_STATUSES = new Set(['PENDING', 'ACCEPTED', 'RESCHEDULED'])
-const EMPTY_ACTION_STATE = {
-  kind: '',
-  loading: false,
-  error: '',
-  success: '',
+const ACTIVE_PATIENT_STATUSES        = new Set(['PENDING', 'ACCEPTED', 'RESCHEDULED'])
+const EMPTY_ACTION_STATE = { kind: '', loading: false, error: '', success: '' }
+
+/* ─── Helpers ────────────────────────────────────────────────────────────── */
+
+function decodeJwtSubject(token) {
+  try {
+    const parts = String(token || '').split('.')
+    if (parts.length < 2) return null
+    let payload = parts[1].replace(/-/g, '+').replace(/_/g, '/')
+    const r = payload.length % 4
+    if (r === 2) payload += '=='
+    if (r === 3) payload += '='
+    return JSON.parse(atob(payload))?.sub || null
+  } catch { return null }
 }
 
-function actionLoading(kind) {
-  return { kind, loading: true, error: '', success: '' }
+function safeJsonParse(v) {
+  if (!v) return null
+  try { return JSON.parse(v) } catch { return null }
 }
 
-function actionSuccess(kind, success) {
-  return { kind, loading: false, error: '', success }
+function normalizeId(v) { return v === undefined || v === null ? '' : String(v).trim() }
+
+function actionLoading(kind)           { return { kind, loading: true,  error: '',    success: '' } }
+function actionSuccess(kind, success)  { return { kind, loading: false, error: '',    success      } }
+function actionError(kind, error)      { return { kind, loading: false, error,        success: '' } }
+
+/* ─── Status colour helpers ──────────────────────────────────────────────── */
+
+/* ─── Countdown helper ───────────────────────────────────────────────────── */
+
+function countdown(scheduledAt) {
+  if (!scheduledAt) return null
+  const ms = new Date(scheduledAt).getTime() - Date.now()
+  if (ms < 0) return { label: 'Past due', urgent: true, overdue: true }
+  const mins = Math.floor(ms / 60000)
+  if (mins < 60) return { label: `${mins}m`, urgent: mins <= 30, overdue: false }
+  const h = Math.floor(mins / 60), m = mins % 60
+  return { label: `${h}h ${m}m`, urgent: false, overdue: false }
 }
 
-function actionError(kind, error) {
-  return { kind, loading: false, error, success: '' }
-}
+/* ─── Appointment card (list mode) ──────────────────────────────────────── */
 
-function actionButtonClass(kind = 'secondary') {
-  if (kind === 'primary') {
-    return 'inline-flex items-center justify-center rounded-2xl px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60'
-  }
+function AppointmentCard({ appointment, session, onSelect }) {
+  const isLive      = session?.sessionStatus === 'LIVE'
+  const isWaiting   = session?.sessionStatus === 'WAITING'
+  const hasRoom     = Boolean(session)
+  const cd          = countdown(appointment.scheduledAt)
+  const needsReview = SCHEDULED_APPOINTMENT_STATUSES.has(appointment.status)
 
-  return 'inline-flex items-center justify-center rounded-2xl border px-4 py-2.5 text-sm font-semibold transition hover:bg-black/[0.03] disabled:cursor-not-allowed disabled:opacity-60 dark:hover:bg-white/[0.05]'
-}
+  const borderClass = isLive
+    ? 'border-red-300 dark:border-red-700/60'
+    : needsReview
+      ? 'border-amber-200 dark:border-amber-700/40'
+      : 'border-border'
 
-function PatientAppointmentCard({ appointment, session, onSelect }) {
-  const sessionLabel = session
-    ? `Session ${session.sessionStatus.toLowerCase()}`
-    : appointment.status === 'ACCEPTED'
-      ? 'Waiting for doctor to open the room'
-      : 'Pending doctor response'
+  const bgClass = isLive
+    ? 'bg-red-50/70 dark:bg-red-950/20'
+    : needsReview
+      ? 'bg-amber-50/60 dark:bg-amber-950/15'
+      : 'bg-card'
 
   return (
     <button
       type="button"
       onClick={() => onSelect(appointment.id)}
-      className="w-full rounded-[24px] border p-4 text-left transition hover:-translate-y-0.5"
-      style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--card))' }}
+      className={`group w-full rounded-2xl border-2 p-5 text-left transition-all hover:-translate-y-0.5 hover:shadow-md ${borderClass} ${bgClass}`}
     >
-      <div className="space-y-4">
-        <div className="flex items-start justify-between gap-3">
-          <div className="space-y-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <StatusBadge status={appointment.status} />
-              {session ? <StatusBadge status={session.sessionStatus} className="opacity-85" /> : null}
-            </div>
-            <p className="text-base font-semibold leading-6" style={{ color: 'hsl(var(--foreground))' }}>
-              {appointment.reasonForVisit || 'Teleconsultation'}
-            </p>
-            <p className="text-sm" style={{ color: 'hsl(var(--muted-foreground))' }}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex-1 min-w-0 space-y-2">
+          {/* Badges */}
+          <div className="flex flex-wrap items-center gap-2">
+            <StatusBadge status={appointment.status} />
+            {session && <StatusBadge status={session.sessionStatus} />}
+          </div>
+
+          {/* Reason */}
+          <p className="truncate text-base font-semibold" style={{ color: 'hsl(var(--foreground))' }}>
+            {appointment.reasonForVisit || 'Telemedicine Consultation'}
+          </p>
+
+          {/* Doctor */}
+          <div className="flex items-center gap-1.5 text-sm" style={{ color: 'hsl(var(--muted-foreground))' }}>
+            <Stethoscope className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">
               {appointment.doctorDisplay?.knownDoctor
                 ? appointment.doctorDisplay.name
-                : appointment.doctorId
-                  ? `Doctor ID ${appointment.doctorId}`
-                  : 'Doctor reference will appear here'}
-            </p>
-          </div>
-          <div className="rounded-2xl px-3 py-2 text-right" style={{ backgroundColor: 'hsl(var(--background) / 0.7)' }}>
-            <p className="text-[11px] uppercase tracking-[0.18em]" style={{ color: 'hsl(var(--muted-foreground))' }}>
-              Scheduled
-            </p>
-            <p className="mt-1 text-sm font-semibold" style={{ color: 'hsl(var(--foreground))' }}>
-              {formatDateTime(appointment.scheduledAt)}
-            </p>
+                : 'Assigned Doctor'}
+            </span>
           </div>
         </div>
 
-        <div className="rounded-[20px] px-3 py-3 text-sm" style={{ backgroundColor: 'hsl(var(--background) / 0.65)', color: 'hsl(var(--muted-foreground))' }}>
-          {sessionLabel}
+        {/* Date + countdown */}
+        <div className="shrink-0 text-right space-y-1.5">
+          <p className="text-xs font-medium" style={{ color: 'hsl(var(--muted-foreground))' }}>
+            {formatDateTime(appointment.scheduledAt)}
+          </p>
+          {cd && (
+            <span
+              className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                cd.overdue
+                  ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300'
+                  : cd.urgent
+                    ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300'
+                    : 'bg-slate-100 text-slate-600 dark:bg-white/10 dark:text-slate-300'
+              }`}
+            >
+              <Clock className="h-3 w-3" />
+              {cd.label}
+            </span>
+          )}
         </div>
+      </div>
 
-        <div className="flex justify-end">
-          <span className="text-sm font-semibold" style={{ color: 'hsl(var(--primary))' }}>
-            Open appointment
-          </span>
+      {/* Session status strip */}
+      <div className="mt-4 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2 text-xs" style={{ color: 'hsl(var(--muted-foreground))' }}>
+          <Video className="h-3.5 w-3.5" />
+          {isLive
+            ? 'Session is LIVE — Join now'
+            : isWaiting
+              ? 'Doctor is in the waiting room'
+              : hasRoom
+                ? 'Room ready — Waiting for doctor to start'
+                : appointment.status === 'ACCEPTED'
+                  ? 'Waiting for doctor to create the room'
+                  : 'Waiting for doctor confirmation'}
         </div>
+        <span className="flex items-center gap-1 text-xs font-semibold group-hover:gap-2 transition-all" style={{ color: 'hsl(var(--primary))' }}>
+          {isLive ? 'Join now' : 'Open'}
+          <ChevronRight className="h-3.5 w-3.5" />
+        </span>
       </div>
     </button>
   )
 }
 
+/* ─── Readiness indicator ──────────────────────────────────────────────────*/
+
+function ReadinessRow({ label, joined }) {
+  return (
+    <div className="flex items-center justify-between gap-4 rounded-xl px-4 py-3" style={{ backgroundColor: 'hsl(var(--background) / 0.6)' }}>
+      <span className="text-sm font-medium" style={{ color: 'hsl(var(--muted-foreground))' }}>{label}</span>
+      <span className={`inline-flex items-center gap-1.5 text-sm font-semibold ${joined ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400'}`}>
+        {joined ? <CheckCircle2 className="h-4 w-4" /> : <Clock className="h-4 w-4" />}
+        {joined ? 'Joined' : 'Not yet'}
+      </span>
+    </div>
+  )
+}
+
+/* ─── Main component ─────────────────────────────────────────────────────── */
+
 export default function PatientTelemedicinePage() {
-  const { user } = useAuth()
-  const patientId = user?.id || ''
+  const { user, accessToken } = useAuth()
+
+  const patientIdentifiers = useMemo(() => {
+    const storedUser = safeJsonParse(localStorage.getItem('user'))
+    const identifiers = new Set([
+      ...getTelemedicinePatientIdentifiers(user),
+      ...getTelemedicinePatientIdentifiers(storedUser),
+    ])
+    const tokenSubject = normalizeId(decodeJwtSubject(accessToken || localStorage.getItem('accessToken')))
+    if (tokenSubject) identifiers.add(tokenSubject)
+    return Array.from(identifiers)
+  }, [accessToken, user])
+
+  const patientId = patientIdentifiers[0] || ''
   const selectedAppointmentIdRef = useRef(null)
 
-  const [appointments, setAppointments] = useState([])
+  const [appointments,        setAppointments]        = useState([])
   const [appointmentsLoading, setAppointmentsLoading] = useState(true)
-  const [appointmentsError, setAppointmentsError] = useState('')
+  const [appointmentsError,   setAppointmentsError]   = useState('')
   const [selectedAppointmentId, setSelectedAppointmentId] = useState(null)
 
   const [sessionsByAppointmentId, setSessionsByAppointmentId] = useState({})
-  const [sessionLookupLoading, setSessionLookupLoading] = useState(false)
-  const [sessionError, setSessionError] = useState('')
-  const [readinessBySessionId, setReadinessBySessionId] = useState({})
-  const [patientJoinInfo, setPatientJoinInfo] = useState(null)
-  const [sessionActionState, setSessionActionState] = useState(EMPTY_ACTION_STATE)
+  const [sessionLookupLoading,    setSessionLookupLoading]    = useState(false)
+  const [sessionError,            setSessionError]            = useState('')
+  const [readinessBySessionId,    setReadinessBySessionId]    = useState({})
+  const [patientJoinInfo,         setPatientJoinInfo]         = useState(null)
+  const [sessionActionState,      setSessionActionState]      = useState(EMPTY_ACTION_STATE)
+  const [consultationsBySessionId, setConsultationsBySessionId] = useState({})
+  const [prescriptionsByConsultationId, setPrescriptionsByConsultationId] = useState({})
+  const [clinicalLoading, setClinicalLoading] = useState(false)
+  const [clinicalError, setClinicalError] = useState('')
 
   const patientDisplay = useMemo(() => {
     const resolved = resolveTelemedicinePatient(patientId)
-    return {
-      ...resolved,
-      name: user?.name || resolved.name,
-      email: user?.email || resolved.email,
-    }
+    return { ...resolved, name: user?.name || resolved.name, email: user?.email || resolved.email }
   }, [patientId, user?.email, user?.name])
 
   const enrichedAppointments = useMemo(
-    () => appointments.map((appointment) => enrichTelemedicineAppointment(appointment, null, appointment.doctorId)),
+    () => appointments.map((a) => enrichTelemedicineAppointment(a, null, a.doctorId)),
     [appointments]
   )
   const deferredAppointments = useDeferredValue(enrichedAppointments)
-  const scheduledAppointments = deferredAppointments.filter((appointment) => SCHEDULED_APPOINTMENT_STATUSES.has(appointment.status))
-  const acceptedAppointments = deferredAppointments.filter((appointment) => appointment.status === 'ACCEPTED')
-  const selectedAppointment = enrichedAppointments.find((appointment) => appointment.id === selectedAppointmentId) || null
-  const selectedSession = selectedAppointment ? sessionsByAppointmentId[selectedAppointment.id] || null : null
-  const selectedReadiness = selectedSession ? readinessBySessionId[selectedSession.id] || null : null
-  const selectedSessionId = selectedSession?.id || null
-  const selectedSessionAppointmentId = selectedSession?.appointmentId || null
-  const selectedSessionStatus = selectedSession?.sessionStatus || null
-  const activeAppointmentCount = scheduledAppointments.length + acceptedAppointments.length
-  const joinableCount = acceptedAppointments.filter((appointment) => Boolean(sessionsByAppointmentId[appointment.id])).length
 
-  useEffect(() => {
-    selectedAppointmentIdRef.current = selectedAppointmentId
-  }, [selectedAppointmentId])
+  const scheduledAppointments = deferredAppointments.filter((a) => SCHEDULED_APPOINTMENT_STATUSES.has(a.status))
+  const acceptedAppointments  = deferredAppointments.filter((a) => a.status === 'ACCEPTED')
+
+  const selectedAppointment = enrichedAppointments.find((a) => a.id === selectedAppointmentId) || null
+  const selectedSession     = selectedAppointment ? sessionsByAppointmentId[selectedAppointment.id] || null : null
+  const selectedReadiness   = selectedSession ? readinessBySessionId[selectedSession.id] || null : null
+  const selectedConsultation = selectedSession ? consultationsBySessionId[selectedSession.id] || null : null
+  const selectedPrescriptions = selectedConsultation ? prescriptionsByConsultationId[selectedConsultation.id] || [] : []
+
+  const selectedSessionId              = selectedSession?.id || null
+  const selectedSessionAppointmentId   = selectedSession?.appointmentId || null
+  const selectedSessionStatus          = selectedSession?.sessionStatus || null
+
+  const activeAppointmentCount = scheduledAppointments.length + acceptedAppointments.length
+  const joinableCount          = acceptedAppointments.filter((a) => Boolean(sessionsByAppointmentId[a.id])).length
+  const liveCount              = acceptedAppointments.filter((a) => sessionsByAppointmentId[a.id]?.sessionStatus === 'LIVE').length
+
+  useEffect(() => { selectedAppointmentIdRef.current = selectedAppointmentId }, [selectedAppointmentId])
+
+  /* ── Data fetching ── */
 
   const refreshAppointments = useCallback(async ({ preferredAppointmentId = null, preserveSelection = true } = {}) => {
+    if (!patientIdentifiers.length) {
+      startTransition(() => { setAppointments([]); setSelectedAppointmentId(null) })
+      setAppointmentsLoading(false)
+      setAppointmentsError('Unable to resolve your patient account. Please sign out and sign in again.')
+      return
+    }
     setAppointmentsLoading(true)
     setAppointmentsError('')
-
     try {
-      const nextAppointments = (await listAppointments({ patientId })).filter((appointment) => {
-        if (!ACTIVE_PATIENT_STATUSES.has(appointment.status)) return false
-        return true
+      const settled = await Promise.allSettled(
+        patientIdentifiers.map((id) => listAppointments({ patientId: id }))
+      )
+      const ok = settled.filter((r) => r.status === 'fulfilled').flatMap((r) => r.value || [])
+      if (!ok.length && settled.every((r) => r.status === 'rejected')) {
+        throw settled.find((r) => r.status === 'rejected')?.reason || new Error('Unable to load appointments.')
+      }
+      const idSet = new Set(patientIdentifiers)
+      const byId  = new Map()
+      ok.forEach((a) => {
+        if (!a?.id) return
+        if (!ACTIVE_PATIENT_STATUSES.has(a.status)) return
+        if (!appointmentBelongsToPatient(a, { ...user, id: patientId }) && !idSet.has(String(a.patientId || ''))) return
+        byId.set(a.id, a)
       })
-
+      const next = Array.from(byId.values()).sort(
+        (l, r) => new Date(l?.scheduledAt || 0).getTime() - new Date(r?.scheduledAt || 0).getTime()
+      )
       startTransition(() => {
-        setAppointments(nextAppointments)
-
-        let nextSelectedAppointmentId = null
-        if (preferredAppointmentId && nextAppointments.some((appointment) => appointment.id === preferredAppointmentId)) {
-          nextSelectedAppointmentId = preferredAppointmentId
-        } else if (
-          preserveSelection &&
-          selectedAppointmentIdRef.current &&
-          nextAppointments.some((appointment) => appointment.id === selectedAppointmentIdRef.current)
-        ) {
-          nextSelectedAppointmentId = selectedAppointmentIdRef.current
-        }
-
-        setSelectedAppointmentId(nextSelectedAppointmentId)
+        setAppointments(next)
+        let sel = null
+        if (preferredAppointmentId && next.some((a) => a.id === preferredAppointmentId)) sel = preferredAppointmentId
+        else if (preserveSelection && selectedAppointmentIdRef.current && next.some((a) => a.id === selectedAppointmentIdRef.current)) sel = selectedAppointmentIdRef.current
+        setSelectedAppointmentId(sel)
       })
-    } catch (error) {
-      setAppointmentsError(getErrorMessage(error, 'Unable to load your telemedicine appointments.'))
+    } catch (err) {
+      setAppointmentsError(getErrorMessage(err, 'Unable to load your telemedicine appointments.'))
     } finally {
       setAppointmentsLoading(false)
     }
-  }, [patientId])
-  const refreshSessionsForAppointments = useCallback(async (appointmentList, { showLoading = true } = {}) => {
+  }, [patientId, patientIdentifiers, user])
+
+  const refreshSessionsForAppointments = useCallback(async (list, { showLoading = true } = {}) => {
     if (showLoading) setSessionLookupLoading(true)
     setSessionError('')
-
     try {
-      const appointmentIds = new Set((appointmentList || []).map((appointment) => appointment.id))
-      if (appointmentIds.size === 0) {
-        startTransition(() => setSessionsByAppointmentId({}))
-        return
-      }
-
+      const ids = new Set((list || []).map((a) => a.id))
+      if (!ids.size) { startTransition(() => setSessionsByAppointmentId({})); return }
       const sessions = await listSessions()
-      const nextSessionMap = sessions.reduce((map, session) => {
-        if (appointmentIds.has(session.appointmentId)) {
-          map[session.appointmentId] = session
-        }
-        return map
-      }, {})
-
-      startTransition(() => {
-        setSessionsByAppointmentId(nextSessionMap)
-      })
-    } catch (error) {
-      setSessionError(getErrorMessage(error, 'Unable to load consultation session details.'))
+      const map = sessions.reduce((m, s) => { if (ids.has(s.appointmentId)) m[s.appointmentId] = s; return m }, {})
+      startTransition(() => setSessionsByAppointmentId(map))
+    } catch (err) {
+      setSessionError(getErrorMessage(err, 'Unable to load consultation session details.'))
     } finally {
       if (showLoading) setSessionLookupLoading(false)
     }
@@ -224,605 +332,699 @@ export default function PatientTelemedicinePage() {
 
   const refreshReadinessForSession = useCallback(async (session) => {
     if (!session?.id) return null
-
     try {
-      const readiness = await getSessionReady(session.id)
+      const r = await getSessionReady(session.id)
       startTransition(() => {
-        setReadinessBySessionId((current) => ({
-          ...current,
-          [session.id]: readiness,
-        }))
-
-        setSessionsByAppointmentId((current) => {
-          const currentSession = current[session.appointmentId]
-          if (!currentSession || currentSession.sessionStatus === readiness.sessionStatus) {
-            return current
-          }
-
-          return {
-            ...current,
-            [session.appointmentId]: {
-              ...currentSession,
-              sessionStatus: readiness.sessionStatus,
-            },
-          }
+        setReadinessBySessionId((c) => ({ ...c, [session.id]: r }))
+        setSessionsByAppointmentId((c) => {
+          const cur = c[session.appointmentId]
+          if (!cur || cur.sessionStatus === r.sessionStatus) return c
+          return { ...c, [session.appointmentId]: { ...cur, sessionStatus: r.sessionStatus } }
         })
       })
-      return readiness
-    } catch (error) {
-      setSessionError(getErrorMessage(error, 'Unable to refresh consultation readiness.'))
+      return r
+    } catch (err) {
+      setSessionError(getErrorMessage(err, 'Unable to refresh consultation readiness.'))
       return null
     }
   }, [])
 
-  useEffect(() => {
-    refreshAppointments({ preserveSelection: false })
-  }, [refreshAppointments])
+  const refreshConsultationForSession = useCallback(async (session) => {
+    if (!session?.id) return null
 
-  useEffect(() => {
-    refreshSessionsForAppointments(appointments, { showLoading: false })
-  }, [appointments, refreshSessionsForAppointments])
+    try {
+      const consultations = await listConsultations()
+      const consultation = consultations.find((item) => item.sessionId === session.id) || null
 
-  useEffect(() => {
-    if (!selectedSessionId || !READY_POLL_STATUSES.has(selectedSessionStatus)) {
-      return undefined
+      startTransition(() => {
+        setConsultationsBySessionId((current) => ({
+          ...current,
+          [session.id]: consultation,
+        }))
+      })
+
+      return consultation
+    } catch (err) {
+      setClinicalError(getErrorMessage(err, 'Unable to load consultation details for this session.'))
+      return null
     }
+  }, [])
 
-    const pollingSession = {
-      id: selectedSessionId,
-      appointmentId: selectedSessionAppointmentId,
+  const refreshPrescriptionsForConsultation = useCallback(async (consultationId) => {
+    if (!consultationId) return []
+
+    try {
+      const prescriptions = await listPrescriptions({ consultationId })
+      startTransition(() => {
+        setPrescriptionsByConsultationId((current) => ({
+          ...current,
+          [consultationId]: prescriptions,
+        }))
+      })
+      return prescriptions
+    } catch (err) {
+      setClinicalError(getErrorMessage(err, 'Unable to load prescriptions for this consultation.'))
+      return []
     }
+  }, [])
 
-    refreshReadinessForSession(pollingSession)
+  const refreshClinicalDetailsForSession = useCallback(async (session) => {
+    if (!session?.id || session.sessionStatus !== 'COMPLETED') return
 
-    const intervalId = window.setInterval(() => {
-      refreshReadinessForSession(pollingSession)
-    }, 5000)
+    setClinicalError('')
+    setClinicalLoading(true)
+    const consultation = await refreshConsultationForSession(session)
+    if (consultation?.id) {
+      await refreshPrescriptionsForConsultation(consultation.id)
+    }
+    setClinicalLoading(false)
+  }, [refreshConsultationForSession, refreshPrescriptionsForConsultation])
 
-    return () => window.clearInterval(intervalId)
+  useEffect(() => { refreshAppointments({ preserveSelection: false }) }, [refreshAppointments])
+  useEffect(() => { refreshSessionsForAppointments(appointments, { showLoading: false }) }, [appointments, refreshSessionsForAppointments])
+
+  useEffect(() => {
+    if (!selectedSessionId || !READY_POLL_STATUSES.has(selectedSessionStatus)) return undefined
+    const s = { id: selectedSessionId, appointmentId: selectedSessionAppointmentId }
+    refreshReadinessForSession(s)
+    const id = window.setInterval(() => refreshReadinessForSession(s), 5000)
+    return () => window.clearInterval(id)
   }, [refreshReadinessForSession, selectedSessionAppointmentId, selectedSessionId, selectedSessionStatus])
 
   useEffect(() => {
-    if (!selectedSession) {
-      setPatientJoinInfo(null)
+    if (!selectedSession) { setPatientJoinInfo(null); return }
+    if (patientJoinInfo && patientJoinInfo.sessionId !== selectedSession.id) setPatientJoinInfo(null)
+  }, [patientJoinInfo, selectedSession])
+
+  useEffect(() => {
+    if (!selectedSession?.id || selectedSession.sessionStatus !== 'COMPLETED') {
       return
     }
 
-    if (patientJoinInfo && patientJoinInfo.sessionId !== selectedSession.id) {
-      setPatientJoinInfo(null)
-    }
-  }, [patientJoinInfo, selectedSession])
+    refreshClinicalDetailsForSession(selectedSession)
+  }, [refreshClinicalDetailsForSession, selectedSession])
 
-  const handleOpenAppointment = useCallback((appointmentId) => {
-    setSelectedAppointmentId(appointmentId)
+  /* ── Handlers ── */
+
+  const handleOpenAppointment = useCallback((id) => {
+    setSelectedAppointmentId(id)
     window.scrollTo({ top: 0, behavior: 'smooth' })
+  }, [])
+
+  const handleBack = useCallback(() => {
+    setSelectedAppointmentId(null)
+    setPatientJoinInfo(null)
+    setSessionActionState(EMPTY_ACTION_STATE)
   }, [])
 
   const handleJoinConsultation = async () => {
     if (!selectedSession || !selectedAppointment) return
-
     setSessionActionState(actionLoading('join'))
-
     try {
-      const joinInfo = await getJoinToken(selectedSession.id, 'patient', true)
-      setPatientJoinInfo(joinInfo)
+      const info = await getJoinToken(selectedSession.id, 'patient', true)
+      setPatientJoinInfo(info)
       await refreshSessionsForAppointments(enrichedAppointments, { showLoading: false })
       await refreshReadinessForSession(selectedSession)
-      setSessionActionState(actionSuccess('join', 'Patient join access is ready. You can enter the consultation below.'))
-    } catch (error) {
-      setSessionActionState(actionError('join', getErrorMessage(error, 'Unable to prepare your consultation access.')))
+      setSessionActionState(actionSuccess('join', 'Consultation access is ready. You can join below.'))
+    } catch (err) {
+      setSessionActionState(actionError('join', getErrorMessage(err, 'Unable to prepare your consultation access.')))
     }
   }
 
-  return (
-    <div className="space-y-6">
-      <section
-        className="relative overflow-hidden rounded-[32px] border px-6 py-6 shadow-[0_30px_120px_-60px_rgba(6,182,212,0.35)] md:px-8 md:py-8"
-        style={{
-          borderColor: 'hsl(var(--border))',
-          background:
-            'radial-gradient(circle at top right, hsl(var(--accent)) 0%, transparent 34%), linear-gradient(135deg, hsl(var(--card)) 0%, hsl(var(--background)) 100%)',
-        }}
-      >
-        <div className="relative flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
-          <div className="max-w-3xl space-y-4">
-            <div className="inline-flex items-center gap-3 rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em]" style={{ borderColor: 'hsl(var(--border))', color: 'hsl(var(--primary))' }}>
-              <HeartPulse className="h-4 w-4" />
-              {selectedAppointment ? 'Telemedicine Appointment' : 'Patient Telemedicine'}
-            </div>
-            <div className="space-y-3">
-              <h1 className="text-3xl font-semibold tracking-tight md:text-4xl" style={{ color: 'hsl(var(--foreground))' }}>
-                {selectedAppointment ? selectedAppointment.reasonForVisit || 'Consultation details' : 'Your upcoming telemedicine visits'}
+  /* ─────────────────────────────────────────────────────────────────────── */
+  /* ── RENDER: APPOINTMENT LIST (no appointment selected) ─────────────── */
+  /* ─────────────────────────────────────────────────────────────────────── */
+
+  if (!selectedAppointment) {
+    return (
+      <div className="space-y-6">
+
+        {/* ── Hero banner ── */}
+        <section
+          className="relative overflow-hidden rounded-[28px] border p-6 md:p-8"
+          style={{
+            borderColor: 'hsl(var(--border))',
+            background: 'linear-gradient(135deg, hsl(var(--primary) / 0.12) 0%, hsl(var(--accent) / 0.25) 60%, hsl(var(--background)) 100%)',
+          }}
+        >
+          {/* Decorative blobs */}
+          <div className="pointer-events-none absolute -right-10 -top-10 h-48 w-48 rounded-full opacity-10"
+            style={{ background: 'radial-gradient(circle, hsl(var(--primary)), transparent 70%)' }} />
+
+          <div className="relative flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+            {/* Left: greeting */}
+            <div className="space-y-3 max-w-lg">
+              <div className="inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.18em]"
+                style={{ borderColor: 'hsl(var(--border))', color: 'hsl(var(--primary))' }}>
+                <HeartPulse className="h-3.5 w-3.5" />
+                Patient Portal
+              </div>
+              <h1 className="text-2xl font-bold tracking-tight md:text-3xl" style={{ color: 'hsl(var(--foreground))' }}>
+                Hello, {patientDisplay.name || 'there'} 👋
               </h1>
-              <p className="max-w-2xl text-sm leading-7 md:text-base" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                {selectedAppointment
-                  ? `${selectedAppointment.patientDisplay?.name || patientDisplay.name}, review your appointment details, check session readiness, and join the consultation when your doctor is ready.`
-                  : 'See your scheduled telemedicine visits, watch for accepted consultations, and join the Jitsi room when it is available.'}
+              <p className="text-sm leading-7" style={{ color: 'hsl(var(--muted-foreground))' }}>
+                Your telemedicine visits are listed below. When your doctor accepts a request and opens the session room, you&apos;ll be able to join directly from here.
               </p>
+            </div>
+
+            {/* Right: stat chips */}
+            <div className="flex flex-wrap gap-3 lg:flex-col lg:items-end">
+              {[
+                { label: 'Awaiting Confirmation', value: scheduledAppointments.length, color: 'bg-amber-500' },
+                { label: 'Confirmed Visits',       value: acceptedAppointments.length,  color: 'bg-emerald-600' },
+                { label: 'Rooms Ready to Join',   value: joinableCount,                color: 'bg-indigo-500' },
+                { label: 'Live Right Now',         value: liveCount,                   color: 'bg-red-500' },
+              ].map((s) => (
+                <div key={s.label} className="flex items-center gap-3 rounded-2xl border px-4 py-3 min-w-45"
+                  style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--card) / 0.85)' }}>
+                  <div className={`h-2.5 w-2.5 shrink-0 rounded-full ${s.color} ${s.value > 0 && s.color === 'bg-red-500' ? 'animate-pulse' : ''}`} />
+                  <span className="flex-1 text-xs font-medium" style={{ color: 'hsl(var(--muted-foreground))' }}>{s.label}</span>
+                  <span className="text-lg font-bold" style={{ color: 'hsl(var(--foreground))' }}>{s.value}</span>
+                </div>
+              ))}
             </div>
           </div>
+        </section>
 
-          <div className="grid gap-4 sm:grid-cols-2 xl:w-[32rem]">
-            <div className="rounded-[24px] border px-4 py-4" style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--card) / 0.88)' }}>
-              <p className="text-xs uppercase tracking-[0.18em]" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                Logged in as
-              </p>
-              <p className="mt-2 text-sm font-semibold" style={{ color: 'hsl(var(--foreground))' }}>
-                {patientDisplay.name}
-              </p>
-              <p className="mt-1 text-sm" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                {patientDisplay.email || patientDisplay.userId}
+        {/* ── Errors ── */}
+        {appointmentsError && <FeatureNotice tone="error" title="Unable to load appointments" message={appointmentsError} />}
+        {sessionError && <FeatureNotice tone="warning" title="Session updates limited" message={sessionError} />}
+
+        {/* ── Appointment list card ── */}
+        <section
+          className="rounded-[28px] border p-6"
+          style={{
+            borderColor: 'hsl(var(--border))',
+            backgroundColor: 'hsl(var(--card) / 0.97)',
+          }}
+        >
+          <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-8 w-8 items-center justify-center rounded-xl" style={{ backgroundColor: 'hsl(var(--primary) / 0.12)' }}>
+                  <CalendarClock className="h-4 w-4" style={{ color: 'hsl(var(--primary))' }} />
+                </div>
+                <h2 className="text-lg font-semibold" style={{ color: 'hsl(var(--foreground))' }}>
+                  My Telemedicine Appointments
+                </h2>
+              </div>
+              <p className="text-sm" style={{ color: 'hsl(var(--muted-foreground))' }}>
+                Open any visit to view details and join the consultation when the room is ready.
               </p>
             </div>
-
-            <div className="rounded-[24px] border px-4 py-4" style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--card) / 0.88)' }}>
-              <p className="text-xs uppercase tracking-[0.18em]" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                Scheduled visits
-              </p>
-              <p className="mt-2 text-2xl font-semibold" style={{ color: 'hsl(var(--foreground))' }}>
-                {scheduledAppointments.length}
-              </p>
-              <p className="mt-2 text-sm leading-6" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                Pending or rescheduled telemedicine visits waiting for doctor confirmation.
-              </p>
-            </div>
-
-            <div className="rounded-[24px] border px-4 py-4" style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--card) / 0.88)' }}>
-              <p className="text-xs uppercase tracking-[0.18em]" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                Accepted consultations
-              </p>
-              <p className="mt-2 text-2xl font-semibold" style={{ color: 'hsl(var(--foreground))' }}>
-                {acceptedAppointments.length}
-              </p>
-              <p className="mt-2 text-sm leading-6" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                Appointments that are confirmed and moving toward a live video consultation.
-              </p>
-            </div>
-
-            <div className="rounded-[24px] border px-4 py-4" style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--card) / 0.88)' }}>
-              <p className="text-xs uppercase tracking-[0.18em]" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                Join-ready rooms
-              </p>
-              <p className="mt-2 text-2xl font-semibold" style={{ color: 'hsl(var(--foreground))' }}>
-                {joinableCount}
-              </p>
-              <p className="mt-2 text-sm leading-6" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                Accepted consultations that already have a consultation room created.
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {appointmentsError ? (
-        <FeatureNotice tone="error" title="Unable to load appointments" message={appointmentsError} />
-      ) : null}
-
-      {sessionError ? (
-        <FeatureNotice tone="warning" title="Session updates are limited" message={sessionError} />
-      ) : null}
-
-      {!selectedAppointment ? (
-        <TelemedicineSection
-          title="My Telemedicine Appointments"
-          description="Open any scheduled or accepted appointment to review the details and join when the consultation room is ready."
-          action={(
             <button
               type="button"
               onClick={() => refreshAppointments({ preserveSelection: false })}
-              className={actionButtonClass()}
+              className="inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-semibold transition hover:bg-black/3 dark:hover:bg-white/5"
               style={{ borderColor: 'hsl(var(--border))', color: 'hsl(var(--foreground))' }}
             >
-              <RefreshCcw className={`mr-2 h-4 w-4 ${appointmentsLoading ? 'animate-spin' : ''}`} />
-              Refresh appointments
+              <RefreshCcw className={`h-4 w-4 ${appointmentsLoading ? 'animate-spin' : ''}`} />
+              Refresh
             </button>
-          )}
-        >
-          {appointmentsLoading ? (
-            <div className="grid gap-4 xl:grid-cols-2">
-              {Array.from({ length: 4 }).map((_, index) => (
-                <div
-                  key={`patient-appointment-skeleton-${index}`}
-                  className="h-40 animate-pulse rounded-[24px] border"
-                  style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--card))' }}
-                />
+          </div>
+
+          {/* Loading skeletons */}
+          {appointmentsLoading && (
+            <div className="grid gap-4 lg:grid-cols-2">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={`sk-${i}`} className="animate-pulse rounded-2xl border p-5 space-y-3"
+                  style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--muted) / 0.3)' }}>
+                  <div className="flex gap-2"><div className="h-6 w-20 rounded-full bg-black/10 dark:bg-white/10" /><div className="h-6 w-16 rounded-full bg-black/10 dark:bg-white/10" /></div>
+                  <div className="h-5 w-48 rounded bg-black/10 dark:bg-white/10" />
+                  <div className="h-4 w-32 rounded bg-black/10 dark:bg-white/10" />
+                </div>
               ))}
             </div>
-          ) : activeAppointmentCount === 0 ? (
-            <FeatureNotice
-              tone="info"
-              title="No telemedicine visits yet"
-              message="Telemedicine appointments will appear here once your doctor or the appointment team schedules them for you."
-            >
-              <Link
-                to="/patient/dashboard"
-                className="mt-3 inline-flex items-center rounded-2xl border px-4 py-2 text-sm font-semibold transition hover:bg-black/[0.03] dark:hover:bg-white/[0.05]"
-                style={{ borderColor: 'hsl(var(--border))', color: 'hsl(var(--foreground))' }}
-              >
-                Back to dashboard
+          )}
+
+          {/* Empty state */}
+          {!appointmentsLoading && activeAppointmentCount === 0 && (
+            <div className="flex flex-col items-center gap-4 py-16 text-center">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full" style={{ backgroundColor: 'hsl(var(--primary) / 0.1)' }}>
+                <Video className="h-7 w-7" style={{ color: 'hsl(var(--primary))' }} />
+              </div>
+              <div className="space-y-2">
+                <p className="text-base font-semibold" style={{ color: 'hsl(var(--foreground))' }}>No telemedicine visits yet</p>
+                <p className="max-w-sm text-sm" style={{ color: 'hsl(var(--muted-foreground))' }}>
+                  Appointments will appear here once scheduled. You can also book a visit through your appointments page.
+                </p>
+              </div>
+              <Link to="/patient/appointments"
+                className="inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-semibold transition hover:bg-black/3 dark:hover:bg-white/5"
+                style={{ borderColor: 'hsl(var(--border))', color: 'hsl(var(--foreground))' }}>
+                <CalendarClock className="h-4 w-4" />
+                View Appointments
               </Link>
-            </FeatureNotice>
-          ) : (
-            <div className="grid gap-5 xl:grid-cols-2">
-              <div className="space-y-4">
-                <div className="rounded-[26px] border p-5" style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--card))' }}>
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-xs uppercase tracking-[0.18em]" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                        Scheduled for review
-                      </p>
-                      <h2 className="mt-2 text-xl font-semibold" style={{ color: 'hsl(var(--foreground))' }}>
-                        Pending and rescheduled visits
-                      </h2>
-                    </div>
-                    <div className="rounded-2xl px-4 py-2 text-right" style={{ backgroundColor: 'hsl(var(--background) / 0.72)' }}>
-                      <p className="text-2xl font-semibold" style={{ color: 'hsl(var(--foreground))' }}>
-                        {scheduledAppointments.length}
-                      </p>
-                    </div>
-                  </div>
-                  <p className="mt-3 text-sm leading-6" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                    These appointments are still waiting for doctor confirmation or were moved to a new time for your review.
-                  </p>
-                </div>
-
-                {scheduledAppointments.length > 0 ? (
-                  scheduledAppointments.map((appointment) => (
-                    <PatientAppointmentCard
-                      key={appointment.id}
-                      appointment={appointment}
-                      session={sessionsByAppointmentId[appointment.id]}
-                      onSelect={handleOpenAppointment}
-                    />
-                  ))
-                ) : (
-                  <FeatureNotice
-                    tone="info"
-                    title="No pending or rescheduled visits"
-                    message="You do not have any telemedicine appointments waiting for confirmation right now."
-                  />
-                )}
-              </div>
-
-              <div className="space-y-4">
-                <div className="rounded-[26px] border p-5" style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--card))' }}>
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-xs uppercase tracking-[0.18em]" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                        Ready to consult
-                      </p>
-                      <h2 className="mt-2 text-xl font-semibold" style={{ color: 'hsl(var(--foreground))' }}>
-                        Accepted telemedicine visits
-                      </h2>
-                    </div>
-                    <div className="rounded-2xl px-4 py-2 text-right" style={{ backgroundColor: 'hsl(var(--background) / 0.72)' }}>
-                      <p className="text-2xl font-semibold" style={{ color: 'hsl(var(--foreground))' }}>
-                        {acceptedAppointments.length}
-                      </p>
-                    </div>
-                  </div>
-                  <p className="mt-3 text-sm leading-6" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                    Once the doctor creates the consultation room, you can open the appointment and join from there.
-                  </p>
-                </div>
-
-                {acceptedAppointments.length > 0 ? (
-                  acceptedAppointments.map((appointment) => (
-                    <PatientAppointmentCard
-                      key={appointment.id}
-                      appointment={appointment}
-                      session={sessionsByAppointmentId[appointment.id]}
-                      onSelect={handleOpenAppointment}
-                    />
-                  ))
-                ) : (
-                  <FeatureNotice
-                    tone="info"
-                    title="No accepted visits yet"
-                    message="Accepted consultations will appear here as soon as a doctor confirms your telemedicine appointment."
-                  />
-                )}
-              </div>
             </div>
           )}
-        </TelemedicineSection>
-      ) : (
-        <div className="space-y-6">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+
+          {/* Appointment grid */}
+          {!appointmentsLoading && activeAppointmentCount > 0 && (
+            <div className="space-y-6">
+              {/* Live / active sessions first — highlighted */}
+              {liveCount > 0 && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <span className="relative flex h-2.5 w-2.5">
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75" />
+                      <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-500" />
+                    </span>
+                    <p className="text-sm font-semibold text-red-600 dark:text-red-400 uppercase tracking-[0.14em]">Live Now</p>
+                  </div>
+                  <div className="grid gap-4 lg:grid-cols-2">
+                    {acceptedAppointments
+                      .filter((a) => sessionsByAppointmentId[a.id]?.sessionStatus === 'LIVE')
+                      .map((a) => (
+                        <AppointmentCard key={a.id} appointment={a} session={sessionsByAppointmentId[a.id] || null} onSelect={handleOpenAppointment} />
+                      ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Confirmed (non-live) */}
+              {acceptedAppointments.filter((a) => sessionsByAppointmentId[a.id]?.sessionStatus !== 'LIVE').length > 0 && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <div className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
+                    <p className="text-sm font-semibold uppercase tracking-[0.14em]" style={{ color: 'hsl(var(--foreground))' }}>Confirmed Visits</p>
+                  </div>
+                  <div className="grid gap-4 lg:grid-cols-2">
+                    {acceptedAppointments
+                      .filter((a) => sessionsByAppointmentId[a.id]?.sessionStatus !== 'LIVE')
+                      .map((a) => (
+                        <AppointmentCard key={a.id} appointment={a} session={sessionsByAppointmentId[a.id] || null} onSelect={handleOpenAppointment} />
+                      ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Pending / rescheduled */}
+              {scheduledAppointments.length > 0 && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <div className="h-2.5 w-2.5 rounded-full bg-amber-500" />
+                    <p className="text-sm font-semibold uppercase tracking-[0.14em]" style={{ color: 'hsl(var(--foreground))' }}>Awaiting Confirmation</p>
+                  </div>
+                  <div className="grid gap-4 lg:grid-cols-2">
+                    {scheduledAppointments.map((a) => (
+                      <AppointmentCard key={a.id} appointment={a} session={sessionsByAppointmentId[a.id] || null} onSelect={handleOpenAppointment} />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </section>
+      </div>
+    )
+  }
+
+  /* ─────────────────────────────────────────────────────────────────────── */
+  /* ── RENDER: APPOINTMENT WORKSPACE (appointment selected) ────────────── */
+  /* ─────────────────────────────────────────────────────────────────────── */
+
+  const isLive       = selectedSession?.sessionStatus === 'LIVE'
+  const isWaiting    = selectedSession?.sessionStatus === 'WAITING'
+  const isCompleted  = selectedSession?.sessionStatus === 'COMPLETED'
+  const hasRoom      = Boolean(selectedSession)
+  const canJoin      = hasRoom && !isCompleted
+  const doctorName   = selectedAppointment.doctorDisplay?.name || 'Your Doctor'
+  const patientName  = selectedAppointment.patientDisplay?.name || patientDisplay.name
+
+  return (
+    <div className="space-y-5">
+
+      {/* ── Hero workspace header ── */}
+      <div
+        className="relative overflow-hidden rounded-[28px] border p-6"
+        style={{
+          borderColor: 'hsl(var(--border))',
+          background: 'linear-gradient(135deg, hsl(var(--primary) / 0.13) 0%, hsl(var(--accent) / 0.28) 60%, hsl(var(--background)) 100%)',
+        }}
+      >
+        <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full opacity-10"
+          style={{ background: 'radial-gradient(circle, hsl(var(--primary)), transparent 70%)' }} />
+
+        <div className="relative space-y-4">
+          {/* Top bar */}
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <button
               type="button"
-              onClick={() => {
-                setSelectedAppointmentId(null)
-                setPatientJoinInfo(null)
-                setSessionActionState(EMPTY_ACTION_STATE)
-              }}
-              className={actionButtonClass()}
+              onClick={handleBack}
+              className="inline-flex items-center gap-2 rounded-xl border px-3 py-1.5 text-sm font-medium transition hover:bg-black/4 dark:hover:bg-white/6"
               style={{ borderColor: 'hsl(var(--border))', color: 'hsl(var(--foreground))' }}
             >
-              Back to my appointments
+              <ArrowLeft className="h-4 w-4" />
+              My Appointments
             </button>
-
             <div className="flex flex-wrap items-center gap-2">
               <StatusBadge status={selectedAppointment.status} />
-              {selectedSession ? <StatusBadge status={selectedSession.sessionStatus} /> : null}
+              {selectedSession && <StatusBadge status={selectedSession.sessionStatus} />}
             </div>
           </div>
 
-          <TelemedicineSection
-            title="Appointment Details"
-            description="Review your scheduled visit, doctor reference, and the current telemedicine status before joining."
-            action={(
+          {/* Patient + reason */}
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="space-y-1">
+              <p className="text-xs uppercase tracking-[0.18em]" style={{ color: 'hsl(var(--muted-foreground))' }}>
+                Your Consultation
+              </p>
+              <h2 className="text-2xl font-bold tracking-tight" style={{ color: 'hsl(var(--foreground))' }}>
+                {selectedAppointment.reasonForVisit || 'Telemedicine Consultation'}
+              </h2>
+              <div className="flex flex-wrap items-center gap-3 text-sm" style={{ color: 'hsl(var(--muted-foreground))' }}>
+                <span className="flex items-center gap-1.5">
+                  <Stethoscope className="h-3.5 w-3.5" />
+                  {doctorName}
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <CalendarClock className="h-3.5 w-3.5" />
+                  {formatDateTime(selectedAppointment.scheduledAt)}
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <User className="h-3.5 w-3.5" />
+                  {patientName}
+                </span>
+              </div>
+            </div>
+
+            {/* Status summary chip */}
+            <div
+              className={`shrink-0 rounded-2xl border px-5 py-3 text-center ${
+                isLive ? 'border-red-300 bg-red-50 dark:border-red-700/50 dark:bg-red-950/30'
+                : isWaiting ? 'border-orange-300 bg-orange-50 dark:border-orange-700/50 dark:bg-orange-950/30'
+                : hasRoom ? 'border-emerald-300 bg-emerald-50 dark:border-emerald-700/50 dark:bg-emerald-950/30'
+                : 'border-border'
+              }`}
+              style={!isLive && !isWaiting && !hasRoom ? { backgroundColor: 'hsl(var(--card) / 0.7)' } : {}}
+            >
+              <p className="text-xs font-medium uppercase tracking-[0.14em]" style={{ color: 'hsl(var(--muted-foreground))' }}>Status</p>
+              <p className={`mt-1 text-sm font-bold ${
+                isLive ? 'text-red-600 dark:text-red-400'
+                : isWaiting ? 'text-orange-600 dark:text-orange-400'
+                : hasRoom ? 'text-emerald-600 dark:text-emerald-400'
+                : 'text-foreground'
+              }`}
+                style={!isLive && !isWaiting && !hasRoom && !isCompleted ? { color: 'hsl(var(--foreground))' } : {}}>
+                {isLive ? '🔴 Session is Live' : isWaiting ? '⏳ Doctor in waiting room' : hasRoom ? '✅ Room is Ready' : '⏳ Waiting for Doctor'}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Main grid ── */}
+      <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
+
+        {/* LEFT col: appointment info */}
+        <div className="space-y-4">
+
+          {/* Appointment notes */}
+          {selectedAppointment.notes && (
+            <section className="rounded-2xl border p-5" style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--card))' }}>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em]" style={{ color: 'hsl(var(--muted-foreground))' }}>Your Notes</p>
+              <p className="mt-3 text-sm leading-7" style={{ color: 'hsl(var(--foreground))' }}>
+                {selectedAppointment.notes}
+              </p>
+            </section>
+          )}
+
+          {/* Doctor info */}
+          <section className="rounded-2xl border p-5" style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--card))' }}>
+            <p className="mb-4 text-xs font-semibold uppercase tracking-[0.16em]" style={{ color: 'hsl(var(--muted-foreground))' }}>Your Doctor</p>
+            <div className="flex items-center gap-4">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl"
+                style={{ backgroundColor: 'hsl(var(--primary) / 0.12)' }}>
+                <Stethoscope className="h-6 w-6" style={{ color: 'hsl(var(--primary))' }} />
+              </div>
+              <div className="space-y-1">
+                <p className="font-semibold" style={{ color: 'hsl(var(--foreground))' }}>{doctorName}</p>
+                <p className="text-sm" style={{ color: 'hsl(var(--muted-foreground))' }}>
+                  {selectedAppointment.doctorDisplay?.email || 'Contact available after connection'}
+                </p>
+              </div>
+            </div>
+          </section>
+
+          {/* Appointment meta */}
+          <section className="rounded-2xl border p-5" style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--card))' }}>
+            <p className="mb-4 text-xs font-semibold uppercase tracking-[0.16em]" style={{ color: 'hsl(var(--muted-foreground))' }}>Appointment Info</p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {[
+                { label: 'Reason',    value: selectedAppointment.reasonForVisit || 'Consultation' },
+                { label: 'Scheduled', value: formatDateTime(selectedAppointment.scheduledAt) },
+                { label: 'Appointment Status', value: <StatusBadge status={selectedAppointment.status} /> },
+                { label: 'Session Room',
+                  value: selectedSession
+                    ? <span className="font-mono text-xs">{selectedSession.jitsiRoomId}</span>
+                    : <span style={{ color: 'hsl(var(--muted-foreground))' }}>Not created yet</span>
+                },
+              ].map((row) => (
+                <div key={row.label} className="rounded-xl p-3" style={{ backgroundColor: 'hsl(var(--background) / 0.6)' }}>
+                  <p className="text-[10px] font-medium uppercase tracking-[0.14em]" style={{ color: 'hsl(var(--muted-foreground))' }}>{row.label}</p>
+                  <div className="mt-1.5 text-sm font-semibold" style={{ color: 'hsl(var(--foreground))' }}>{row.value}</div>
+                </div>
+              ))}
+            </div>
+          </section>
+        </div>
+
+        {/* RIGHT col: readiness + join */}
+        <div className="space-y-4">
+
+          {/* Session status + readiness */}
+          <section className="rounded-2xl border p-5" style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--card))' }}>
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em]" style={{ color: 'hsl(var(--muted-foreground))' }}>Session Status</p>
               <button
                 type="button"
-                onClick={() => refreshAppointments({ preferredAppointmentId: selectedAppointment.id })}
-                className={actionButtonClass()}
-                style={{ borderColor: 'hsl(var(--border))', color: 'hsl(var(--foreground))' }}
+                onClick={() => {
+                  refreshAppointments({ preferredAppointmentId: selectedAppointment.id })
+                  refreshSessionsForAppointments(enrichedAppointments, { showLoading: false })
+                  if (selectedSession) refreshReadinessForSession(selectedSession)
+                  if (selectedSession?.sessionStatus === 'COMPLETED') {
+                    refreshClinicalDetailsForSession(selectedSession)
+                  }
+                }}
+                className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition hover:bg-black/4 dark:hover:bg-white/6"
+                style={{ color: 'hsl(var(--foreground))' }}
               >
-                <RefreshCcw className={`mr-2 h-4 w-4 ${appointmentsLoading ? 'animate-spin' : ''}`} />
-                Refresh appointment
+                <RefreshCcw className={`h-3.5 w-3.5 ${sessionLookupLoading ? 'animate-spin' : ''}`} />
+                Refresh
               </button>
-            )}
-          >
-            <div className="grid gap-5 xl:grid-cols-[1.35fr,0.95fr]">
-              <div className="space-y-5 rounded-[28px] border p-6" style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--card))' }}>
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                  <div className="space-y-3">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <StatusBadge status={selectedAppointment.status} />
-                      {selectedSession ? <StatusBadge status={selectedSession.sessionStatus} className="opacity-85" /> : null}
-                    </div>
-                    <div>
-                      <h2 className="text-2xl font-semibold tracking-tight" style={{ color: 'hsl(var(--foreground))' }}>
-                        {selectedAppointment.reasonForVisit || 'Telemedicine consultation'}
-                      </h2>
-                      <p className="mt-2 text-sm leading-6" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                        Scheduled for {formatDateTime(selectedAppointment.scheduledAt)}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="rounded-[22px] border px-4 py-4" style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--background) / 0.72)' }}>
-                    <p className="text-xs uppercase tracking-[0.18em]" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                      Appointment ID
-                    </p>
-                    <p className="mt-2 text-sm font-semibold break-all" style={{ color: 'hsl(var(--foreground))' }}>
-                      {selectedAppointment.id}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="rounded-[22px] border p-4" style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--background) / 0.68)' }}>
-                    <p className="text-xs uppercase tracking-[0.18em]" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                      Patient
-                    </p>
-                    <p className="mt-2 text-lg font-semibold" style={{ color: 'hsl(var(--foreground))' }}>
-                      {selectedAppointment.patientDisplay?.name || patientDisplay.name}
-                    </p>
-                    <div className="mt-3 space-y-2 text-sm" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                      <p>{selectedAppointment.patientDisplay?.email || patientDisplay.email || 'Email not available'}</p>
-                      <p>DOB: {selectedAppointment.patientDisplay?.dob || patientDisplay.dob || 'Not available'}</p>
-                      <p>User ID: {selectedAppointment.patientDisplay?.userId || patientDisplay.userId}</p>
-                    </div>
-                  </div>
-
-                  <div className="rounded-[22px] border p-4" style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--background) / 0.68)' }}>
-                    <p className="text-xs uppercase tracking-[0.18em]" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                      Doctor reference
-                    </p>
-                    <p className="mt-2 text-lg font-semibold" style={{ color: 'hsl(var(--foreground))' }}>
-                      {selectedAppointment.doctorDisplay?.name || 'Doctor'}
-                    </p>
-                    <div className="mt-3 space-y-2 text-sm" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                      <p>{selectedAppointment.doctorDisplay?.email || 'Doctor contact will appear once connected'}</p>
-                      <p>Doctor ID: {selectedAppointment.doctorId || 'Not available'}</p>
-                      <p>Status: {selectedAppointment.doctorDisplay?.knownDoctor ? 'Known provider profile' : 'Provider details limited in demo mode'}</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="rounded-[22px] border p-4" style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--background) / 0.68)' }}>
-                  <p className="text-xs uppercase tracking-[0.18em]" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                    Appointment notes
-                  </p>
-                  <p className="mt-3 text-sm leading-7" style={{ color: 'hsl(var(--foreground))' }}>
-                    {selectedAppointment.notes || 'No extra notes were added for this consultation.'}
-                  </p>
-                </div>
-              </div>
-
-              <div className="space-y-5">
-                <div className="rounded-[28px] border p-6" style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--card))' }}>
-                  <p className="text-xs uppercase tracking-[0.18em]" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                    Consultation status
-                  </p>
-                  <p className="mt-3 text-lg font-semibold" style={{ color: 'hsl(var(--foreground))' }}>
-                    {selectedSession ? getSessionStateCopy(selectedSession.sessionStatus) : selectedAppointment.status === 'ACCEPTED'
-                      ? 'This appointment is accepted. We are waiting for the doctor to create the consultation room.'
-                      : 'This visit is not ready to join yet. It will become available after doctor confirmation.'}
-                  </p>
-                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                    <div className="rounded-[20px] border px-4 py-4" style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--background) / 0.68)' }}>
-                      <p className="text-xs uppercase tracking-[0.18em]" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                        Room status
-                      </p>
-                      <p className="mt-2 text-sm font-semibold" style={{ color: 'hsl(var(--foreground))' }}>
-                        {selectedSession ? selectedSession.sessionStatus : 'Room not created yet'}
-                      </p>
-                    </div>
-                    <div className="rounded-[20px] border px-4 py-4" style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--background) / 0.68)' }}>
-                      <p className="text-xs uppercase tracking-[0.18em]" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                        Readiness
-                      </p>
-                      <p className="mt-2 text-sm font-semibold" style={{ color: 'hsl(var(--foreground))' }}>
-                        {selectedReadiness?.ready
-                          ? 'Both sides are ready'
-                          : selectedSession
-                            ? 'Waiting for both participants'
-                            : 'Waiting for session setup'}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="rounded-[28px] border p-6" style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--card))' }}>
-                  <div className="flex items-center gap-2">
-                    <CalendarClock className="h-4 w-4" style={{ color: 'hsl(var(--primary))' }} />
-                    <p className="text-sm font-semibold" style={{ color: 'hsl(var(--foreground))' }}>
-                      Readiness snapshot
-                    </p>
-                  </div>
-                  <div className="mt-4 space-y-3 text-sm" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                    <p>Patient joined: {selectedReadiness?.patientJoined ? 'Yes' : selectedSession?.patientJoinedAt ? 'Yes' : 'Not yet'}</p>
-                    <p>Doctor joined: {selectedReadiness?.doctorJoined ? 'Yes' : selectedSession?.doctorJoinedAt ? 'Yes' : 'Not yet'}</p>
-                    <p>Last session update: {selectedSession ? formatDateTime(selectedSession.updatedAt || selectedSession.startedAt || selectedAppointment.updatedAt) : 'Waiting for room creation'}</p>
-                  </div>
-                </div>
-              </div>
             </div>
-          </TelemedicineSection>
 
-          <TelemedicineSection
-            title="Session Access"
-            description="Refresh the room status or prepare your own join access when the consultation is ready."
-            action={(
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    refreshAppointments({ preferredAppointmentId: selectedAppointment.id })
-                    refreshSessionsForAppointments(enrichedAppointments, { showLoading: false })
-                    if (selectedSession) {
-                      refreshReadinessForSession(selectedSession)
-                    }
-                  }}
-                  className={actionButtonClass()}
-                  style={{ borderColor: 'hsl(var(--border))', color: 'hsl(var(--foreground))' }}
-                >
-                  <RefreshCcw className="mr-2 h-4 w-4" />
-                  Refresh status
-                </button>
-                <button
-                  type="button"
-                  onClick={handleJoinConsultation}
-                  disabled={!selectedSession || sessionActionState.loading}
-                  className={actionButtonClass('primary')}
-                  style={{ backgroundColor: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))' }}
-                >
-                  <Video className={`mr-2 h-4 w-4 ${sessionActionState.loading ? 'animate-pulse' : ''}`} />
-                  Join consultation
-                </button>
+            <p className="mb-4 text-sm leading-6" style={{ color: 'hsl(var(--muted-foreground))' }}>
+              {!hasRoom
+                ? selectedAppointment.status === 'ACCEPTED'
+                  ? 'Your appointment is confirmed. Waiting for the doctor to open the session room.'
+                  : 'This visit is pending doctor confirmation. We\'ll update this page automatically.'
+                : isCompleted
+                  ? 'This consultation has been completed. Thank you for your visit.'
+                  : isLive
+                    ? 'The session is live! Join now to connect with your doctor.'
+                    : isWaiting
+                      ? 'Your doctor has joined the waiting room. You can join now.'
+                      : getSessionStateCopy(selectedSession.sessionStatus)}
+            </p>
+
+            <div className="space-y-2">
+              <ReadinessRow label="Doctor joined" joined={Boolean(selectedReadiness?.doctorJoined || selectedSession?.doctorJoinedAt)} />
+              <ReadinessRow label="Patient joined" joined={Boolean(selectedReadiness?.patientJoined || selectedSession?.patientJoinedAt)} />
+            </div>
+
+            {selectedSession && (
+              <div className="mt-3 flex items-center gap-2 rounded-xl px-4 py-3"
+                style={{ backgroundColor: selectedReadiness?.ready ? 'hsl(var(--primary) / 0.08)' : 'hsl(var(--background) / 0.6)' }}>
+                {selectedReadiness?.ready
+                  ? <Wifi className="h-4 w-4 text-emerald-500" />
+                  : <WifiOff className="h-4 w-4" style={{ color: 'hsl(var(--muted-foreground))' }} />}
+                <p className="text-sm font-semibold" style={{ color: selectedReadiness?.ready ? 'hsl(var(--foreground))' : 'hsl(var(--muted-foreground))' }}>
+                  {selectedReadiness?.ready ? 'Both sides ready — you can start the call' : 'Waiting for both participants'}
+                </p>
               </div>
             )}
-          >
-            <div className="grid gap-5 xl:grid-cols-[1.2fr,0.8fr]">
-              <div className="rounded-[28px] border p-6" style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--card))' }}>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="rounded-[20px] border px-4 py-4" style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--background) / 0.68)' }}>
-                    <p className="text-xs uppercase tracking-[0.18em]" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                      Appointment state
-                    </p>
-                    <p className="mt-2 text-sm font-semibold" style={{ color: 'hsl(var(--foreground))' }}>
-                      {selectedAppointment.status}
-                    </p>
-                  </div>
-                  <div className="rounded-[20px] border px-4 py-4" style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--background) / 0.68)' }}>
-                    <p className="text-xs uppercase tracking-[0.18em]" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                      Session state
-                    </p>
-                    <p className="mt-2 text-sm font-semibold" style={{ color: 'hsl(var(--foreground))' }}>
-                      {selectedSession?.sessionStatus || 'Session not created'}
-                    </p>
-                  </div>
-                  <div className="rounded-[20px] border px-4 py-4" style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--background) / 0.68)' }}>
-                    <p className="text-xs uppercase tracking-[0.18em]" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                      Jitsi room
-                    </p>
-                    <p className="mt-2 text-sm font-semibold break-all" style={{ color: 'hsl(var(--foreground))' }}>
-                      {selectedSession?.jitsiRoomId || 'Room pending'}
-                    </p>
-                  </div>
-                  <div className="rounded-[20px] border px-4 py-4" style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--background) / 0.68)' }}>
-                    <p className="text-xs uppercase tracking-[0.18em]" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                      Patient join access
-                    </p>
-                    <p className="mt-2 text-sm font-semibold" style={{ color: 'hsl(var(--foreground))' }}>
-                      {patientJoinInfo ? 'Ready below' : 'Not generated'}
-                    </p>
-                  </div>
-                </div>
+          </section>
 
-                <div className="mt-5 rounded-[22px] border p-4" style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--background) / 0.68)' }}>
-                  <p className="text-sm leading-7" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                    {!selectedSession
-                      ? selectedAppointment.status === 'ACCEPTED'
-                        ? 'This appointment is accepted, but the doctor has not created the room yet. Refresh again in a moment.'
-                        : 'This appointment still needs doctor confirmation before a room can be created.'
-                      : selectedReadiness?.ready
-                        ? 'Both sides are ready. You can join the call now.'
-                        : 'You can prepare your patient join access now. The consultation becomes smoother once both sides have joined.'}
-                  </p>
-                </div>
+          {/* Join action card */}
+          <section className="rounded-2xl border p-5" style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--card))' }}>
+            <p className="mb-3 text-xs font-semibold uppercase tracking-[0.16em]" style={{ color: 'hsl(var(--muted-foreground))' }}>Join Consultation</p>
+
+            {sessionActionState.error && (
+              <div className="mb-3"><FeatureNotice tone="error" title="Unable to prepare" message={sessionActionState.error} /></div>
+            )}
+            {sessionActionState.success && (
+              <div className="mb-3"><FeatureNotice tone="success" title="Ready to join" message={sessionActionState.success} /></div>
+            )}
+
+            {!hasRoom && (
+              <p className="mb-4 text-sm" style={{ color: 'hsl(var(--muted-foreground))' }}>
+                {selectedAppointment.status === 'ACCEPTED'
+                  ? 'The consultation room hasn\'t been created yet. The button will activate once your doctor opens it.'
+                  : 'This visit needs doctor confirmation first.'}
+              </p>
+            )}
+
+            <button
+              type="button"
+              onClick={handleJoinConsultation}
+              disabled={!canJoin || sessionActionState.loading}
+              className="w-full inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+              style={{ backgroundColor: 'hsl(var(--primary))' }}
+            >
+              {sessionActionState.loading && sessionActionState.kind === 'join'
+                ? <><Loader2 className="h-4 w-4 animate-spin" /> Preparing access...</>
+                : <><Video className="h-4 w-4" /> {isLive ? 'Join Live Session' : 'Prepare & Join'}</>}
+            </button>
+
+            {patientJoinInfo && (
+              <p className="mt-3 text-center text-xs" style={{ color: 'hsl(var(--muted-foreground))' }}>
+                Access ready — scroll down to enter the meeting room below
+              </p>
+            )}
+          </section>
+
+          <section className="rounded-2xl border p-5" style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--card))' }}>
+            <div className="mb-4 flex items-center gap-2">
+              <FileText className="h-4 w-4" style={{ color: 'hsl(var(--primary))' }} />
+              <p className="text-xs font-semibold uppercase tracking-[0.16em]" style={{ color: 'hsl(var(--muted-foreground))' }}>
+                Clinical Wrap-up
+              </p>
+            </div>
+
+            {clinicalError ? <FeatureNotice tone="error" title="Unable to load wrap-up" message={clinicalError} /> : null}
+
+            {!isCompleted ? (
+              <FeatureNotice
+                tone="info"
+                title="Wrap-up available after consultation"
+                message="Consultation summary and prescriptions will appear here once your doctor completes the session."
+              />
+            ) : null}
+
+            {isCompleted && clinicalLoading ? (
+              <div className="flex items-center gap-2 text-sm" style={{ color: 'hsl(var(--muted-foreground))' }}>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Loading consultation details...
               </div>
+            ) : null}
 
+            {isCompleted && !clinicalLoading && !selectedConsultation ? (
+              <FeatureNotice
+                tone="warning"
+                title="Wrap-up pending"
+                message="Your consultation has ended, but the doctor has not saved consultation notes yet. Please check again shortly."
+              />
+            ) : null}
+
+            {isCompleted && !clinicalLoading && selectedConsultation ? (
               <div className="space-y-4">
-                {sessionActionState.error ? (
-                  <FeatureNotice tone="error" title="Unable to prepare consultation" message={sessionActionState.error} />
-                ) : null}
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-xl p-3" style={{ backgroundColor: 'hsl(var(--background) / 0.6)' }}>
+                    <p className="text-[10px] font-medium uppercase tracking-[0.14em]" style={{ color: 'hsl(var(--muted-foreground))' }}>Consultation ID</p>
+                    <p className="mt-1.5 text-sm font-semibold" style={{ color: 'hsl(var(--foreground))' }}>{selectedConsultation.id}</p>
+                  </div>
+                  <div className="rounded-xl p-3" style={{ backgroundColor: 'hsl(var(--background) / 0.6)' }}>
+                    <p className="text-[10px] font-medium uppercase tracking-[0.14em]" style={{ color: 'hsl(var(--muted-foreground))' }}>Follow-up Date</p>
+                    <p className="mt-1.5 text-sm font-semibold" style={{ color: 'hsl(var(--foreground))' }}>
+                      {selectedConsultation.followUpDate ? formatDate(selectedConsultation.followUpDate) : 'Not scheduled'}
+                    </p>
+                  </div>
+                </div>
 
-                {sessionActionState.success ? (
-                  <FeatureNotice tone="success" title="Consultation access ready" message={sessionActionState.success} />
-                ) : null}
-
-                {selectedSession ? (
-                  <FeatureNotice
-                    tone={selectedReadiness?.ready ? 'success' : 'info'}
-                    title={selectedReadiness?.ready ? 'You can join now' : 'Waiting room update'}
-                    message={selectedReadiness?.ready
-                      ? 'Doctor and patient readiness checks both look good. Join the meeting below whenever you are ready.'
-                      : 'The page keeps watching the session status for you. If the doctor creates or updates the room, this view will refresh automatically.'}
-                  />
-                ) : (
-                  <FeatureNotice
-                    tone="warning"
-                    title="Room not available yet"
-                    message="The consultation room will appear here after the doctor accepts the appointment and creates the session."
-                  />
-                )}
-
-                <div className="rounded-[28px] border p-6" style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--card))' }}>
-                  <p className="text-xs uppercase tracking-[0.18em]" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                    Session lookup
-                  </p>
-                  <p className="mt-3 text-sm font-semibold" style={{ color: 'hsl(var(--foreground))' }}>
-                    {sessionLookupLoading ? 'Refreshing room details...' : 'Room details are up to date'}
-                  </p>
-                  <p className="mt-2 text-sm leading-6" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                    Keep this appointment open while you are waiting. We will keep checking the room readiness while the consultation is active.
+                <div className="rounded-xl p-3" style={{ backgroundColor: 'hsl(var(--background) / 0.6)' }}>
+                  <p className="text-[10px] font-medium uppercase tracking-[0.14em]" style={{ color: 'hsl(var(--muted-foreground))' }}>Diagnosis</p>
+                  <p className="mt-1.5 text-sm leading-6" style={{ color: 'hsl(var(--foreground))' }}>
+                    {selectedConsultation.diagnosis || 'Not provided'}
                   </p>
                 </div>
+
+                <div className="rounded-xl p-3" style={{ backgroundColor: 'hsl(var(--background) / 0.6)' }}>
+                  <p className="text-[10px] font-medium uppercase tracking-[0.14em]" style={{ color: 'hsl(var(--muted-foreground))' }}>Consultation Notes</p>
+                  <p className="mt-1.5 whitespace-pre-wrap text-sm leading-6" style={{ color: 'hsl(var(--foreground))' }}>
+                    {selectedConsultation.doctorNotes || 'No notes available.'}
+                  </p>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Pill className="h-4 w-4" style={{ color: 'hsl(var(--primary))' }} />
+                    <p className="text-sm font-semibold" style={{ color: 'hsl(var(--foreground))' }}>
+                      Prescriptions
+                    </p>
+                  </div>
+
+                  {selectedPrescriptions.length === 0 ? (
+                    <FeatureNotice
+                      tone="info"
+                      title="No prescriptions issued"
+                      message="Your doctor did not add any prescriptions for this consultation."
+                    />
+                  ) : (
+                    <div className="space-y-3">
+                      {selectedPrescriptions.map((prescription) => (
+                        <div
+                          key={prescription.id}
+                          className="space-y-3 rounded-xl border p-3"
+                          style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--background) / 0.6)' }}
+                        >
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2">
+                                <StatusBadge status={prescription.prescriptionStatus} />
+                                <span className="text-[10px] uppercase tracking-[0.14em]" style={{ color: 'hsl(var(--muted-foreground))' }}>
+                                  {prescription.id}
+                                </span>
+                              </div>
+                              <p className="text-sm font-semibold" style={{ color: 'hsl(var(--foreground))' }}>
+                                {prescription.medications?.length || 0} medication{(prescription.medications?.length || 0) === 1 ? '' : 's'}
+                              </p>
+                            </div>
+                            <div className="text-right text-xs" style={{ color: 'hsl(var(--muted-foreground))' }}>
+                              <p>Issued: {formatDateTime(prescription.issuedAt)}</p>
+                              <p>Expires: {formatDateTime(prescription.expiresAt)}</p>
+                            </div>
+                          </div>
+
+                          <div className="space-y-2">
+                            {(prescription.medications || []).map((medication, index) => (
+                              <div
+                                key={`${prescription.id}-${index}`}
+                                className="rounded-lg border px-3 py-2"
+                                style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--card))' }}
+                              >
+                                <p className="text-sm font-semibold" style={{ color: 'hsl(var(--foreground))' }}>
+                                  {medication.name}
+                                </p>
+                                <p className="mt-1 text-xs" style={{ color: 'hsl(var(--muted-foreground))' }}>
+                                  {medication.dosage} - {medication.frequency} - {medication.durationDays} day(s)
+                                </p>
+                                {medication.instructions ? (
+                                  <p className="mt-1 text-xs" style={{ color: 'hsl(var(--muted-foreground))' }}>
+                                    {medication.instructions}
+                                  </p>
+                                ) : null}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          </TelemedicineSection>
-
-          <LiveConsultationPanel
-            currentUser={user}
-            session={selectedSession}
-            joinInfo={patientJoinInfo}
-            participantLabel="patient"
-          />
+            ) : null}
+          </section>
         </div>
-      )}
-
-      <div className="flex justify-start">
-        <Link
-          to="/patient/dashboard"
-          className="inline-flex items-center rounded-2xl border px-4 py-2.5 text-sm font-semibold transition hover:bg-black/[0.03] dark:hover:bg-white/[0.05]"
-          style={{ borderColor: 'hsl(var(--border))', color: 'hsl(var(--foreground))' }}
-        >
-          Back to dashboard
-        </Link>
       </div>
+
+      {/* ── Live Jitsi panel ── */}
+      <LiveConsultationPanel
+        currentUser={user}
+        session={selectedSession}
+        joinInfo={patientJoinInfo}
+        participantLabel="patient"
+      />
     </div>
   )
 }
