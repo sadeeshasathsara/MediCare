@@ -4,6 +4,10 @@ import com.healthcare.doctor.dto.DoctorResponse;
 import com.healthcare.doctor.dto.UpdateDoctorRequest;
 import com.healthcare.doctor.model.Doctor;
 import com.healthcare.doctor.repository.DoctorRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -86,6 +90,16 @@ public class DoctorService {
             doctors = doctorRepository.findByVerifiedTrue();
         }
         return doctors.stream().map(this::toResponse).toList();
+    }
+
+    public Page<DoctorResponse> searchVerifiedDoctors(String search, String specialty, int page, int limit) {
+        Pageable pageable = PageRequest.of(page, limit, Sort.by("fullName").ascending());
+        
+        String searchRegex = (search != null && !search.trim().isEmpty()) ? ".*" + search.trim() + ".*" : ".*";
+        String specialtyRegex = (specialty != null && !specialty.trim().isEmpty()) ? "^" + specialty.trim() + "$" : ".*";
+
+        Page<Doctor> doctorPage = doctorRepository.searchDoctors(searchRegex, specialtyRegex, pageable);
+        return doctorPage.map(this::toResponse);
     }
 
     public List<String> listSpecialties() {

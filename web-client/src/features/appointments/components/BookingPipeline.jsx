@@ -21,6 +21,7 @@ import {
   fetchDoctorSpecialties,
   selectDoctors,
   selectDoctorsStatus,
+  selectDoctorsPagination,
   selectDoctorSpecialties,
   selectDoctorSpecialtiesStatus,
 } from "@/store/slices/doctorsSlice";
@@ -80,9 +81,13 @@ export default function BookingPipeline() {
 
   const doctors = useSelector(selectDoctors);
   const doctorsStatus = useSelector(selectDoctorsStatus);
+  const { totalPages, page } = useSelector(selectDoctorsPagination);
   const specialties = useSelector(selectDoctorSpecialties);
   const specialtiesStatus = useSelector(selectDoctorSpecialtiesStatus);
   const createAppointmentState = useSelector(selectCreateAppointmentState);
+
+  const [currentPage, setCurrentPage] = useState(0);
+  const [debouncedSearch, setDebouncedSearch] = useState(form.searchQuery);
 
   const loadingOptions =
     doctorsStatus === "idle" ||
@@ -91,23 +96,41 @@ export default function BookingPipeline() {
     specialtiesStatus === "loading";
   const submitting = createAppointmentState.status === "loading";
 
+  // Debounce search query
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(form.searchQuery);
+      setCurrentPage(0); // Reset page on new search
+    }, 400);
+    return () => clearTimeout(handler);
+  }, [form.searchQuery]);
+
+  // Reset page when specialty changes
+  useEffect(() => {
+    setCurrentPage(0);
+  }, [form.specialty]);
+
+  // Fetch initial non-paged reference data
   useEffect(() => {
     if (!userId) return;
-    dispatch(fetchDoctors());
     dispatch(fetchDoctorSpecialties());
-    
     getPatientProfile(userId).then(setProfile).catch(() => null);
   }, [dispatch, userId]);
 
-  const filteredDoctors = useMemo(() => {
-    const list = Array.isArray(doctors) ? doctors : [];
-    return list.filter(d => {
-      const matchSpecialty = !form.specialty || String(d?.specialty || "").toLowerCase() === String(form.specialty).toLowerCase();
-      const matchSearch = !form.searchQuery || 
-        (d.fullName || d.email || "").toLowerCase().includes(form.searchQuery.toLowerCase());
-      return matchSpecialty && matchSearch;
-    });
-  }, [doctors, form.specialty, form.searchQuery]);
+  // Fetch paginated doctors
+  useEffect(() => {
+    dispatch(fetchDoctors({
+      params: {
+        search: debouncedSearch,
+        specialty: form.specialty,
+        page: currentPage,
+        limit: 8
+      },
+      force: true
+    }));
+  }, [dispatch, debouncedSearch, form.specialty, currentPage]);
+
+  const filteredDoctors = Array.isArray(doctors) ? doctors : [];
 
   const selectedDoctor = useMemo(() => {
     return filteredDoctors.find(d => (d.userId || d.id) === form.doctorId) || null;
@@ -260,17 +283,44 @@ export default function BookingPipeline() {
                 <p className="text-muted-foreground">Try selecting a different specialty or clearing filters.</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {filteredDoctors.map(doctor => (
-                  <DoctorSelectionCard
-                    key={doctor.id || doctor.userId}
-                    doctor={doctor}
-                    isSelected={form.doctorId === (doctor.userId || doctor.id)}
-                    onSelect={(d) => setForm(f => ({ ...f, doctorId: d.userId || d.id }))}
-                  />
-                ))}
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {filteredDoctors.map(doctor => (
+                    <DoctorSelectionCard
+                      key={doctor.id || doctor.userId}
+                      doctor={doctor}
+                      isSelected={form.doctorId === (doctor.userId || doctor.id)}
+                      onSelect={(d) => setForm(f => ({ ...f, doctorId: d.userId || d.id }))}
+                    />
+                  ))}
+                </div>
+
+                {totalPages > 1 && (
+                  <div className="flex items-center justify-between border-t pt-4">
+                    <p className="text-sm text-muted-foreground font-medium">
+                      Page {page + 1} of {totalPages}
+                    </p>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setCurrentPage(p => Math.max(0, p - 1))}
+                        disabled={page === 0 || loadingOptions}
+                        className="px-4 py-2 border rounded-lg hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1 text-sm font-medium transition-colors"
+                      >
+                        <ChevronLeft className="w-4 h-4" /> Previous
+                      </button>
+                      <button
+                        onClick={() => setCurrentPage(p => Math.min(totalPages - 1, p + 1))}
+                        disabled={page >= totalPages - 1 || loadingOptions}
+                        className="px-4 py-2 border rounded-lg hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1 text-sm font-medium transition-colors"
+                      >
+                        Next <ChevronRight className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
+
           </div>
         )}
 
