@@ -12,6 +12,7 @@ import {
   BrainCircuit,
   ChevronLeft,
   ChevronRight,
+  CalendarDays,
 } from 'lucide-react'
 import { useMobile } from '@/hooks/useMobile'
 import { useAuth } from '@/context/AuthContext'
@@ -23,6 +24,7 @@ const navItems = [
   { label: 'Payments', icon: CreditCard, path: '/payments' },
   { label: 'Notifications', icon: Bell, path: '/notifications' },
   { label: 'AI Symptom', icon: BrainCircuit, path: '/symptom-checker' },
+  { label: 'My Schedule', icon: CalendarDays, path: '/doctor/availability', doctorOnly: true },
   {
     id: 'user-management',
     label: 'User Management',
@@ -112,6 +114,8 @@ function SidebarContent({ collapsed, onNavigate }) {
       const out = []
       for (const n of nodes) {
         if (n.adminOnly && !allowAdmin) continue
+        if (n.doctorOnly && user?.role !== 'DOCTOR') continue
+        
         if (Array.isArray(n.children) && n.children.length > 0) {
           const next = { ...n, children: filterTree(n.children) }
           out.push(next)

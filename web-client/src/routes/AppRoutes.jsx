@@ -26,6 +26,7 @@ import CreatePatientAppointmentPage from "@/features/appointments/pages/CreatePa
 // ── Doctors (Member 2) ─────────────────────────────────
 import DoctorDashboard from "@/features/doctors/pages/DoctorDashboard";
 import DoctorProfilePage from "@/features/doctors/pages/DoctorProfilePage";
+import ManageAvailabilityPage from "@/features/doctors/pages/ManageAvailabilityPage";
 
 // ── Shared Microservices Pages ─────────────────────────
 import AppointmentsPage from "@/features/appointments/pages/AppointmentsPage";
@@ -62,6 +63,7 @@ const patientLinks = [
 const doctorLinks = [
   { label: "Dashboard", path: "/doctor/dashboard" },
   { label: "Appointments", path: "/doctor/appointments" },
+  { label: "Availability", path: "/doctor/availability" },
   { label: "Telemedicine", path: "/doctor/telemedicine" },
   { label: "Payments", path: "/doctor/payments" },
   { label: "Notifications", path: "/doctor/notifications" },
@@ -350,6 +352,15 @@ export default function AppRoutes() {
           "DOCTOR",
           <TopNavLayout navLinks={doctorLinks}>
             <DoctorProfilePage />
+          </TopNavLayout>,
+        )}
+      />
+      <Route
+        path="/doctor/availability"
+        element={requireRole(
+          "DOCTOR",
+          <TopNavLayout navLinks={doctorLinks}>
+            <ManageAvailabilityPage />
           </TopNavLayout>,
         )}
       />

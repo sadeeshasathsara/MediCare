@@ -10,6 +10,8 @@ public class AvailabilitySlotResponse {
     private String startTime;
     private String endTime;
     private String status;
+    private int maxCapacity;
+    private int currentBookings;
     private Instant createdAt;
     private Instant updatedAt;
 
@@ -59,6 +61,22 @@ public class AvailabilitySlotResponse {
 
     public void setStatus(String status) {
         this.status = status;
+    }
+
+    public int getMaxCapacity() {
+        return maxCapacity;
+    }
+
+    public void setMaxCapacity(int maxCapacity) {
+        this.maxCapacity = maxCapacity;
+    }
+
+    public int getCurrentBookings() {
+        return currentBookings;
+    }
+
+    public void setCurrentBookings(int currentBookings) {
+        this.currentBookings = currentBookings;
     }
 
     public Instant getCreatedAt() {
