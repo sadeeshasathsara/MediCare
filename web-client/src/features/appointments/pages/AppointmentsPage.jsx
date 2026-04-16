@@ -25,11 +25,7 @@ export default function AppointmentsPage() {
   const upcomingQuery = useSelector((state) => selectAppointmentsQuery(state, upcomingParams));
   const pastQuery = useSelector((state) => selectAppointmentsQuery(state, pastParams));
 
-  const isInitialLoading = 
-    (upcomingQuery.status === "idle" || upcomingQuery.status === "loading") && 
-    (pastQuery.status === "idle" || pastQuery.status === "loading") && 
-    !upcomingQuery.items.length && 
-    !pastQuery.items.length;
+
 
   useEffect(() => {
     if (!userId) return;
@@ -69,13 +65,8 @@ export default function AppointmentsPage() {
     }
   };
 
-  if (isInitialLoading) {
-    return (
-      <div className="p-10 text-center animate-pulse text-muted-foreground font-medium">
-        Loading your schedule...
-      </div>
-    );
-  }
+  const isUpcomingInitialLoading = (upcomingQuery.status === 'idle' || upcomingQuery.status === 'loading') && !upcomingQuery.items.length;
+  const isPastInitialLoading = (pastQuery.status === 'idle' || pastQuery.status === 'loading') && !pastQuery.items.length;
 
   return (
     <div className="space-y-6">
@@ -106,6 +97,7 @@ export default function AppointmentsPage() {
             hasMore={upcomingQuery.hasMore}
             onLoadMore={handleLoadMoreUpcoming}
             isLoadingMore={upcomingQuery.status === 'loading'}
+            isInitialLoading={isUpcomingInitialLoading}
           />
         </TabsContent>
 
@@ -119,6 +111,7 @@ export default function AppointmentsPage() {
             hasMore={pastQuery.hasMore}
             onLoadMore={handleLoadMorePast}
             isLoadingMore={pastQuery.status === 'loading'}
+            isInitialLoading={isPastInitialLoading}
           />
         </TabsContent>
       </Tabs>

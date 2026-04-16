@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { 
   Calendar, 
   Clock, 
@@ -84,8 +85,32 @@ export default function AppointmentsList({
   hasMore = false,
   onLoadMore = null,
   isLoadingMore = false,
+  isInitialLoading = false,
 }) {
   const navigate = useNavigate();
+
+  if (isInitialLoading) {
+    return (
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        {Array.from({ length: 8 }).map((_, i) => (
+          <div key={i} className="rounded-xl border-2 border-muted hover:border-primary/20 p-4 space-y-5 animate-pulse bg-card">
+             <div className="flex items-center gap-3">
+               <Skeleton className="h-10 w-10 rounded-full bg-muted/80" />
+               <div className="space-y-2 flex-1">
+                 <Skeleton className="h-4 w-[60%] bg-muted/80" />
+                 <Skeleton className="h-3 w-[40%] bg-muted/80" />
+               </div>
+             </div>
+             <Skeleton className="h-[70px] w-full rounded-md bg-muted/80" />
+             <div className="flex gap-2 w-full pt-2">
+               <Skeleton className="h-8 flex-1 rounded-md bg-muted/80" />
+               <Skeleton className="h-8 flex-1 rounded-md bg-muted/80" />
+             </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
 
   if (appointments.length === 0) {
     return (
