@@ -153,7 +153,7 @@ export default function LiveConsultationPanel({ currentUser, session, joinInfo, 
       }
       containerNode.innerHTML = ''
     }
-  }, [currentUser?.email, currentUser?.name, joinInfo, retryIndex])
+  }, [currentUser?.email, currentUser?.name, joinInfo, participantLabel, retryIndex])
 
   return (
     <TelemedicineSection

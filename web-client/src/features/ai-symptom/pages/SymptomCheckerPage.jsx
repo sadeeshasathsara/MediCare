@@ -1,4 +1,5 @@
 import { useEffect, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   Sparkles,
   BrainCircuit,
@@ -69,7 +70,7 @@ function ensureKeyframes() {
 
 /* ── Result Modal ─────────────────────────────────────────── */
 
-function ResultModal({ result, doctors, doctorLookupStatus, doctorLookupError, onClose }) {
+function ResultModal({ result, doctors, doctorLookupStatus, doctorLookupError, onClose, onBookAppointment }) {
   // Close on Escape key
   const handleKeyDown = useCallback(
     (e) => {
@@ -177,6 +178,7 @@ function ResultModal({ result, doctors, doctorLookupStatus, doctorLookupError, o
           doctors={doctors}
           doctorLookupStatus={doctorLookupStatus}
           doctorLookupError={doctorLookupError}
+          onBookAppointment={onBookAppointment}
         />
       </div>
     </div>
@@ -186,9 +188,41 @@ function ResultModal({ result, doctors, doctorLookupStatus, doctorLookupError, o
 /* ── Main Page ────────────────────────────────────────────── */
 
 export default function SymptomCheckerPage() {
+  const navigate = useNavigate()
   const { loading, error, result, setResult, recommendedDoctors, doctorLookupStatus, doctorLookupError, submitCheck } = useSymptomChecker()
 
   const closeModal = useCallback(() => setResult(null), [setResult])
+
+  const handleBookAppointment = useCallback(
+    (doctor, symptomResult) => {
+      if (!doctor) return
+
+      const specialty =
+        String(doctor?.specialty || symptomResult?.recommendedSpecialty || '').trim() ||
+        'General Practice'
+      const doctorName = String(doctor?.fullName || doctor?.email || 'Doctor').trim()
+      const reasonSeed = Array.isArray(symptomResult?.possibleConditions)
+        ? symptomResult.possibleConditions.filter(Boolean).slice(0, 2).join(', ')
+        : ''
+
+      const reason = reasonSeed
+        ? `AI symptom check suggested: ${reasonSeed}.`
+        : 'Appointment requested from AI symptom checker recommendation.'
+
+      setResult(null)
+      navigate('/patient/appointments/new', {
+        state: {
+          prefill: {
+            doctorId: String(doctor?.userId || doctor?.id || '').trim(),
+            doctorName,
+            specialty,
+            reason,
+          },
+        },
+      })
+    },
+    [navigate, setResult],
+  )
 
   return (
     <>
@@ -365,6 +399,7 @@ export default function SymptomCheckerPage() {
           doctorLookupStatus={doctorLookupStatus}
           doctorLookupError={doctorLookupError}
           onClose={closeModal}
+          onBookAppointment={handleBookAppointment}
         />
       )}
     </>

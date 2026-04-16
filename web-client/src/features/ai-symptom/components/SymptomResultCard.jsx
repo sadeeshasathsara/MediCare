@@ -29,7 +29,13 @@ function normalizeUrgency(value) {
   return 'MODERATE'
 }
 
-export default function SymptomResultCard({ result, doctors = [], doctorLookupStatus = 'idle', doctorLookupError = '' }) {
+export default function SymptomResultCard({
+  result,
+  doctors = [],
+  doctorLookupStatus = 'idle',
+  doctorLookupError = '',
+  onBookAppointment,
+}) {
   if (!result) return null
 
   const urgency = normalizeUrgency(result.urgencyLevel)
@@ -173,6 +179,20 @@ export default function SymptomResultCard({ result, doctors = [], doctorLookupSt
                       <span>Consultation fee: {doctor.consultationFee}</span>
                     </div>
                   )}
+                </div>
+
+                <div className="mt-4">
+                  <button
+                    type="button"
+                    onClick={() => onBookAppointment?.(doctor, result)}
+                    className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold"
+                    style={{
+                      backgroundColor: 'hsl(var(--primary))',
+                      color: 'hsl(var(--primary-foreground))',
+                    }}
+                  >
+                    Book Appointment
+                  </button>
                 </div>
               </article>
             ))}

@@ -65,9 +65,16 @@ pipeline {
             when { expression { env.BUILD_FRONTEND == 'true' } }
             steps {
                 sh """
+                    # Ensure pnpm is available in the Jenkins environment
+                    if ! command -v pnpm &> /dev/null; then
+                        echo "pnpm not found, installing..."
+                        npm install -g pnpm || npm install pnpm
+                        export PATH=\$PATH:\$(npm bin -g)
+                    fi
+
                     cd web-client
-                    npm install
-                    npm run build
+                    pnpm install --frozen-lockfile
+                    pnpm build
                     cp -r dist/* /var/www/medicarelk/
                 """
             }
@@ -103,7 +110,8 @@ pipeline {
                             [name: 'telemedicine-service', env: 'BUILD_TELEMEDICINE'],
                             [name: 'payment-service', env: 'BUILD_PAYMENT'],
                             [name: 'notification-service', env: 'BUILD_NOTIFICATION'],
-                            [name: 'ai-symptom-service', env: 'BUILD_AI']
+                            [name: 'ai-symptom-service', env: 'BUILD_AI'],
+                            [name: 'api-gateway', env: 'ALWAYS_RESTART']
                         ]
 
                         services.each { svc ->
