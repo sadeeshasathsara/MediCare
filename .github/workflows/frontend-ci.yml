@@ -31,8 +31,8 @@ jobs:
         cache-dependency-path: './web-client/package-lock.json'
         
     - name: Install dependencies
-      # Using npm install instead of npm ci since package.json and package-lock.json are currently out of sync
-      run: npm install
+      # Ensure optional deps are included so rolldown Linux native bindings are present in CI
+      run: npm install --include=optional
       
     - name: Run ESLint
       run: npm run lint
