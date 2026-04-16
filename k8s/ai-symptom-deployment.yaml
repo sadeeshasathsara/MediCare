@@ -31,6 +31,15 @@ spec:
                 secretKeyRef:
                   name: medicare-secrets
                   key: CORS_ALLOWED_ORIGINS
+
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: medicare-secrets
+                  key: OPENAI_API_KEY
+
+            - name: OPENAI_MODEL
+              value: gpt-4o-mini
 ---
 apiVersion: v1
 kind: Service

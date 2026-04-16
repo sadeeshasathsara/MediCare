@@ -20,6 +20,7 @@ import PatientHistoryPage from '@/features/patients/pages/PatientHistoryPage'
 import PatientPrescriptionsPage from '@/features/patients/pages/PatientPrescriptionsPage'
 import AdminPatientsPage from '@/features/patients/pages/AdminPatientsPage'
 import PatientTelemedicinePage from '@/features/telemedicine/pages/PatientTelemedicinePage'
+import SymptomCheckerPage from '@/features/ai-symptom/pages/SymptomCheckerPage'
 
 // ── Doctors (Member 2) ─────────────────────────────────
 import DoctorDashboard from '@/features/doctors/pages/DoctorDashboard'
@@ -53,6 +54,7 @@ const patientLinks = [
   { label: 'Reports', path: '/patient/reports' },
   { label: 'History', path: '/patient/history' },
   { label: 'Prescriptions', path: '/patient/prescriptions' },
+  { label: 'AI-checker', path: '/patient/ai-checker' },
 ]
 
 const doctorLinks = [
@@ -188,6 +190,10 @@ export default function AppRoutes() {
       <Route
         path="/patient/telemedicine"
         element={requireRole('PATIENT', <TopNavLayout navLinks={patientLinks}><PatientTelemedicinePage /></TopNavLayout>)}
+      />
+      <Route
+        path="/patient/ai-checker"
+        element={requireRole('PATIENT', <TopNavLayout navLinks={patientLinks}><SymptomCheckerPage /></TopNavLayout>)}
       />
 
       {/* Doctor Routes — wrapped in TopNavLayout */}
