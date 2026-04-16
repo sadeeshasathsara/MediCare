@@ -229,11 +229,6 @@ export default function BookingPipeline() {
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
-      <div className="flex flex-col gap-2">
-         <h2 className="text-2xl font-bold tracking-tight">Schedule Consultation</h2>
-         <p className="text-muted-foreground text-sm">Follow the guided pipeline to reserve your medical session.</p>
-      </div>
-
       <BookingStepper currentStep={currentStep} />
 
       <div className="min-h-[400px]">
