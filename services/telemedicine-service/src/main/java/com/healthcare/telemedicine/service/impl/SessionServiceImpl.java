@@ -73,9 +73,6 @@ public class SessionServiceImpl implements SessionService {
         if (!Objects.equals(appointment.doctorId(), actorId)) {
             throw new ForbiddenException("Doctor can only create sessions for own appointments");
         }
-        if (!appointmentAdapter.isTelemedicineAppointment(appointment)) {
-            throw new NotFoundException("Appointment not found");
-        }
         if (!appointmentAdapter.isEligibleForSession(appointment)) {
             throw new ConflictException("Session can only be created for confirmed appointments");
         }

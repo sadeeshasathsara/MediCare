@@ -8,17 +8,6 @@ const RETRYABLE_APPOINTMENT_STATUSES = new Set([500, 502, 503, 504])
 const APPOINTMENT_RETRY_DELAY_MS = 1200
 const APPOINTMENT_MAX_ATTEMPTS = 2
 const RESCHEDULE_PREFIX = '[telemedicine-rescheduled]'
-const TELEMEDICINE_KEYWORDS = [
-  'telemedicine',
-  'teleconsultation',
-  'video consultation',
-  'video consult',
-  'video call',
-  'virtual consultation',
-  'online consultation',
-  'remote consultation',
-  'jitsi',
-]
 
 function unwrapEnvelope(response, fallbackValue = null) {
   const payload = response?.data
@@ -126,11 +115,6 @@ function extractRescheduleReason(notes) {
   return reason || 'Rescheduled by doctor'
 }
 
-function isTelemedicineAppointment(appointment) {
-  const searchable = `${normalizeText(appointment?.reason)} ${normalizeText(appointment?.notes)}`
-  return TELEMEDICINE_KEYWORDS.some((keyword) => searchable.includes(keyword))
-}
-
 function mapAppointment(appointment) {
   const mappedStatus = mapAppointmentStatus(appointment?.status, appointment?.notes)
   return {
@@ -153,9 +137,7 @@ function mapAppointment(appointment) {
 }
 
 function mapTelemedicineAppointments(appointments) {
-  return (Array.isArray(appointments) ? appointments : [])
-    .filter(isTelemedicineAppointment)
-    .map(mapAppointment)
+  return (Array.isArray(appointments) ? appointments : []).map(mapAppointment)
 }
 
 export async function listAppointments(params = {}) {
