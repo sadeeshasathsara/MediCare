@@ -24,6 +24,7 @@ import com.healthcare.telemedicine.integration.appointment.AppointmentGateway;
 import com.healthcare.telemedicine.integration.appointment.ExternalAppointment;
 import com.healthcare.telemedicine.integration.appointment.ExternalAppointmentStatus;
 import com.healthcare.telemedicine.integration.appointment.TelemedicineAppointmentAdapter;
+import com.healthcare.telemedicine.integration.notification.TelemedicineNotificationClient;
 import com.healthcare.telemedicine.model.ConsultationSession;
 import com.healthcare.telemedicine.model.enums.SessionStatus;
 import com.healthcare.telemedicine.repository.ConsultationSessionRepository;
@@ -47,6 +48,7 @@ public class SessionServiceImpl implements SessionService {
     private final JitsiService jitsiService;
     private final AuditLogService auditLogService;
     private final TelemedicineEventPublisher eventPublisher;
+    private final TelemedicineNotificationClient notificationClient;
     private final int sessionGraceMinutes;
 
     public SessionServiceImpl(
@@ -56,6 +58,7 @@ public class SessionServiceImpl implements SessionService {
             JitsiService jitsiService,
             AuditLogService auditLogService,
             TelemedicineEventPublisher eventPublisher,
+            TelemedicineNotificationClient notificationClient,
             @Value("${telemedicine.session.grace-minutes:15}") int sessionGraceMinutes) {
         this.appointmentGateway = appointmentGateway;
         this.appointmentAdapter = appointmentAdapter;
@@ -63,6 +66,7 @@ public class SessionServiceImpl implements SessionService {
         this.jitsiService = jitsiService;
         this.auditLogService = auditLogService;
         this.eventPublisher = eventPublisher;
+        this.notificationClient = notificationClient;
         this.sessionGraceMinutes = sessionGraceMinutes;
     }
 
@@ -179,6 +183,7 @@ public class SessionServiceImpl implements SessionService {
         ConsultationSession saved = sessionRepository.save(session);
         auditStatusChange(saved, previous, saved.getSessionStatus(), actorId, "session.ended", null);
         eventPublisher.publishConsultationCompleted(saved);
+        notificationClient.notifyConsultationCompleted(saved);
         syncAppointmentCompletion(saved, actorId);
         return saved;
     }

@@ -18,6 +18,7 @@ import org.mockito.MockitoAnnotations;
 import com.healthcare.telemedicine.dto.prescription.MedicationRequest;
 import com.healthcare.telemedicine.event.TelemedicineEventPublisher;
 import com.healthcare.telemedicine.exception.ForbiddenException;
+import com.healthcare.telemedicine.integration.notification.TelemedicineNotificationClient;
 import com.healthcare.telemedicine.model.ConsultationRecord;
 import com.healthcare.telemedicine.model.Prescription;
 import com.healthcare.telemedicine.model.enums.PrescriptionStatus;
@@ -39,6 +40,9 @@ class PrescriptionServiceImplTest {
     @Mock
     private TelemedicineEventPublisher eventPublisher;
 
+    @Mock
+    private TelemedicineNotificationClient notificationClient;
+
     private PrescriptionServiceImpl prescriptionService;
 
     @BeforeEach
@@ -48,7 +52,8 @@ class PrescriptionServiceImplTest {
                 prescriptionRepository,
                 consultationRecordRepository,
                 auditLogService,
-                eventPublisher);
+                eventPublisher,
+                notificationClient);
     }
 
     @Test
@@ -78,6 +83,7 @@ class PrescriptionServiceImplTest {
         assertEquals("patient-1", created.getPatientId());
         assertEquals(PrescriptionStatus.ISSUED, created.getPrescriptionStatus());
         verify(eventPublisher).publishPrescriptionIssued(created);
+        verify(notificationClient).notifyPrescriptionIssued(created, null);
     }
 
     @Test

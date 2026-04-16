@@ -146,6 +146,26 @@ spec:
                 secretKeyRef:
                   name: medicare-secrets
                   key: TELEMEDICINE_ROUTING_PRESCRIPTION_ISSUED
+            - name: TELEMEDICINE_NOTIFICATION_ENABLED
+              valueFrom:
+                secretKeyRef:
+                  name: medicare-secrets
+                  key: TELEMEDICINE_NOTIFICATION_ENABLED
+            - name: TELEMEDICINE_NOTIFICATION_BASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: medicare-secrets
+                  key: TELEMEDICINE_NOTIFICATION_BASE_URL
+            - name: TELEMEDICINE_NOTIFICATION_INTERNAL_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: medicare-secrets
+                  key: TELEMEDICINE_NOTIFICATION_INTERNAL_TOKEN
+            - name: TELEMEDICINE_NOTIFICATION_TIMEOUT_MS
+              valueFrom:
+                secretKeyRef:
+                  name: medicare-secrets
+                  key: TELEMEDICINE_NOTIFICATION_TIMEOUT_MS
 ---
 apiVersion: v1
 kind: Service

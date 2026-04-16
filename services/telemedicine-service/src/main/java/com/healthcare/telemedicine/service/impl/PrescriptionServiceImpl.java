@@ -15,6 +15,7 @@ import com.healthcare.telemedicine.exception.BadRequestException;
 import com.healthcare.telemedicine.exception.ConflictException;
 import com.healthcare.telemedicine.exception.ForbiddenException;
 import com.healthcare.telemedicine.exception.NotFoundException;
+import com.healthcare.telemedicine.integration.notification.TelemedicineNotificationClient;
 import com.healthcare.telemedicine.model.ConsultationRecord;
 import com.healthcare.telemedicine.model.MedicationItem;
 import com.healthcare.telemedicine.model.Prescription;
@@ -31,16 +32,19 @@ public class PrescriptionServiceImpl implements PrescriptionService {
     private final ConsultationRecordRepository consultationRecordRepository;
     private final AuditLogService auditLogService;
     private final TelemedicineEventPublisher eventPublisher;
+    private final TelemedicineNotificationClient notificationClient;
 
     public PrescriptionServiceImpl(
             PrescriptionRepository prescriptionRepository,
             ConsultationRecordRepository consultationRecordRepository,
             AuditLogService auditLogService,
-            TelemedicineEventPublisher eventPublisher) {
+            TelemedicineEventPublisher eventPublisher,
+            TelemedicineNotificationClient notificationClient) {
         this.prescriptionRepository = prescriptionRepository;
         this.consultationRecordRepository = consultationRecordRepository;
         this.auditLogService = auditLogService;
         this.eventPublisher = eventPublisher;
+        this.notificationClient = notificationClient;
     }
 
     @Override
@@ -86,6 +90,7 @@ public class PrescriptionServiceImpl implements PrescriptionService {
         auditStatusChange(saved, null, saved.getPrescriptionStatus(), actorId, "prescription.created");
         if (saved.getPrescriptionStatus() == PrescriptionStatus.ISSUED) {
             eventPublisher.publishPrescriptionIssued(saved);
+            notificationClient.notifyPrescriptionIssued(saved, consultation.getAppointmentId());
         }
         return saved;
     }
@@ -177,8 +182,18 @@ public class PrescriptionServiceImpl implements PrescriptionService {
         auditStatusChange(saved, current, saved.getPrescriptionStatus(), actorId, "prescription.status_updated");
         if (saved.getPrescriptionStatus() == PrescriptionStatus.ISSUED) {
             eventPublisher.publishPrescriptionIssued(saved);
+            notificationClient.notifyPrescriptionIssued(saved, resolveAppointmentId(saved.getConsultationId()));
         }
         return saved;
+    }
+
+    private String resolveAppointmentId(String consultationId) {
+        if (!StringUtils.hasText(consultationId)) {
+            return null;
+        }
+        return consultationRecordRepository.findByIdAndDeletedAtIsNull(consultationId)
+                .map(ConsultationRecord::getAppointmentId)
+                .orElse(null);
     }
 
     private MedicationItem toMedicationItem(MedicationRequest request) {
