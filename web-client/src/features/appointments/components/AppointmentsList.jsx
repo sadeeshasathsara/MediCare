@@ -99,7 +99,7 @@ export default function AppointmentsList({
       {appointments.slice().sort((a,b) => new Date(b.scheduledAt) - new Date(a.scheduledAt)).map((app) => (
         <Card
           key={app.id}
-          className="group overflow-hidden relative transition-all duration-300 hover:shadow-xl hover:-translate-y-1 border-2 border-muted hover:border-primary/20"
+          className="group overflow-hidden relative transition-all duration-300 hover:shadow-xl hover:-translate-y-1 border-2 border-muted hover:border-primary/20 flex flex-col h-full"
         >
           {/* Status color strip */}
           <div className={`h-1.5 w-full ${
@@ -137,7 +137,7 @@ export default function AppointmentsList({
             </div>
           </CardHeader>
 
-          <CardContent className="space-y-4 px-4 pb-4">
+          <CardContent className="space-y-4 px-4 pb-4 flex flex-col flex-1">
             <div className="p-3 rounded-lg bg-muted/30 border flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 justify-between">
               <div className="flex items-center gap-2 text-xs">
                 <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
@@ -149,7 +149,7 @@ export default function AppointmentsList({
               </div>
             </div>
 
-            <div className="space-y-1">
+            <div className="space-y-1 flex-1">
               <p className="text-[10px] font-semibold text-muted-foreground tracking-wide">REASON</p>
               <p className="text-xs font-medium line-clamp-2 italic">"{app.reason || 'No description provided'}"</p>
 
