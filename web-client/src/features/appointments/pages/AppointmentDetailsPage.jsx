@@ -30,6 +30,7 @@ import {
   AlertCircle,
   TimerReset,
   Syringe,
+  HeartPulse,
   FlaskConical,
   ScanLine,
   Download,
