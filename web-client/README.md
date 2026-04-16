@@ -18,6 +18,7 @@ If you are running the backend on **Minikube**, make sure the gateway is reachab
 - Alternative: `minikube service -n default api-gateway --url` (keep that terminal open)
 
 By default the frontend calls `http://localhost:8080/api`. You can override the gateway base URL via:
+
 - `VITE_API_BASE_URL` (example: `http://localhost:8080/api`)
 - Optional telemedicine appointment override when your appointment gateway path is served from a different host/port:
   - `VITE_APPOINTMENT_API_BASE_URL` (example: `http://localhost:8080/api/appointments/appointments`)

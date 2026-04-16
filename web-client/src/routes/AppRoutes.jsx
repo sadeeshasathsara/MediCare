@@ -276,6 +276,15 @@ export default function AppRoutes() {
         )}
       />
       <Route
+        path="/patient/payments"
+        element={requireRole(
+          "PATIENT",
+          <TopNavLayout navLinks={patientLinks}>
+            <PaymentsPage />
+          </TopNavLayout>,
+        )}
+      />
+      <Route
         path="/patient/ai-checker"
         element={requireRole('PATIENT', <TopNavLayout navLinks={patientLinks}><SymptomCheckerPage /></TopNavLayout>)}
       />
