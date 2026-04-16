@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { createElement, useEffect, useMemo, useState } from 'react'
 import {
   Activity,
   AlertCircle,
@@ -21,11 +21,28 @@ function shortId(id) {
   return String(id || '').slice(0, 8).toUpperCase()
 }
 
+function useNowTick(intervalMs = 1000) {
+  const [nowMs, setNowMs] = useState(null)
+
+  useEffect(() => {
+    const initialId = window.setTimeout(() => setNowMs(Date.now()), 0)
+    const id = window.setInterval(() => setNowMs(Date.now()), intervalMs)
+    return () => {
+      window.clearTimeout(initialId)
+      window.clearInterval(id)
+    }
+  }, [intervalMs])
+
+  return nowMs
+}
+
 function useCountdown(scheduledAt) {
+  const nowMs = useNowTick(1000)
+
   const ms = useMemo(() => {
-    if (!scheduledAt) return null
-    return new Date(scheduledAt).getTime() - Date.now()
-  }, [scheduledAt])
+    if (!scheduledAt || nowMs === null) return null
+    return new Date(scheduledAt).getTime() - nowMs
+  }, [scheduledAt, nowMs])
 
   if (ms === null) return null
   if (ms < 0) return { label: 'Past due', urgent: true, overdue: true }
@@ -38,7 +55,7 @@ function useCountdown(scheduledAt) {
 
 /* ─── Stat card ─────────────────────────────────────────────────────────────*/
 
-function StatCard({ icon: Icon, label, value, accent, sublabel }) {
+function StatCard({ icon, label, value, accent, sublabel }) {
   return (
     <div
       className="relative overflow-hidden rounded-2xl border p-5"
@@ -62,7 +79,7 @@ function StatCard({ icon: Icon, label, value, accent, sublabel }) {
           )}
         </div>
         <div className={`rounded-xl p-2.5 ${accent.replace('bg-', 'bg-').replace('-500', '-100')} dark:bg-white/10`}>
-          <Icon className={`h-5 w-5 ${accent.replace('bg-', 'text-')}`} />
+          {icon ? createElement(icon, { className: `h-5 w-5 ${accent.replace('bg-', 'text-')}` }) : null}
         </div>
       </div>
     </div>
@@ -225,11 +242,11 @@ function RescheduledRow({ appointment, onSelect }) {
 
 /* ─── Section wrapper ────────────────────────────────────────────────────────*/
 
-function DashSection({ title, icon: Icon, iconClass, count, children, emptyMessage, emptyIcon: EmptyIcon }) {
+function DashSection({ title, icon, iconClass, count, children, emptyMessage, emptyIcon: EmptyIcon }) {
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2">
-        <Icon className={`h-4 w-4 ${iconClass}`} />
+        {icon ? createElement(icon, { className: `h-4 w-4 ${iconClass}` }) : null}
         <h3 className="text-sm font-semibold" style={{ color: 'hsl(var(--foreground))' }}>
           {title}
         </h3>
@@ -287,8 +304,6 @@ export default function AppointmentInbox({
   onRefreshAppointments,
   onSelectAppointment,
 }) {
-  const now = Date.now()
-
   const pending       = appointments.filter((a) => a.status === 'PENDING')
   const accepted      = appointments.filter((a) => a.status === 'ACCEPTED')
   const rescheduled   = appointments.filter((a) => a.status === 'RESCHEDULED')

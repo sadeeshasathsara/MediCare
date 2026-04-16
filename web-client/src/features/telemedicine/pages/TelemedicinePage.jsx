@@ -40,11 +40,8 @@ import {
   updatePrescriptionStatus,
 } from '@/features/telemedicine/services/telemedicineApi'
 import {
-  buildJitsiRoomUrl,
   enrichTelemedicineAppointment,
-  formatDateTime,
   getErrorMessage,
-  getSessionStateCopy,
   READY_POLL_STATUSES,
   resolveTelemedicineDoctor,
   toIsoStringFromLocalValue,
@@ -172,7 +169,6 @@ export default function TelemedicinePage() {
   const [sessionActionState, setSessionActionState] = useState(EMPTY_ACTION_STATE)
   const [consultationActionState, setConsultationActionState] = useState(EMPTY_ACTION_STATE)
   const [prescriptionActionState, setPrescriptionActionState] = useState(EMPTY_ACTION_STATE)
-  const [manualToolsActionState, setManualToolsActionState] = useState(EMPTY_ACTION_STATE)
   const [consultationModalOpen, setConsultationModalOpen] = useState(false)
 
   const enrichedAppointments = useMemo(
@@ -195,11 +191,6 @@ export default function TelemedicinePage() {
     const selectedId = normalizeId(selectedAppointment?.id || selectedAppointmentId)
     return selectedId
   }, [routeAppointmentId, selectedAppointment?.id, selectedAppointmentId])
-  const workspaceSummary = selectedSession
-    ? getSessionStateCopy(selectedSession.sessionStatus)
-    : selectedAppointment
-      ? 'Appointment selected. Review it, then create or manage the session from the next section.'
-      : 'No appointment selected yet. Use the inbox or demo tools to begin.'
 
   useEffect(() => {
     selectedAppointmentIdRef.current = selectedAppointmentId
@@ -696,45 +687,6 @@ export default function TelemedicinePage() {
       setPrescriptionActionState(actionSuccess('cancel', 'Prescription cancelled successfully.'))
     } catch (error) {
       setPrescriptionActionState(actionError('cancel', getErrorMessage(error, 'Unable to cancel the prescription.')))
-    }
-  }
-
-  const handleOpenPatientTestWindow = async () => {
-    if (!selectedSession || !selectedAppointment) return
-
-    const popupWindow = window.open('', 'telemedicine-patient-test', 'width=1200,height=900')
-    if (!popupWindow) {
-      setManualToolsActionState(actionError('patient-window', 'Popup blocked. Allow popups for this site and try again.'))
-      return
-    }
-
-    popupWindow.document.title = 'Opening patient test window...'
-    popupWindow.document.body.innerHTML = '<p style="font-family:sans-serif;padding:24px;">Preparing patient test window...</p>'
-
-    setManualToolsActionState(actionLoading('patient-window'))
-
-    try {
-      const joinInfo = await getJoinToken(selectedSession.id, 'patient', true)
-      const meetingUrl = buildJitsiRoomUrl(joinInfo.jitsiDomain, joinInfo.roomId, joinInfo.token)
-
-      if (!meetingUrl) {
-        throw new Error('The patient join URL could not be created.')
-      }
-
-      popupWindow.location.replace(meetingUrl)
-      await refreshSessionForAppointment(selectedAppointment.id, { showLoading: false })
-      await refreshReadinessForSession(selectedSession)
-      setManualToolsActionState(
-        actionSuccess(
-          'patient-window',
-          joinInfo.publicRoom
-            ? 'Patient test window opened for the public Jitsi room.'
-            : 'Patient test window opened with a fresh join token.'
-        )
-      )
-    } catch (error) {
-      popupWindow.close()
-      setManualToolsActionState(actionError('patient-window', getErrorMessage(error, 'Unable to open the patient test window.')))
     }
   }
 

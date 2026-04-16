@@ -83,20 +83,6 @@ function actionError(kind, error)      { return { kind, loading: false, error,  
 
 /* ─── Status colour helpers ──────────────────────────────────────────────── */
 
-function getStatusBg(status) {
-  const map = {
-    PENDING:     'bg-amber-500',
-    ACCEPTED:    'bg-emerald-600',
-    RESCHEDULED: 'bg-sky-500',
-    WAITING:     'bg-orange-500',
-    LIVE:        'bg-red-500',
-    COMPLETED:   'bg-slate-500',
-    CANCELLED:   'bg-rose-500',
-    REJECTED:    'bg-rose-500',
-  }
-  return map[String(status || '').toUpperCase()] || 'bg-zinc-500'
-}
-
 /* ─── Countdown helper ───────────────────────────────────────────────────── */
 
 function countdown(scheduledAt) {

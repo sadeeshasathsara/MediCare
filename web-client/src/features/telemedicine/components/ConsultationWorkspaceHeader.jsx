@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { createElement, useEffect, useState } from 'react'
 import {
   ArrowLeft,
   CalendarClock,
@@ -39,24 +39,27 @@ function resolveStepIndex(appointment, session, consultation) {
 /* ─── Live countdown hook ────────────────────────────────────────────────── */
 
 function useCountdown(scheduledAt, sessionStatus) {
-  const [tick, setTick] = useState(0)
+  const [nowMs, setNowMs] = useState(null)
+  const status = String(sessionStatus || '').toUpperCase()
+  const hidden = ['LIVE', 'COMPLETED', 'CANCELLED', 'MISSED'].includes(status)
 
   useEffect(() => {
-    // Only tick when the appointment is upcoming or overdue (not live/completed)
-    if (['LIVE', 'COMPLETED', 'CANCELLED', 'MISSED'].includes(String(sessionStatus || '').toUpperCase())) return
-    const id = setInterval(() => setTick((t) => t + 1), 1000)
-    return () => clearInterval(id)
-  }, [sessionStatus])
+    if (!scheduledAt || hidden) return undefined
+    const initialId = window.setTimeout(() => setNowMs(Date.now()), 0)
+    const id = window.setInterval(() => setNowMs(Date.now()), 1000)
+    return () => {
+      window.clearTimeout(initialId)
+      window.clearInterval(id)
+    }
+  }, [hidden, scheduledAt])
 
-  if (!scheduledAt) return null
-
-  const diffMs  = new Date(scheduledAt).getTime() - Date.now()
-  const absDiff = Math.abs(diffMs)
-  const overdue = diffMs < 0
-
-  if (['LIVE', 'COMPLETED', 'CANCELLED', 'MISSED'].includes(String(sessionStatus || '').toUpperCase())) {
+  if (!scheduledAt || hidden || nowMs === null) {
     return null // hide timer when session is active/done
   }
+
+  const diffMs = new Date(scheduledAt).getTime() - nowMs
+  const absDiff = Math.abs(diffMs)
+  const overdue = diffMs < 0
 
   const totalSeconds = Math.floor(absDiff / 1000)
   const hours   = Math.floor(totalSeconds / 3600)
@@ -197,11 +200,11 @@ function ProgressStepper({ appointment, session, consultation }) {
 
 /* ─── Patient detail row ─────────────────────────────────────────────────── */
 
-function DetailPill({ icon: Icon, label, value }) {
+function DetailPill({ icon, label, value }) {
   if (!value) return null
   return (
     <div className="flex items-center gap-2">
-      <Icon className="h-3.5 w-3.5 shrink-0" style={{ color: 'hsl(var(--primary))' }} />
+      {icon ? createElement(icon, { className: 'h-3.5 w-3.5 shrink-0', style: { color: 'hsl(var(--primary))' } }) : null}
       <span className="text-xs" style={{ color: 'hsl(var(--muted-foreground))' }}>{label}:</span>
       <span className="text-xs font-semibold" style={{ color: 'hsl(var(--foreground))' }}>{value}</span>
     </div>
