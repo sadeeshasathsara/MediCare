@@ -8,22 +8,24 @@ import {
   CalendarCheck,
   Video,
   CreditCard,
-  Bell,
-  BrainCircuit,
   ChevronLeft,
   ChevronRight,
   CalendarDays,
+  ClipboardList,
+  Bell,
+  BrainCircuit,
 } from 'lucide-react'
 import { useMobile } from '@/hooks/useMobile'
 import { useAuth } from '@/context/AuthContext'
 
 const navItems = [
   { label: 'Dashboard', icon: LayoutDashboard, path: '/' },
-  { label: 'Appointments', icon: CalendarCheck, path: '/appointments' },
+  { label: 'Book Consultation', icon: ClipboardList, path: '/patient/book', patientOnly: true },
+  { label: 'My Appointments', icon: CalendarCheck, path: '/appointments' },
   { label: 'Telemedicine', icon: Video, path: '/telemedicine' },
   { label: 'Payments', icon: CreditCard, path: '/payments' },
   { label: 'Notifications', icon: Bell, path: '/notifications' },
-  { label: 'AI Symptom', icon: BrainCircuit, path: '/symptom-checker', doctorOnly: true, adminOnly: true },
+  { label: 'AI Symptom', icon: BrainCircuit, path: '/symptom-checker' },
   { label: 'My Schedule', icon: CalendarDays, path: '/doctor/availability', doctorOnly: true },
   {
     id: 'user-management',
