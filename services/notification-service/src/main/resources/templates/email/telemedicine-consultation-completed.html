@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Telemedicine Consultation Completed</title>
+</head>
+<body style="font-family: Arial, sans-serif; color: #1f2937; line-height: 1.5;">
+<h2 style="margin-bottom: 8px;">Telemedicine Consultation Completed</h2>
+<p>Hi {{recipientName}},</p>
+<p>Your telemedicine consultation has been completed.</p>
+<ul>
+    <li><strong>Appointment ID:</strong> {{appointmentId}}</li>
+    <li><strong>Session ID:</strong> {{sessionId}}</li>
+    <li><strong>Ended at:</strong> {{endedAt}}</li>
+    <li><strong>Duration (seconds):</strong> {{durationSeconds}}</li>
+    <li><strong>{{counterpartRole}}:</strong> {{counterpartName}}</li>
+</ul>
+<p>Thank you,<br>MediCare Team</p>
+</body>
+</html>

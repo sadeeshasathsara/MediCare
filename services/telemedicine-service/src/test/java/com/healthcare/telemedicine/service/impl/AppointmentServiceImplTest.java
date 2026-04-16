@@ -22,6 +22,7 @@ import com.healthcare.telemedicine.integration.appointment.AppointmentGateway;
 import com.healthcare.telemedicine.integration.appointment.ExternalAppointment;
 import com.healthcare.telemedicine.integration.appointment.ExternalAppointmentStatus;
 import com.healthcare.telemedicine.integration.appointment.TelemedicineAppointmentAdapter;
+import com.healthcare.telemedicine.integration.notification.TelemedicineNotificationClient;
 import com.healthcare.telemedicine.repository.ConsultationSessionRepository;
 import com.healthcare.telemedicine.service.AuditLogService;
 
@@ -39,6 +40,9 @@ class AppointmentServiceImplTest {
     @Mock
     private AuditLogService auditLogService;
 
+    @Mock
+    private TelemedicineNotificationClient notificationClient;
+
     private TelemedicineAppointmentAdapter appointmentAdapter;
     private AppointmentServiceImpl appointmentService;
 
@@ -51,7 +55,8 @@ class AppointmentServiceImplTest {
                 appointmentAdapter,
                 sessionRepository,
                 eventPublisher,
-                auditLogService);
+                auditLogService,
+                notificationClient);
     }
 
     @Test
@@ -96,6 +101,7 @@ class AppointmentServiceImplTest {
 
         assertEquals(TelemedicineAppointmentStatus.ACCEPTED, accepted.getStatus());
         verify(eventPublisher).publishAppointmentStatusUpdated(accepted);
+        verify(notificationClient).notifyAppointmentStatus(accepted);
         verify(auditLogService).logStatusChange(
                 any(String.class),
                 any(String.class),

@@ -371,9 +371,9 @@ public class NotificationEventService {
     private DeliveryCount persistDelivery(NotificationDelivery delivery) {
         try {
             repository.save(delivery);
-            return DeliveryCount.accepted();
+            return DeliveryCount.oneAccepted();
         } catch (DuplicateKeyException ex) {
-            return DeliveryCount.duplicate();
+            return DeliveryCount.oneDuplicate();
         }
     }
 
@@ -439,11 +439,11 @@ public class NotificationEventService {
             return new DeliveryCount(0, 0);
         }
 
-        static DeliveryCount accepted() {
+        static DeliveryCount oneAccepted() {
             return new DeliveryCount(1, 0);
         }
 
-        static DeliveryCount duplicate() {
+        static DeliveryCount oneDuplicate() {
             return new DeliveryCount(0, 1);
         }
 

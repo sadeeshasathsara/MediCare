@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Telemedicine Appointment Rescheduled</title>
+</head>
+<body style="font-family: Arial, sans-serif; color: #1f2937; line-height: 1.5;">
+<h2 style="margin-bottom: 8px;">Telemedicine Appointment Rescheduled</h2>
+<p>Hi {{recipientName}},</p>
+<p>Your telemedicine appointment has been rescheduled.</p>
+<ul>
+    <li><strong>Appointment ID:</strong> {{appointmentId}}</li>
+    <li><strong>Previous date and time:</strong> {{appointmentDateTime}}</li>
+    <li><strong>Proposed new time:</strong> {{proposedAppointmentDateTime}}</li>
+    <li><strong>{{counterpartRole}}:</strong> {{counterpartName}}</li>
+    <li><strong>Reason:</strong> {{rescheduleReason}}</li>
+</ul>
+<p>Thank you,<br>MediCare Team</p>
+</body>
+</html>

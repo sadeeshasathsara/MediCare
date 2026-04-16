@@ -3,8 +3,12 @@ package com.healthcare.notification.controller;
 import com.healthcare.notification.dto.internal.AppointmentCancelledEventRequest;
 import com.healthcare.notification.dto.internal.AppointmentConfirmedEventRequest;
 import com.healthcare.notification.dto.internal.ConsultationCompletedEventRequest;
+import com.healthcare.notification.dto.internal.TelemedicineAppointmentStatusEventRequest;
+import com.healthcare.notification.dto.internal.TelemedicineConsultationCompletedEventRequest;
+import com.healthcare.notification.dto.internal.TelemedicinePrescriptionIssuedEventRequest;
 import com.healthcare.notification.dto.internal.TriggerAcceptedResponse;
 import com.healthcare.notification.service.NotificationEventService;
+import com.healthcare.notification.service.TelemedicineNotificationEventService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -19,9 +23,13 @@ public class InternalEventController {
 
     private static final String SERVICE_TOKEN_HEADER = "X-Service-Token";
     private final NotificationEventService notificationEventService;
+    private final TelemedicineNotificationEventService telemedicineNotificationEventService;
 
-    public InternalEventController(NotificationEventService notificationEventService) {
+    public InternalEventController(
+            NotificationEventService notificationEventService,
+            TelemedicineNotificationEventService telemedicineNotificationEventService) {
         this.notificationEventService = notificationEventService;
+        this.telemedicineNotificationEventService = telemedicineNotificationEventService;
     }
 
     @PostMapping("/appointment-confirmed")
@@ -46,5 +54,29 @@ public class InternalEventController {
             @Valid @RequestBody ConsultationCompletedEventRequest request) {
         notificationEventService.validateInternalToken(serviceToken);
         return ResponseEntity.accepted().body(notificationEventService.handleConsultationCompleted(request));
+    }
+
+    @PostMapping("/telemedicine/appointment-status")
+    public ResponseEntity<TriggerAcceptedResponse> telemedicineAppointmentStatus(
+            @RequestHeader(value = SERVICE_TOKEN_HEADER, required = false) String serviceToken,
+            @Valid @RequestBody TelemedicineAppointmentStatusEventRequest request) {
+        notificationEventService.validateInternalToken(serviceToken);
+        return ResponseEntity.accepted().body(telemedicineNotificationEventService.handleAppointmentStatus(request));
+    }
+
+    @PostMapping("/telemedicine/consultation-completed")
+    public ResponseEntity<TriggerAcceptedResponse> telemedicineConsultationCompleted(
+            @RequestHeader(value = SERVICE_TOKEN_HEADER, required = false) String serviceToken,
+            @Valid @RequestBody TelemedicineConsultationCompletedEventRequest request) {
+        notificationEventService.validateInternalToken(serviceToken);
+        return ResponseEntity.accepted().body(telemedicineNotificationEventService.handleConsultationCompleted(request));
+    }
+
+    @PostMapping("/telemedicine/prescription-issued")
+    public ResponseEntity<TriggerAcceptedResponse> telemedicinePrescriptionIssued(
+            @RequestHeader(value = SERVICE_TOKEN_HEADER, required = false) String serviceToken,
+            @Valid @RequestBody TelemedicinePrescriptionIssuedEventRequest request) {
+        notificationEventService.validateInternalToken(serviceToken);
+        return ResponseEntity.accepted().body(telemedicineNotificationEventService.handlePrescriptionIssued(request));
     }
 }

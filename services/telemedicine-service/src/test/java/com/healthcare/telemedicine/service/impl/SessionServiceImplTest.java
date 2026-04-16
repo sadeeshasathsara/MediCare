@@ -22,6 +22,7 @@ import com.healthcare.telemedicine.integration.appointment.AppointmentGateway;
 import com.healthcare.telemedicine.integration.appointment.ExternalAppointment;
 import com.healthcare.telemedicine.integration.appointment.ExternalAppointmentStatus;
 import com.healthcare.telemedicine.integration.appointment.TelemedicineAppointmentAdapter;
+import com.healthcare.telemedicine.integration.notification.TelemedicineNotificationClient;
 import com.healthcare.telemedicine.model.ConsultationSession;
 import com.healthcare.telemedicine.model.enums.SessionStatus;
 import com.healthcare.telemedicine.repository.ConsultationSessionRepository;
@@ -45,6 +46,9 @@ class SessionServiceImplTest {
     @Mock
     private TelemedicineEventPublisher eventPublisher;
 
+    @Mock
+    private TelemedicineNotificationClient notificationClient;
+
     private TelemedicineAppointmentAdapter appointmentAdapter;
     private SessionServiceImpl sessionService;
 
@@ -59,6 +63,7 @@ class SessionServiceImplTest {
                 jitsiService,
                 auditLogService,
                 eventPublisher,
+                notificationClient,
                 15);
     }
 

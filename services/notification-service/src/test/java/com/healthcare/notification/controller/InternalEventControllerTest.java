@@ -3,6 +3,7 @@ package com.healthcare.notification.controller;
 import com.healthcare.notification.dto.internal.TriggerAcceptedResponse;
 import com.healthcare.notification.model.NotificationEventType;
 import com.healthcare.notification.service.NotificationEventService;
+import com.healthcare.notification.service.TelemedicineNotificationEventService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -26,6 +27,9 @@ class InternalEventControllerTest {
 
     @MockBean
     private NotificationEventService notificationEventService;
+
+    @MockBean
+    private TelemedicineNotificationEventService telemedicineNotificationEventService;
 
     @Test
     void shouldReturnAcceptedForValidRequest() throws Exception {

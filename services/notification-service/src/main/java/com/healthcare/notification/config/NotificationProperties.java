@@ -10,6 +10,7 @@ public class NotificationProperties {
     private final Email email = new Email();
     private final Sms sms = new Sms();
     private final Worker worker = new Worker();
+    private final ProfileLookup profileLookup = new ProfileLookup();
 
     public String getInternalToken() {
         return internalToken;
@@ -37,6 +38,10 @@ public class NotificationProperties {
 
     public Worker getWorker() {
         return worker;
+    }
+
+    public ProfileLookup getProfileLookup() {
+        return profileLookup;
     }
 
     public static class Email {
@@ -239,6 +244,54 @@ public class NotificationProperties {
 
         public void setRetryBaseDelayMs(long retryBaseDelayMs) {
             this.retryBaseDelayMs = retryBaseDelayMs;
+        }
+    }
+
+    public static class ProfileLookup {
+        private String patientServiceBaseUrl = "http://patient-service:3002";
+        private String doctorServiceBaseUrl = "http://doctor-service:3003";
+        private String actorUserId = "notification-service";
+        private String actorRole = "ADMIN";
+        private int timeoutMs = 5000;
+
+        public String getPatientServiceBaseUrl() {
+            return patientServiceBaseUrl;
+        }
+
+        public void setPatientServiceBaseUrl(String patientServiceBaseUrl) {
+            this.patientServiceBaseUrl = patientServiceBaseUrl;
+        }
+
+        public String getDoctorServiceBaseUrl() {
+            return doctorServiceBaseUrl;
+        }
+
+        public void setDoctorServiceBaseUrl(String doctorServiceBaseUrl) {
+            this.doctorServiceBaseUrl = doctorServiceBaseUrl;
+        }
+
+        public String getActorUserId() {
+            return actorUserId;
+        }
+
+        public void setActorUserId(String actorUserId) {
+            this.actorUserId = actorUserId;
+        }
+
+        public String getActorRole() {
+            return actorRole;
+        }
+
+        public void setActorRole(String actorRole) {
+            this.actorRole = actorRole;
+        }
+
+        public int getTimeoutMs() {
+            return timeoutMs;
+        }
+
+        public void setTimeoutMs(int timeoutMs) {
+            this.timeoutMs = timeoutMs;
         }
     }
 }
