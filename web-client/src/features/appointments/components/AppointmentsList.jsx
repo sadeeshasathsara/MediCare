@@ -212,6 +212,7 @@ export default function AppointmentsList({
               )}
             </div>
           </CardContent>
+        </Card>
       ))}
     </div>
     {hasMore && (

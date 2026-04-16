@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useAuth } from "@/context/AuthContext";
 import AppointmentsList from "../components/AppointmentsList";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   fetchAppointments,
   selectAppointmentsQuery,
@@ -77,7 +78,7 @@ export default function AppointmentsPage() {
   }
 
   return (
-    <div className="space-y-10">
+    <div className="space-y-6">
       <div className="space-y-2">
         <h1 className="text-3xl font-bold tracking-tight">Appointments</h1>
         <p className="text-muted-foreground text-sm">
@@ -85,31 +86,42 @@ export default function AppointmentsPage() {
         </p>
       </div>
 
-      <div className="space-y-4">
-        <h2 className="text-xl font-semibold border-b pb-2 text-primary">Upcoming Consultations</h2>
-        <AppointmentsList
-          appointments={upcomingQuery.items || []}
-          handleStatusUpdate={handleStatusUpdate}
-          isDoctor={isDoctor}
-          cancelingId={cancelingId}
-          hasMore={upcomingQuery.hasMore}
-          onLoadMore={handleLoadMoreUpcoming}
-          isLoadingMore={upcomingQuery.status === 'loading'}
-        />
-      </div>
+      <Tabs defaultValue="upcoming" className="w-full">
+        <TabsList className="grid w-full grid-cols-2 max-w-[400px]">
+          <TabsTrigger value="upcoming" className="cursor-pointer">
+            Upcoming ({upcomingQuery.items?.length || 0})
+          </TabsTrigger>
+          <TabsTrigger value="past" className="cursor-pointer">
+            Past ({pastQuery.items?.length || 0})
+          </TabsTrigger>
+        </TabsList>
 
-      <div className="space-y-4 pt-4">
-        <h2 className="text-xl font-semibold border-b pb-2 text-muted-foreground">Past Consultations</h2>
-        <AppointmentsList
-          appointments={pastQuery.items || []}
-          handleStatusUpdate={handleStatusUpdate}
-          isDoctor={isDoctor}
-          cancelingId={cancelingId}
-          hasMore={pastQuery.hasMore}
-          onLoadMore={handleLoadMorePast}
-          isLoadingMore={pastQuery.status === 'loading'}
-        />
-      </div>
+        <TabsContent value="upcoming" className="mt-6">
+          {upcomingQuery.error && <div className="p-3 mb-4 bg-red-100 text-red-600 rounded">Error: {upcomingQuery.error}</div>}
+          <AppointmentsList
+            appointments={upcomingQuery.items || []}
+            handleStatusUpdate={handleStatusUpdate}
+            isDoctor={isDoctor}
+            cancelingId={cancelingId}
+            hasMore={upcomingQuery.hasMore}
+            onLoadMore={handleLoadMoreUpcoming}
+            isLoadingMore={upcomingQuery.status === 'loading'}
+          />
+        </TabsContent>
+
+        <TabsContent value="past" className="mt-6">
+          {pastQuery.error && <div className="p-3 mb-4 bg-red-100 text-red-600 rounded">Error: {pastQuery.error}</div>}
+          <AppointmentsList
+            appointments={pastQuery.items || []}
+            handleStatusUpdate={handleStatusUpdate}
+            isDoctor={isDoctor}
+            cancelingId={cancelingId}
+            hasMore={pastQuery.hasMore}
+            onLoadMore={handleLoadMorePast}
+            isLoadingMore={pastQuery.status === 'loading'}
+          />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
