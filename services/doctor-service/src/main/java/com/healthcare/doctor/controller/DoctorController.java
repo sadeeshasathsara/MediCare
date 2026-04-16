@@ -4,8 +4,10 @@ import com.healthcare.doctor.dto.DoctorResponse;
 import com.healthcare.doctor.dto.UpdateDoctorRequest;
 import com.healthcare.doctor.service.DoctorService;
 import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 
@@ -24,7 +26,13 @@ public class DoctorController {
      */
     @GetMapping
     public ResponseEntity<List<DoctorResponse>> listDoctors(
+            @RequestHeader(value = "X-User-Role", required = false) String role,
             @RequestParam(required = false) String specialty) {
+        if (!hasAnyRole(role, "ADMIN", "DOCTOR", "PATIENT")) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                    "Only admin, doctor, or patient roles can list doctors");
+        }
+
         return ResponseEntity.ok(doctorService.listVerifiedDoctors(specialty));
     }
 
@@ -52,5 +60,19 @@ public class DoctorController {
             @PathVariable String id,
             @Valid @RequestBody UpdateDoctorRequest request) {
         return ResponseEntity.ok(doctorService.updateDoctor(id, request));
+    }
+
+    private boolean hasAnyRole(String role, String... allowedRoles) {
+        if (role == null || role.isBlank()) {
+            return false;
+        }
+
+        for (String allowedRole : allowedRoles) {
+            if (allowedRole.equals(role) || ("ROLE_" + allowedRole).equals(role)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

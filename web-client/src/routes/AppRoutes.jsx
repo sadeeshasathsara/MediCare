@@ -20,6 +20,7 @@ import PatientHistoryPage from "@/features/patients/pages/PatientHistoryPage";
 import PatientPrescriptionsPage from "@/features/patients/pages/PatientPrescriptionsPage";
 import AdminPatientsPage from "@/features/patients/pages/AdminPatientsPage";
 import PatientTelemedicinePage from "@/features/telemedicine/pages/PatientTelemedicinePage";
+import SymptomCheckerPage from '@/features/ai-symptom/pages/SymptomCheckerPage'
 import CreatePatientAppointmentPage from "@/features/appointments/pages/CreatePatientAppointmentPage";
 
 // ── Doctors (Member 2) ─────────────────────────────────
@@ -50,12 +51,13 @@ import NotificationsPage from "@/features/notifications/pages/NotificationsPage"
 
 // --- Navigation Links for Top Nav ---
 const patientLinks = [
-  { label: "Dashboard", path: "/patient/dashboard" },
+  { label: 'Dashboard', path: '/patient/dashboard' },
   { label: "Appointments", path: "/patient/appointments/new" },
-  { label: "Reports", path: "/patient/reports" },
-  { label: "History", path: "/patient/history" },
-  { label: "Prescriptions", path: "/patient/prescriptions" },
-];
+  { label: 'Reports', path: '/patient/reports' },
+  { label: 'History', path: '/patient/history' },
+  { label: 'Prescriptions', path: '/patient/prescriptions' },
+  { label: 'AI-checker', path: '/patient/ai-checker' },
+]
 
 const doctorLinks = [
   { label: "Dashboard", path: "/doctor/dashboard" },
@@ -272,6 +274,10 @@ export default function AppRoutes() {
             <CreatePatientAppointmentPage />
           </TopNavLayout>,
         )}
+      />
+      <Route
+        path="/patient/ai-checker"
+        element={requireRole('PATIENT', <TopNavLayout navLinks={patientLinks}><SymptomCheckerPage /></TopNavLayout>)}
       />
 
       {/* Doctor Routes — wrapped in TopNavLayout */}

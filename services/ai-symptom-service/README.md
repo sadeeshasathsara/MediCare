@@ -14,6 +14,44 @@ Takes parsed natural-language inputs from patients querying potential conditions
 ```bash
 ./mvnw clean spring-boot:run
 ```
+
+## OpenAI Setup
+Set your OpenAI key before starting the service.
+
+PowerShell:
+```powershell
+$env:OPENAI_API_KEY="sk-..."
+$env:OPENAI_MODEL="gpt-4o-mini"
+```
+
+## API Endpoint
+When running through the gateway:
+
+`POST /api/ai/symptom-check`
+
+Direct service URL:
+
+`POST http://localhost:3008/symptom-check`
+
+Example request:
+```json
+{
+	"symptoms": "Fever, sore throat, dry cough for 2 days",
+	"age": 25,
+	"gender": "male",
+	"medicalHistory": "No chronic illnesses"
+}
+```
+
+Example cURL:
+```bash
+curl -X POST http://localhost:3008/symptom-check \
+	-H "Content-Type: application/json" \
+	-d '{"symptoms":"Fever and cough for 2 days","age":25}'
+```
+
+The response contains AI-generated triage guidance and a medical disclaimer.
+
 *Note: For the full platform, it is recommended to run this within the **Minikube** cluster:*
 ```bash
 kubectl apply -f ../../k8s/ai-symptom-deployment.yaml
