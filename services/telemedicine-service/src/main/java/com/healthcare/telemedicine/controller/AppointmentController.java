@@ -1,5 +1,7 @@
 package com.healthcare.telemedicine.controller;
 
+// Trigger rebuild: minor change for Jenkins
+
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
@@ -61,7 +63,8 @@ public class AppointmentController {
     public ResponseEntity<ApiResponse<List<TelemedicineAppointmentResponse>>> upcomingAppointments(
             @RequestParam(required = false) String doctorId) {
         String actorId = SecurityUtils.currentUserId();
-        List<TelemedicineAppointmentResponse> appointments = appointmentService.listUpcomingAppointments(doctorId, actorId);
+        List<TelemedicineAppointmentResponse> appointments = appointmentService.listUpcomingAppointments(doctorId,
+                actorId);
         return ResponseEntity.ok(ApiResponse.success(appointments, "Upcoming appointments fetched"));
     }
 
@@ -76,7 +79,8 @@ public class AppointmentController {
 
     @PatchMapping("/{id}/accept")
     @PreAuthorize("hasRole('DOCTOR')")
-    public ResponseEntity<ApiResponse<TelemedicineAppointmentResponse>> acceptAppointment(@PathVariable("id") String id) {
+    public ResponseEntity<ApiResponse<TelemedicineAppointmentResponse>> acceptAppointment(
+            @PathVariable("id") String id) {
         String actorId = SecurityUtils.currentUserId();
         TelemedicineAppointmentResponse appointment = appointmentService.acceptAppointment(id, actorId);
         return ResponseEntity.ok(ApiResponse.success(appointment, "Appointment accepted"));
@@ -88,7 +92,8 @@ public class AppointmentController {
             @PathVariable("id") String id,
             @Valid @RequestBody RejectAppointmentRequest request) {
         String actorId = SecurityUtils.currentUserId();
-        TelemedicineAppointmentResponse appointment = appointmentService.rejectAppointment(id, actorId, request.getReason());
+        TelemedicineAppointmentResponse appointment = appointmentService.rejectAppointment(id, actorId,
+                request.getReason());
         return ResponseEntity.ok(ApiResponse.success(appointment, "Appointment rejected"));
     }
 
@@ -99,7 +104,8 @@ public class AppointmentController {
             @Valid @RequestBody RescheduleAppointmentRequest request) {
         String actorId = SecurityUtils.currentUserId();
         Instant newTime = request.getNewScheduledAt();
-        TelemedicineAppointmentResponse appointment = appointmentService.rescheduleAppointment(id, actorId, newTime, request.getReason());
+        TelemedicineAppointmentResponse appointment = appointmentService.rescheduleAppointment(id, actorId, newTime,
+                request.getReason());
         return ResponseEntity.ok(ApiResponse.success(appointment, "Appointment rescheduled"));
     }
 }

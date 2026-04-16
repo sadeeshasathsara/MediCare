@@ -17,17 +17,15 @@ spec:
       containers:
         - name: notification-service
           image: ghcr.io/sadeeshasathsara/medicare/notification-service:latest
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           ports:
             - containerPort: 3007
           env:
-            # Update the MongoDB URI below manually
             - name: SPRING_DATA_MONGODB_URI
               valueFrom:
                 secretKeyRef:
                   name: medicare-secrets
                   key: MONGO_URI_NOTIFICATION
-
             - name: CORS_ALLOWED_ORIGINS
               valueFrom:
                 secretKeyRef:
@@ -45,5 +43,3 @@ spec:
     - protocol: TCP
       port: 3007
       targetPort: 3007
-
-
