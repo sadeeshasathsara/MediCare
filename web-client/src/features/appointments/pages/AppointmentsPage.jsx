@@ -1,41 +1,45 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect } from "react";
+import { useDispatch, useSelector } from "react-redux";
 import { useAuth } from "@/context/AuthContext";
-import {
-  getAppointments,
-  updateAppointmentStatus,
-} from "../services/appointmentApi";
 import AppointmentsList from "../components/AppointmentsList";
+import {
+  fetchAppointments,
+  selectAppointmentsByParams,
+  selectAppointmentsStatusByParams,
+  updateAppointmentStatusById,
+} from "@/store/slices/appointmentsSlice";
 
 export default function AppointmentsPage() {
+  const dispatch = useDispatch();
   const { user } = useAuth();
-  const [appointments, setAppointments] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const userId = user?.id || "";
+  const isDoctor = user?.role === "DOCTOR";
+
+  const appointments = useSelector((state) =>
+    selectAppointmentsByParams(
+      state,
+      userId ? (isDoctor ? { doctorId: userId } : { patientId: userId }) : {},
+    ),
+  );
+  const status = useSelector((state) =>
+    selectAppointmentsStatusByParams(
+      state,
+      userId ? (isDoctor ? { doctorId: userId } : { patientId: userId }) : {},
+    ),
+  );
+  const loading = status === "idle" || status === "loading";
 
   useEffect(() => {
-    const fetchAppointments = async () => {
-      if (!user?.id) return;
-      try {
-        const params =
-          user.role === "DOCTOR"
-            ? { doctorId: user.id }
-            : { patientId: user.id };
-        const data = await getAppointments(params);
-        setAppointments(data);
-      } catch (error) {
-        console.error("Failed to fetch appointments:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchAppointments();
-  }, [user]);
+    if (!userId) return;
+    const params = isDoctor ? { doctorId: userId } : { patientId: userId };
+    dispatch(fetchAppointments({ params }));
+  }, [dispatch, isDoctor, userId]);
 
   const handleStatusUpdate = async (id, status) => {
     try {
-      await updateAppointmentStatus(id, status);
-      setAppointments((prev) =>
-        prev.map((a) => (a.id === id ? { ...a, status } : a)),
-      );
+      await dispatch(
+        updateAppointmentStatusById({ appointmentId: id, status }),
+      ).unwrap();
     } catch (error) {
       console.error("Failed to update status:", error);
     }
@@ -62,7 +66,7 @@ export default function AppointmentsPage() {
       <AppointmentsList
         appointments={appointments}
         handleStatusUpdate={handleStatusUpdate}
-        isDoctor={user?.role === "DOCTOR"}
+        isDoctor={isDoctor}
       />
     </div>
   );
