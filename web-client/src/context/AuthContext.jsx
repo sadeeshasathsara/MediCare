@@ -1,6 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useMemo, useState } from 'react'
 import api from '@/services/api'
+import { clearAuthItems, getAuthItem, setAuthItem } from '@/services/authStorage'
 
 const AuthContext = createContext(null)
 
@@ -32,20 +33,20 @@ function decodeJwtPayload(token) {
 }
 
 function getValidAccessTokenFromStorage() {
-  const token = localStorage.getItem('accessToken')
+  const token = getAuthItem('accessToken')
   if (!token) return null
   const payload = decodeJwtPayload(token)
   if (!payload) {
-    localStorage.removeItem('accessToken')
+    clearAuthItems()
     return null
   }
   return token
 }
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(() => safeJsonParse(localStorage.getItem('user')))
+  const [user, setUser] = useState(() => safeJsonParse(getAuthItem('user')))
   const [accessToken, setAccessToken] = useState(() => getValidAccessTokenFromStorage())
-  const [refreshToken, setRefreshToken] = useState(localStorage.getItem('refreshToken'))
+  const [refreshToken, setRefreshToken] = useState(getAuthItem('refreshToken'))
 
   const effectiveUser = useMemo(() => {
     const existing = user || {}
@@ -59,6 +60,7 @@ export function AuthProvider({ children }) {
       return existing
     }
 
+    const id = existing.id || existing.userId || payload.sub
     const email = payload.email
     const role = payload.role
     const verified = payload.verified
@@ -66,6 +68,7 @@ export function AuthProvider({ children }) {
 
     return {
       ...existing,
+      id,
       email: email ?? existing.email,
       role: role ?? existing.role,
       doctorVerified: verified ?? existing.doctorVerified,
@@ -76,9 +79,9 @@ export function AuthProvider({ children }) {
   const loading = false
 
   const login = ({ accessToken: newAccessToken, refreshToken: newRefreshToken, user: newUser }) => {
-    localStorage.setItem('accessToken', newAccessToken)
-    localStorage.setItem('refreshToken', newRefreshToken)
-    localStorage.setItem('user', JSON.stringify(newUser))
+    setAuthItem('accessToken', newAccessToken)
+    setAuthItem('refreshToken', newRefreshToken)
+    setAuthItem('user', JSON.stringify(newUser))
 
     setAccessToken(newAccessToken)
     setRefreshToken(newRefreshToken)
@@ -86,16 +89,14 @@ export function AuthProvider({ children }) {
   }
 
   const clearSession = () => {
-    localStorage.removeItem('accessToken')
-    localStorage.removeItem('refreshToken')
-    localStorage.removeItem('user')
+    clearAuthItems()
     setAccessToken(null)
     setRefreshToken(null)
     setUser(null)
   }
 
   const logout = async () => {
-    const currentRefreshToken = refreshToken || localStorage.getItem('refreshToken')
+    const currentRefreshToken = refreshToken || getAuthItem('refreshToken')
     if (currentRefreshToken) {
       try {
         await api.post('/auth/logout', { refreshToken: currentRefreshToken })

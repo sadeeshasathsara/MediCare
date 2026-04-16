@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { clearAuthItems, getAuthItem, removeAuthItem, setAuthItem } from '@/services/authStorage'
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api',
@@ -18,7 +19,7 @@ let refreshPromise = null
 
 // Attach JWT token to every request automatically
 api.interceptors.request.use((config) => {
-  const accessToken = localStorage.getItem('accessToken')
+  const accessToken = getAuthItem('accessToken')
   if (accessToken) {
     config.headers.Authorization = `Bearer ${accessToken}`
   }
@@ -46,11 +47,9 @@ api.interceptors.response.use(
     if (status === 401 && originalRequest && !originalRequest._retry) {
       originalRequest._retry = true
 
-      const refreshToken = localStorage.getItem('refreshToken')
+      const refreshToken = getAuthItem('refreshToken')
       if (!refreshToken) {
-        localStorage.removeItem('accessToken')
-        localStorage.removeItem('refreshToken')
-        localStorage.removeItem('user')
+        clearAuthItems()
         window.location.href = '/login'
         return Promise.reject(error)
       }
@@ -67,16 +66,16 @@ api.interceptors.response.use(
           throw new Error('Invalid refresh response')
         }
 
-        localStorage.setItem('accessToken', accessToken)
-        localStorage.setItem('refreshToken', newRefreshToken)
+        setAuthItem('accessToken', accessToken)
+        setAuthItem('refreshToken', newRefreshToken)
 
         originalRequest.headers = originalRequest.headers || {}
         originalRequest.headers.Authorization = `Bearer ${accessToken}`
         return api(originalRequest)
       } catch {
-        localStorage.removeItem('accessToken')
-        localStorage.removeItem('refreshToken')
-        localStorage.removeItem('user')
+        removeAuthItem('accessToken')
+        removeAuthItem('refreshToken')
+        removeAuthItem('user')
         window.location.href = '/login'
         return Promise.reject(error)
       } finally {

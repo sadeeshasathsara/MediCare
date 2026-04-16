@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
 import { useAuth } from "@/context/AuthContext";
+import { getAuthItem } from "@/services/authStorage";
 import { getPatientProfile } from "@/features/patients/services/patientApi";
 import {
   fetchDoctors,
@@ -95,11 +96,43 @@ function formatAppointmentDate(dateTime) {
   });
 }
 
+function decodeJwtSubject(token) {
+  try {
+    const parts = String(token || '').split('.')
+    if (parts.length < 2) return ''
+    let payload = parts[1].replace(/-/g, '+').replace(/_/g, '/')
+    const remainder = payload.length % 4
+    if (remainder === 2) payload += '=='
+    if (remainder === 3) payload += '='
+    return JSON.parse(atob(payload))?.sub || ''
+  } catch {
+    return ''
+  }
+}
+
 export default function CreatePatientAppointmentPage() {
   const dispatch = useDispatch();
   const { user } = useAuth();
   const navigate = useNavigate();
-  const userId = user?.id || "";
+  const userId = useMemo(() => {
+    const fromUser =
+      user?.id ||
+      user?.userId ||
+      user?._id ||
+      user?.patientId ||
+      user?.profile?.id ||
+      user?.patient?.id ||
+      ''
+    if (fromUser) return String(fromUser)
+    return decodeJwtSubject(getAuthItem('accessToken'))
+  }, [
+    user?.id,
+    user?.userId,
+    user?._id,
+    user?.patientId,
+    user?.profile?.id,
+    user?.patient?.id,
+  ]);
 
   const [profile, setProfile] = useState(null);
 
