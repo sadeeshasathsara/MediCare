@@ -7,6 +7,7 @@ import {
   selectAppointmentsByParams,
   selectAppointmentsStatusByParams,
   updateAppointmentStatusById,
+  cancelAppointmentById,
 } from "@/store/slices/appointmentsSlice";
 
 export default function AppointmentsPage() {
@@ -37,9 +38,13 @@ export default function AppointmentsPage() {
 
   const handleStatusUpdate = async (id, status) => {
     try {
-      await dispatch(
-        updateAppointmentStatusById({ appointmentId: id, status }),
-      ).unwrap();
+      if (!isDoctor && status === "CANCELLED") {
+        await dispatch(cancelAppointmentById(id)).unwrap();
+      } else {
+        await dispatch(
+          updateAppointmentStatusById({ appointmentId: id, status }),
+        ).unwrap();
+      }
     } catch (error) {
       console.error("Failed to update status:", error);
     }

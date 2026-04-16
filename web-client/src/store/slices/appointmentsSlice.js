@@ -3,6 +3,7 @@ import {
     createAppointment,
     getAppointments,
     updateAppointmentStatus,
+    cancelAppointment,
 } from '@/features/appointments/services/appointmentApi'
 
 const EMPTY_QUERY = { items: [], status: 'idle', error: null, lastFetched: 0 }
@@ -68,6 +69,17 @@ export const updateAppointmentStatusById = createAsyncThunk(
             appointmentId,
             status,
             updated,
+        }
+    }
+)
+
+export const cancelAppointmentById = createAsyncThunk(
+    'appointments/cancelAppointmentById',
+    async (appointmentId) => {
+        await cancelAppointment(appointmentId)
+        return {
+            appointmentId,
+            status: 'CANCELLED',
         }
     }
 )
@@ -186,6 +198,21 @@ const appointmentsSlice = createSlice({
                 state.updateStateById[appointmentId] = {
                     status: 'failed',
                     error: action.error?.message || 'Failed to update appointment status.',
+                }
+            })
+            .addCase(cancelAppointmentById.fulfilled, (state, action) => {
+                const appointmentId = action.payload?.appointmentId
+                const status = action.payload?.status
+
+                for (const queryState of Object.values(state.queries)) {
+                    if (!Array.isArray(queryState?.items)) continue
+                    queryState.items = queryState.items.map((item) => {
+                        if (item?.id !== appointmentId) return item
+                        return {
+                            ...item,
+                            status: status,
+                        }
+                    })
                 }
             })
     },

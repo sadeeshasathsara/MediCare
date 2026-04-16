@@ -42,10 +42,10 @@ function StatusPipeline({ currentStatus }) {
   const currentIndex = getStageIndex(currentStatus);
 
   return (
-    <div className="py-4">
+    <div className="py-2 px-6">
       <div className="relative flex justify-between items-center">
         {/* Background Line */}
-        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-full h-0.5 bg-muted z-0" />
+        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-full h-[1px] bg-muted z-0" />
         
         {STAGES.map((stage, idx) => {
           const isCompleted = idx < currentIndex || currentStatus === 'COMPLETED';
@@ -53,16 +53,16 @@ function StatusPipeline({ currentStatus }) {
           
           return (
             <div key={stage.id} className="relative z-10 flex flex-col items-center">
-              <div className={`h-6 w-6 rounded-full flex items-center justify-center border-2 transition-colors duration-500 ${
+              <div className={`h-5 w-5 rounded-full flex items-center justify-center border-2 transition-colors duration-500 ${
                 isCompleted ? 'bg-primary border-primary text-primary-foreground' : 
                 isCurrent ? 'bg-background border-primary text-primary' : 
                 'bg-background border-muted text-muted-foreground'
               }`}>
-                {isCompleted ? <CheckCircle2 className="h-4 w-4" /> : 
-                 isCurrent ? <Clock3 className="h-4 w-4 animate-pulse" /> : 
-                 <Circle className="h-4 w-4" />}
+                {isCompleted ? <CheckCircle2 className="h-3 w-3" /> : 
+                 isCurrent ? <Clock3 className="h-3 w-3 animate-pulse" /> : 
+                 <Circle className="h-3 w-3" />}
               </div>
-              <span className={`absolute top-8 whitespace-nowrap text-[10px] font-bold uppercase tracking-wider ${
+              <span className={`absolute top-6 whitespace-nowrap text-[9px] font-bold uppercase tracking-wider ${
                 isCompleted || isCurrent ? 'text-primary' : 'text-muted-foreground'
               }`}>
                 {stage.label}
@@ -95,7 +95,7 @@ export default function AppointmentsList({
   }
 
   return (
-    <div className="grid gap-6 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
+    <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
       {appointments.slice().sort((a,b) => new Date(b.scheduledAt) - new Date(a.scheduledAt)).map((app) => (
         <Card
           key={app.id}
@@ -108,45 +108,56 @@ export default function AppointmentsList({
             app.status === 'CANCELLED' ? 'bg-destructive' : 'bg-primary'
           }`} />
 
-          <CardHeader className="pb-4">
-            <div className="flex items-start justify-between">
-              <div className="space-y-1">
-                <CardTitle className="text-xl font-bold flex items-center gap-2">
-                  {isDoctor ? <User className="h-5 w-5 text-primary" /> : <Stethoscope className="h-5 w-5 text-primary" />}
-                  {isDoctor ? app.patientName : `Dr. ${app.doctorName}`}
-                </CardTitle>
-                {!isDoctor && (
-                  <CardDescription className="font-medium text-primary">
-                    {app.doctorSpecialty || "General Medicine"} Specialist
-                  </CardDescription>
-                )}
+          <CardHeader className="pb-2 pt-4 px-4">
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 shrink-0 rounded-full bg-muted flex items-center justify-center overflow-hidden border">
+                  {!isDoctor && app.profileImageUrl ? (
+                    <img src={app.profileImageUrl} alt="Doctor" className="h-full w-full object-cover" />
+                  ) : isDoctor ? (
+                    <User className="h-5 w-5 text-primary" />
+                  ) : (
+                    <Stethoscope className="h-5 w-5 text-muted-foreground" />
+                  )}
+                </div>
+                <div className="space-y-0.5">
+                  <CardTitle className="text-base font-bold line-clamp-1">
+                    {isDoctor ? app.patientName : `Dr. ${app.doctorName}`}
+                  </CardTitle>
+                  {!isDoctor && (
+                    <CardDescription className="text-xs font-medium text-primary line-clamp-1">
+                      {app.doctorSpecialty || "General Medicine"}
+                    </CardDescription>
+                  )}
+                </div>
               </div>
-              <Badge variant={app.status === 'CANCELLED' ? 'destructive' : 'secondary'} className="font-bold">
+              <Badge variant={app.status === 'CANCELLED' ? 'destructive' : 'secondary'} className="text-[10px] px-2 py-0 h-5 items-center flex">
                 {app.status}
               </Badge>
             </div>
           </CardHeader>
 
-          <CardContent className="space-y-6">
-            <div className="p-4 rounded-xl bg-muted/30 border space-y-3">
-              <div className="flex items-center gap-3 text-sm">
-                <Calendar className="h-4 w-4 text-muted-foreground" />
-                <span className="font-medium">{new Date(app.scheduledAt).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}</span>
+          <CardContent className="space-y-4 px-4 pb-4">
+            <div className="p-3 rounded-lg bg-muted/30 border flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 justify-between">
+              <div className="flex items-center gap-2 text-xs">
+                <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+                <span className="font-medium whitespace-nowrap">{new Date(app.scheduledAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</span>
               </div>
-              <div className="flex items-center gap-3 text-sm">
-                <Clock className="h-4 w-4 text-muted-foreground" />
-                <span className="font-medium">{new Date(app.scheduledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+              <div className="flex items-center gap-2 text-xs">
+                <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                <span className="font-medium whitespace-nowrap">{new Date(app.scheduledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
               </div>
             </div>
 
             <div className="space-y-1">
-              <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Reason for Consultation</p>
-              <p className="text-sm font-medium line-clamp-2 italic">"{app.reason || 'No description provided'}"</p>
+              <p className="text-[10px] font-semibold text-muted-foreground tracking-wide">REASON</p>
+              <p className="text-xs font-medium line-clamp-2 italic">"{app.reason || 'No description provided'}"</p>
+
             </div>
 
             <StatusPipeline currentStatus={app.status} />
 
-            <div className="pt-6 border-t flex items-center justify-between gap-3">
+            <div className="pt-4 border-t flex items-center justify-between gap-2">
               {app.status === "PENDING" ? (
                 <div className="flex gap-2 w-full">
                   {isDoctor ? (
@@ -154,7 +165,7 @@ export default function AppointmentsList({
                       <Button
                         size="sm"
                         onClick={() => handleStatusUpdate(app.id, "CONFIRMED")}
-                        className="flex-1 font-bold shadow-sm"
+                        className="flex-1 text-xs shadow-sm"
                       >
                         Approve
                       </Button>
@@ -162,7 +173,7 @@ export default function AppointmentsList({
                         size="sm"
                         variant="outline"
                         onClick={() => handleStatusUpdate(app.id, "CANCELLED")}
-                        className="flex-1 font-bold border-destructive text-destructive hover:bg-destructive/5"
+                        className="flex-1 text-xs border-destructive text-destructive hover:bg-destructive/5"
                       >
                         Decline
                       </Button>
@@ -172,7 +183,7 @@ export default function AppointmentsList({
                       size="sm"
                       variant="outline"
                       onClick={() => handleStatusUpdate(app.id, "CANCELLED")}
-                      className="w-full font-bold border-destructive text-destructive hover:bg-destructive/5"
+                      className="w-full text-xs border-destructive text-destructive hover:bg-destructive/5"
                     >
                       Cancel Appointment
                     </Button>
