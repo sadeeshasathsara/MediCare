@@ -7,7 +7,7 @@ import {
   useRef,
   useState,
 } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   ArrowLeft,
   CalendarClock,
@@ -27,6 +27,7 @@ import {
 } from 'lucide-react'
 
 import { useAuth } from '@/context/AuthContext'
+import { getAuthItem } from '@/services/authStorage'
 import FeatureNotice from '@/features/telemedicine/components/FeatureNotice'
 import LiveConsultationPanel from '@/features/telemedicine/components/LiveConsultationPanel'
 import StatusBadge from '@/features/telemedicine/components/StatusBadge'
@@ -208,15 +209,17 @@ function ReadinessRow({ label, joined }) {
 /* ─── Main component ─────────────────────────────────────────────────────── */
 
 export default function PatientTelemedicinePage() {
+  const navigate = useNavigate()
+  const { appointmentId: routeAppointmentId } = useParams()
   const { user, accessToken } = useAuth()
 
   const patientIdentifiers = useMemo(() => {
-    const storedUser = safeJsonParse(localStorage.getItem('user'))
+    const storedUser = safeJsonParse(getAuthItem('user'))
     const identifiers = new Set([
       ...getTelemedicinePatientIdentifiers(user),
       ...getTelemedicinePatientIdentifiers(storedUser),
     ])
-    const tokenSubject = normalizeId(decodeJwtSubject(accessToken || localStorage.getItem('accessToken')))
+    const tokenSubject = normalizeId(decodeJwtSubject(accessToken || getAuthItem('accessToken')))
     if (tokenSubject) identifiers.add(tokenSubject)
     return Array.from(identifiers)
   }, [accessToken, user])
@@ -269,6 +272,10 @@ export default function PatientTelemedicinePage() {
   const liveCount              = acceptedAppointments.filter((a) => sessionsByAppointmentId[a.id]?.sessionStatus === 'LIVE').length
 
   useEffect(() => { selectedAppointmentIdRef.current = selectedAppointmentId }, [selectedAppointmentId])
+
+  useEffect(() => {
+    setSelectedAppointmentId(routeAppointmentId || null)
+  }, [routeAppointmentId])
 
   /* ── Data fetching ── */
 
@@ -400,7 +407,9 @@ export default function PatientTelemedicinePage() {
     setClinicalLoading(false)
   }, [refreshConsultationForSession, refreshPrescriptionsForConsultation])
 
-  useEffect(() => { refreshAppointments({ preserveSelection: false }) }, [refreshAppointments])
+  useEffect(() => {
+    refreshAppointments({ preserveSelection: Boolean(routeAppointmentId), preferredAppointmentId: routeAppointmentId || null })
+  }, [refreshAppointments, routeAppointmentId])
   useEffect(() => { refreshSessionsForAppointments(appointments, { showLoading: false }) }, [appointments, refreshSessionsForAppointments])
 
   useEffect(() => {
@@ -427,15 +436,15 @@ export default function PatientTelemedicinePage() {
   /* ── Handlers ── */
 
   const handleOpenAppointment = useCallback((id) => {
-    setSelectedAppointmentId(id)
+    navigate(`/patient/telemedicine/${id}`)
     window.scrollTo({ top: 0, behavior: 'smooth' })
-  }, [])
+  }, [navigate])
 
   const handleBack = useCallback(() => {
-    setSelectedAppointmentId(null)
+    navigate('/patient/telemedicine')
     setPatientJoinInfo(null)
     setSessionActionState(EMPTY_ACTION_STATE)
-  }, [])
+  }, [navigate])
 
   const handleJoinConsultation = async () => {
     if (!selectedSession || !selectedAppointment) return
@@ -569,7 +578,7 @@ export default function PatientTelemedicinePage() {
                   Appointments will appear here once scheduled. You can also book a visit through your appointments page.
                 </p>
               </div>
-              <Link to="/patient/appointments"
+              <Link to="/patient/appointments/new"
                 className="inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-semibold transition hover:bg-black/3 dark:hover:bg-white/5"
                 style={{ borderColor: 'hsl(var(--border))', color: 'hsl(var(--foreground))' }}>
                 <CalendarClock className="h-4 w-4" />

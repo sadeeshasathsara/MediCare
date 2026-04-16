@@ -53,6 +53,7 @@ import NotificationsPage from "@/features/notifications/pages/NotificationsPage"
 const patientLinks = [
   { label: 'Dashboard', path: '/patient/dashboard' },
   { label: "Appointments", path: "/patient/appointments/new" },
+  { label: 'Telemedicine', path: '/patient/telemedicine' },
   { label: 'Reports', path: '/patient/reports' },
   { label: 'History', path: '/patient/history' },
   { label: 'Prescriptions', path: '/patient/prescriptions' },
@@ -259,6 +260,15 @@ export default function AppRoutes() {
       />
       <Route
         path="/patient/telemedicine"
+        element={requireRole(
+          "PATIENT",
+          <TopNavLayout navLinks={patientLinks}>
+            <PatientTelemedicinePage />
+          </TopNavLayout>,
+        )}
+      />
+      <Route
+        path="/patient/telemedicine/:appointmentId"
         element={requireRole(
           "PATIENT",
           <TopNavLayout navLinks={patientLinks}>
