@@ -65,6 +65,13 @@ pipeline {
             when { expression { env.BUILD_FRONTEND == 'true' } }
             steps {
                 sh """
+                    # Ensure pnpm is available in the Jenkins environment
+                    if ! command -v pnpm &> /dev/null; then
+                        echo "pnpm not found, installing..."
+                        npm install -g pnpm || npm install pnpm
+                        export PATH=\$PATH:\$(npm bin -g)
+                    fi
+
                     cd web-client
                     pnpm install --frozen-lockfile
                     pnpm build
