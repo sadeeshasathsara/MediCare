@@ -1,5 +1,15 @@
 import api from '@/services/api'
 
+export const listDoctors = async (params = {}) => {
+  const { data } = await api.get('/doctors/doctors', { params })
+  return data
+}
+
+export const listDoctorSpecialties = async () => {
+  const { data } = await api.get('/doctors/doctors/specialties')
+  return data
+}
+
 export const getDoctorByUserId = async (id) => {
   const { data } = await api.get(`/doctors/doctors/${id}`)
   return data
