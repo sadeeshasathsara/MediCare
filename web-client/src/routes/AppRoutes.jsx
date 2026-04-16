@@ -27,6 +27,7 @@ import ManageAvailabilityPage from "@/features/doctors/pages/ManageAvailabilityP
 
 // ── Shared Microservices Pages ─────────────────────────
 import AppointmentsPage from "@/features/appointments/pages/AppointmentsPage";
+import AppointmentDetailsPage from "@/features/appointments/pages/AppointmentDetailsPage";
 import TelemedicinePage from "@/features/telemedicine/pages/TelemedicinePage";
 import PaymentsPage from "@/features/payments/pages/PaymentsPage";
 import NotificationsPage from "@/features/notifications/pages/NotificationsPage";
@@ -246,6 +247,15 @@ export default function AppRoutes() {
         )}
       />
       <Route
+        path="/appointments/:id"
+        element={requireRole(
+          "PATIENT",
+          <TopNavLayout navLinks={patientLinks}>
+            <AppointmentDetailsPage />
+          </TopNavLayout>,
+        )}
+      />
+      <Route
         path="/symptom-checker"
         element={requireRole('PATIENT', <TopNavLayout navLinks={patientLinks}><SymptomCheckerPage /></TopNavLayout>)}
       />
@@ -266,6 +276,15 @@ export default function AppRoutes() {
           "DOCTOR",
           <TopNavLayout navLinks={doctorLinks}>
             <AppointmentsPage />
+          </TopNavLayout>,
+        )}
+      />
+      <Route
+        path="/doctor/appointments/:id"
+        element={requireRole(
+          "DOCTOR",
+          <TopNavLayout navLinks={doctorLinks}>
+            <AppointmentDetailsPage />
           </TopNavLayout>,
         )}
       />

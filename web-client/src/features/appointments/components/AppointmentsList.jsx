@@ -1,4 +1,5 @@
 import React from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Card,
   CardContent,
@@ -80,6 +81,8 @@ export default function AppointmentsList({
   handleStatusUpdate,
   isDoctor,
 }) {
+  const navigate = useNavigate();
+
   if (appointments.length === 0) {
     return (
       <div className="rounded-2xl border-2 border-dashed p-20 text-center flex flex-col items-center gap-4">
@@ -99,7 +102,8 @@ export default function AppointmentsList({
       {appointments.slice().sort((a,b) => new Date(b.scheduledAt) - new Date(a.scheduledAt)).map((app) => (
         <Card
           key={app.id}
-          className="group overflow-hidden relative transition-all duration-300 hover:shadow-xl hover:-translate-y-1 border-2 border-muted hover:border-primary/20 flex flex-col h-full"
+          onClick={() => navigate(isDoctor ? `/doctor/appointments/${app.id}` : `/appointments/${app.id}`)}
+          className="cursor-pointer group overflow-hidden relative transition-all duration-300 hover:shadow-xl hover:-translate-y-1 border-2 border-muted hover:border-primary/20 flex flex-col h-full"
         >
           {/* Status color strip */}
           <div className={`h-1.5 w-full ${
@@ -164,7 +168,7 @@ export default function AppointmentsList({
                     <>
                       <Button
                         size="sm"
-                        onClick={() => handleStatusUpdate(app.id, "CONFIRMED")}
+                        onClick={(e) => { e.stopPropagation(); handleStatusUpdate(app.id, "CONFIRMED"); }}
                         className="flex-1 text-xs shadow-sm"
                       >
                         Approve
@@ -172,7 +176,7 @@ export default function AppointmentsList({
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => handleStatusUpdate(app.id, "CANCELLED")}
+                        onClick={(e) => { e.stopPropagation(); handleStatusUpdate(app.id, "CANCELLED"); }}
                         className="flex-1 text-xs border-destructive text-destructive hover:bg-destructive/5"
                       >
                         Decline
@@ -182,7 +186,7 @@ export default function AppointmentsList({
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => handleStatusUpdate(app.id, "CANCELLED")}
+                      onClick={(e) => { e.stopPropagation(); handleStatusUpdate(app.id, "CANCELLED"); }}
                       className="w-full text-xs border-destructive text-destructive hover:bg-destructive/5"
                     >
                       Cancel Appointment
