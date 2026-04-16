@@ -4,6 +4,7 @@ pipeline {
     environment {
         REGISTRY = 'ghcr.io/sadeeshasathsara/medicare'
         KUBECONFIG_CREDENTIAL = 'kubeconfig'
+        MEDICARE_SECRETS_ENV_CREDENTIAL = 'medicare-secrets-env'
     }
 
     stages {
@@ -12,6 +13,9 @@ pipeline {
                 script {
                     def changedFiles = sh(script: "git diff --name-only HEAD~1 HEAD", returnStdout: true).trim()
                     echo "Changed files: ${changedFiles}"
+
+                    // When shared env secret file changes, restart all services to pick up new env values.
+                    env.SECRETS_CHANGED = changedFiles.contains('k8s/SECRET-FILE/medicare-secrets.env') ? 'true' : 'false'
 
                     env.BUILD_AUTH = changedFiles.contains('services/auth-service') ? 'true' : 'false'
                     env.BUILD_PATIENT = changedFiles.contains('services/patient-service') ? 'true' : 'false'
@@ -64,15 +68,33 @@ pipeline {
                     cd web-client
                     npm install
                     npm run build
-                    sudo cp -r dist/* /var/www/medicarelk/
+                    cp -r dist/* /var/www/medicarelk/
                 """
             }
         }
 
         stage('Deploy to Kubernetes') {
             steps {
-                withCredentials([file(credentialsId: 'kubeconfig', variable: 'KUBECONFIG')]) {
+                withCredentials([file(credentialsId: env.KUBECONFIG_CREDENTIAL, variable: 'KUBECONFIG')]) {
                     script {
+                        // 1) Apply updated secrets/config first (idempotent)
+                        // Provide a Jenkins "Secret file" credential with ID: medicare-secrets-env
+                        // File contents should be KEY=VALUE lines matching the keys referenced in k8s/*-deployment.yaml
+                        try {
+                            withCredentials([file(credentialsId: env.MEDICARE_SECRETS_ENV_CREDENTIAL, variable: 'MEDICARE_SECRETS_ENV')]) {
+                                sh '''
+                                    kubectl create secret generic medicare-secrets \
+                                      --from-env-file="$MEDICARE_SECRETS_ENV" \
+                                      --dry-run=client -o yaml | kubectl apply --validate=false -f -
+                                '''
+                            }
+                        } catch (err) {
+                            echo "Skipping k8s secret update (missing credential '${env.MEDICARE_SECRETS_ENV_CREDENTIAL}'?): ${err}"
+                        }
+
+                        // 2) Apply manifests so env/volumes/config changes take effect
+                        sh "kubectl apply --validate=false -f k8s/"
+
                         def services = [
                             [name: 'auth-service', env: 'BUILD_AUTH'],
                             [name: 'patient-service', env: 'BUILD_PATIENT'],
@@ -85,9 +107,8 @@ pipeline {
                         ]
 
                         services.each { svc ->
-                            if (env."${svc.env}" == 'true') {
-                                sh "kubectl rollout restart deployment/${svc.name}"
-                            }
+                            // Always rollout restart all deployments after apply
+                            sh "kubectl rollout restart deployment/${svc.name}"
                         }
                     }
                 }

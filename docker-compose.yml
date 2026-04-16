@@ -1,7 +1,4 @@
-version: '3.8'
-
 services:
-
   # ── SERVICES ──────────────────────────────────────────
   auth-service:
     build: ./services/auth-service
@@ -22,8 +19,12 @@ services:
     build: ./services/patient-service
     expose:
       - "3002"
+    env_file:
+      - ./services/patient-service/.env
     environment:
       SPRING_DATA_MONGODB_URI: ${MONGO_URI_PATIENT}
+    volumes:
+      - local-storage:/data/patient-reports
 
   doctor-service:
     build: ./services/doctor-service
@@ -64,6 +65,8 @@ services:
     build: ./services/ai-symptom-service
     expose:
       - "3008"
+    env_file:
+      - ./services/ai-symptom-service/.env
     environment:
       SPRING_DATA_MONGODB_URI: ${MONGO_URI_AI}
 
@@ -83,3 +86,7 @@ services:
       - payment-service
       - notification-service
       - ai-symptom-service
+
+volumes:
+  local-storage:
+    name: local-storage

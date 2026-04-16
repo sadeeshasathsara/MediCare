@@ -71,7 +71,7 @@ public class AdminController {
         return ResponseEntity.noContent().build();
     }
 
-    @GetMapping("/pending-doctors")
+    @GetMapping({"", "/", "/pending-doctors"})
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<List<PendingDoctorDto>> listPendingDoctors() {
         return ResponseEntity.ok(authService.listPendingDoctors());

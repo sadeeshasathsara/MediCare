@@ -54,7 +54,7 @@
 		<dependency>
 			<groupId>com.twilio.sdk</groupId>
 			<artifactId>twilio</artifactId>
-			<version>10.10.0</version>
+			<version>9.3.0</version>
 		</dependency>
 
 		<dependency>
