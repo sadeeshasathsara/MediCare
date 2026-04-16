@@ -66,8 +66,8 @@ pipeline {
             steps {
                 sh """
                     cd web-client
-                    npm install
-                    npm run build
+                    pnpm install --frozen-lockfile
+                    pnpm build
                     cp -r dist/* /var/www/medicarelk/
                 """
             }
@@ -103,7 +103,8 @@ pipeline {
                             [name: 'telemedicine-service', env: 'BUILD_TELEMEDICINE'],
                             [name: 'payment-service', env: 'BUILD_PAYMENT'],
                             [name: 'notification-service', env: 'BUILD_NOTIFICATION'],
-                            [name: 'ai-symptom-service', env: 'BUILD_AI']
+                            [name: 'ai-symptom-service', env: 'BUILD_AI'],
+                            [name: 'api-gateway', env: 'ALWAYS_RESTART']
                         ]
 
                         services.each { svc ->
