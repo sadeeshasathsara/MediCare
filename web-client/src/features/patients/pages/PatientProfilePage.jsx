@@ -18,7 +18,9 @@ import {
     Calendar,
     Phone,
     MapPin,
+    CreditCard,
 } from 'lucide-react'
+import PatientPaymentTab from '@/features/payments/components/PatientPaymentTab'
 
 function emptyProfile(userId, email) {
     return {
@@ -43,6 +45,7 @@ export default function PatientProfilePage() {
     const [error, setError] = useState('')
     const [profile, setProfile] = useState(null)
     const [photoUrl, setPhotoUrl] = useState('')
+    const [activeTab, setActiveTab] = useState('profile')
 
     const [phoneValue, setPhoneValue] = useState('')
 
@@ -216,7 +219,7 @@ export default function PatientProfilePage() {
         <div className="space-y-6">
             {/* Header + Avatar (top-center) */}
             <section className="relative overflow-hidden rounded-2xl border border-border bg-card">
-                <div className="h-28 w-full bg-gradient-to-b from-primary/15 to-background" />
+                <div className="h-28 w-full bg-linear-to-b from-primary/15 to-background" />
 
                 <div className="px-5 pb-5">
                     <div className="-mt-10 flex flex-col items-center text-center">
@@ -305,96 +308,129 @@ export default function PatientProfilePage() {
                 </div>
             )}
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <section className="rounded-xl border border-border bg-card p-5">
-                    <div className="flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-2">
-                            <User size={16} className="text-muted-foreground" />
-                            <h2 className="text-base font-semibold text-foreground">Personal Info</h2>
-                        </div>
-
-                        <button
-                            type="button"
-                            onClick={save}
-                            disabled={saving || loading || !phoneIsValid}
-                            className="inline-flex items-center justify-center h-9 w-9 rounded-lg border border-border bg-background text-foreground transition-colors hover:bg-accent hover:text-accent-foreground disabled:opacity-60"
-                            title="Save"
-                        >
-                            <Save size={16} className={saving ? 'animate-pulse' : ''} />
-                        </button>
-                    </div>
-
-                    <div className="mt-4 grid grid-cols-1 gap-3">
-                        <Field
-                            icon={Mail}
-                            label="Email"
-                            value={profile?.email || ''}
-                            onChange={(v) => updateField('email', v)}
-                            disabled={true}
-                            helper="Email is managed by the authentication service."
-                        />
-                        <Field
-                            icon={User}
-                            label="Name"
-                            value={profile?.name || ''}
-                            onChange={(v) => updateField('name', v)}
-                            disabled={loading}
-                        />
-                        <Field
-                            icon={Calendar}
-                            label="Date of Birth"
-                            type="date"
-                            value={profile?.dob || ''}
-                            onChange={(v) => updateField('dob', v)}
-                            disabled={loading}
-                        />
-                        <PhoneField
-                            label="Phone"
-                            icon={Phone}
-                            value={phoneValue || ''}
-                            onChange={(v) => {
-                                setPhoneValue(v || '')
-                                updateField('contact.phone', v || '')
-                            }}
-                            disabled={loading}
-                            helper={phoneHelper}
-                            invalid={!phoneIsValid}
-                        />
-                    </div>
-                </section>
-
-                <section className="rounded-xl border border-border bg-card p-5">
-                    <div className="flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-2">
-                            <MapPin size={16} className="text-muted-foreground" />
-                            <h2 className="text-base font-semibold text-foreground">Address</h2>
-                        </div>
-
-                        <button
-                            type="button"
-                            onClick={save}
-                            disabled={saving || loading || !phoneIsValid}
-                            className="inline-flex items-center justify-center h-9 w-9 rounded-lg border border-border bg-background text-foreground transition-colors hover:bg-accent hover:text-accent-foreground disabled:opacity-60"
-                            title="Save"
-                        >
-                            <Save size={16} className={saving ? 'animate-pulse' : ''} />
-                        </button>
-                    </div>
-
-                    <div className="mt-4 grid grid-cols-1 gap-3">
-                        <Field label="Line 1" value={profile?.address?.line1 || ''} onChange={(v) => updateField('address.line1', v)} disabled={loading} />
-                        <Field label="Line 2" value={profile?.address?.line2 || ''} onChange={(v) => updateField('address.line2', v)} disabled={loading} />
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <Field label="City" value={profile?.address?.city || ''} onChange={(v) => updateField('address.city', v)} disabled={loading} />
-                            <Field label="State" value={profile?.address?.state || ''} onChange={(v) => updateField('address.state', v)} disabled={loading} />
-                        </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <Field label="Postal Code" value={profile?.address?.postalCode || ''} onChange={(v) => updateField('address.postalCode', v)} disabled={loading} />
-                            <Field label="Country" value={profile?.address?.country || ''} onChange={(v) => updateField('address.country', v)} disabled={loading} />
-                        </div>
-                    </div>
-                </section>
+            <div className="inline-flex rounded-lg border border-border bg-card p-1">
+                <button
+                    type="button"
+                    onClick={() => setActiveTab('profile')}
+                    className={
+                        `inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-sm transition-colors ` +
+                        (activeTab === 'profile'
+                            ? 'bg-primary text-primary-foreground'
+                            : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground')
+                    }
+                >
+                    <User size={14} />
+                    Profile Details
+                </button>
+                <button
+                    type="button"
+                    onClick={() => setActiveTab('payments')}
+                    className={
+                        `inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-sm transition-colors ` +
+                        (activeTab === 'payments'
+                            ? 'bg-primary text-primary-foreground'
+                            : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground')
+                    }
+                >
+                    <CreditCard size={14} />
+                    Payments
+                </button>
             </div>
+
+            {activeTab === 'profile' ? (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    <section className="rounded-xl border border-border bg-card p-5">
+                        <div className="flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-2">
+                                <User size={16} className="text-muted-foreground" />
+                                <h2 className="text-base font-semibold text-foreground">Personal Info</h2>
+                            </div>
+
+                            <button
+                                type="button"
+                                onClick={save}
+                                disabled={saving || loading || !phoneIsValid}
+                                className="inline-flex items-center justify-center h-9 w-9 rounded-lg border border-border bg-background text-foreground transition-colors hover:bg-accent hover:text-accent-foreground disabled:opacity-60"
+                                title="Save"
+                            >
+                                <Save size={16} className={saving ? 'animate-pulse' : ''} />
+                            </button>
+                        </div>
+
+                        <div className="mt-4 grid grid-cols-1 gap-3">
+                            <Field
+                                icon={Mail}
+                                label="Email"
+                                value={profile?.email || ''}
+                                onChange={(v) => updateField('email', v)}
+                                disabled={true}
+                                helper="Email is managed by the authentication service."
+                            />
+                            <Field
+                                icon={User}
+                                label="Name"
+                                value={profile?.name || ''}
+                                onChange={(v) => updateField('name', v)}
+                                disabled={loading}
+                            />
+                            <Field
+                                icon={Calendar}
+                                label="Date of Birth"
+                                type="date"
+                                value={profile?.dob || ''}
+                                onChange={(v) => updateField('dob', v)}
+                                disabled={loading}
+                            />
+                            <PhoneField
+                                label="Phone"
+                                icon={Phone}
+                                value={phoneValue || ''}
+                                onChange={(v) => {
+                                    setPhoneValue(v || '')
+                                    updateField('contact.phone', v || '')
+                                }}
+                                disabled={loading}
+                                helper={phoneHelper}
+                                invalid={!phoneIsValid}
+                            />
+                        </div>
+                    </section>
+
+                    <section className="rounded-xl border border-border bg-card p-5">
+                        <div className="flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-2">
+                                <MapPin size={16} className="text-muted-foreground" />
+                                <h2 className="text-base font-semibold text-foreground">Address</h2>
+                            </div>
+
+                            <button
+                                type="button"
+                                onClick={save}
+                                disabled={saving || loading || !phoneIsValid}
+                                className="inline-flex items-center justify-center h-9 w-9 rounded-lg border border-border bg-background text-foreground transition-colors hover:bg-accent hover:text-accent-foreground disabled:opacity-60"
+                                title="Save"
+                            >
+                                <Save size={16} className={saving ? 'animate-pulse' : ''} />
+                            </button>
+                        </div>
+
+                        <div className="mt-4 grid grid-cols-1 gap-3">
+                            <Field label="Line 1" value={profile?.address?.line1 || ''} onChange={(v) => updateField('address.line1', v)} disabled={loading} />
+                            <Field label="Line 2" value={profile?.address?.line2 || ''} onChange={(v) => updateField('address.line2', v)} disabled={loading} />
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <Field label="City" value={profile?.address?.city || ''} onChange={(v) => updateField('address.city', v)} disabled={loading} />
+                                <Field label="State" value={profile?.address?.state || ''} onChange={(v) => updateField('address.state', v)} disabled={loading} />
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <Field label="Postal Code" value={profile?.address?.postalCode || ''} onChange={(v) => updateField('address.postalCode', v)} disabled={loading} />
+                                <Field label="Country" value={profile?.address?.country || ''} onChange={(v) => updateField('address.country', v)} disabled={loading} />
+                            </div>
+                        </div>
+                    </section>
+                </div>
+            ) : (
+                <PatientPaymentTab user={user} userId={userId} />
+            )}
         </div>
     )
 }
