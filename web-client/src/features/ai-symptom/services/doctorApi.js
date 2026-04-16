@@ -39,12 +39,12 @@ export function resolveDoctorSpecialty(value) {
 
 export async function fetchDoctorsBySpecialty(specialty) {
   const params = specialty ? { specialty } : undefined
-  const response = await api.get('/doctors/doctors', { params })
+  const response = await api.get('/doctors', { params })
   return Array.isArray(response.data) ? response.data : []
 }
 
 export async function fetchAllDoctors() {
-  const response = await api.get('/doctors/doctors')
+  const response = await api.get('/doctors')
   return Array.isArray(response.data) ? response.data : []
 }
 
