@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { format, addDays, isSameDay, isToday } from 'date-fns';
+// Removed date-fns import to use local vanilla JS utilities for deployment stability.
 import { Calendar, Clock, ChevronLeft, ChevronRight, UserPlus, AlertCircle } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
