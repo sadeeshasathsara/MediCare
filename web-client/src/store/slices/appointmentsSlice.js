@@ -10,7 +10,7 @@ const EMPTY_QUERY = { items: [], status: 'idle', error: null, lastFetched: 0 }
 
 function serializeParams(params = {}) {
     const entries = Object.entries(params || {})
-        .filter(([, value]) => value !== undefined && value !== null && value !== '')
+        .filter(([key, value]) => value !== undefined && value !== null && value !== '' && key !== 'page' && key !== 'limit' && key !== 'isLoadMore')
         .sort(([left], [right]) => String(left).localeCompare(String(right)))
 
     return entries.map(([key, value]) => `${key}:${String(value)}`).join('|') || 'all'
@@ -32,12 +32,16 @@ function parseQueryKey(queryKey = '') {
 
 export const fetchAppointments = createAsyncThunk(
     'appointments/fetchAppointments',
-    async ({ params = {}, force = false } = {}) => {
-        const items = await getAppointments(params)
+    async ({ params = {}, force = false, isLoadMore = false } = {}) => {
+        const responseData = await getAppointments(params)
         return {
             params,
             queryKey: serializeParams(params),
-            items: Array.isArray(items) ? items : [],
+            items: responseData?.content ? responseData.content : (Array.isArray(responseData) ? responseData : []),
+            totalPages: responseData?.totalPages || 0,
+            hasMore: typeof responseData?.last === 'boolean' ? !responseData.last : false,
+            page: params.page || 0,
+            isLoadMore,
             force,
             fetchedAt: Date.now(),
         }
@@ -113,12 +117,16 @@ const appointmentsSlice = createSlice({
                 }
             })
             .addCase(fetchAppointments.fulfilled, (state, action) => {
-                const { queryKey, items, fetchedAt } = action.payload
+                const { queryKey, items, fetchedAt, isLoadMore, hasMore, totalPages, page } = action.payload
+                const existing = state.queries[queryKey] || EMPTY_QUERY
                 state.queries[queryKey] = {
-                    items,
+                    items: isLoadMore && existing.items ? [...existing.items, ...items] : items,
                     status: 'succeeded',
                     error: null,
                     lastFetched: fetchedAt,
+                    hasMore,
+                    totalPages,
+                    page,
                 }
             })
             .addCase(fetchAppointments.rejected, (state, action) => {

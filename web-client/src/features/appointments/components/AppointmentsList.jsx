@@ -80,6 +80,10 @@ export default function AppointmentsList({
   appointments,
   handleStatusUpdate,
   isDoctor,
+  cancelingId = null,
+  hasMore = false,
+  onLoadMore = null,
+  isLoadingMore = false,
 }) {
   const navigate = useNavigate();
 
@@ -98,6 +102,7 @@ export default function AppointmentsList({
   }
 
   return (
+    <>
     <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
       {appointments.slice().sort((a,b) => new Date(b.scheduledAt) - new Date(a.scheduledAt)).map((app) => (
         <Card
@@ -176,20 +181,22 @@ export default function AppointmentsList({
                       <Button
                         size="sm"
                         variant="outline"
+                        disabled={cancelingId === app.id}
                         onClick={(e) => { e.stopPropagation(); handleStatusUpdate(app.id, "CANCELLED"); }}
-                        className="flex-1 text-xs border-destructive text-destructive hover:bg-destructive/5"
+                        className="cursor-pointer flex-1 text-xs border-destructive text-destructive hover:bg-destructive/5"
                       >
-                        Decline
+                        {cancelingId === app.id ? "Declining..." : "Decline"}
                       </Button>
                     </>
                   ) : (
                     <Button
                       size="sm"
                       variant="outline"
+                      disabled={cancelingId === app.id}
                       onClick={(e) => { e.stopPropagation(); handleStatusUpdate(app.id, "CANCELLED"); }}
-                      className="w-full text-xs border-destructive text-destructive hover:bg-destructive/5"
+                      className="cursor-pointer w-full text-xs border-destructive text-destructive hover:bg-destructive/5"
                     >
-                      Cancel Appointment
+                      {cancelingId === app.id ? "canceling pending..." : "Cancel Appointment"}
                     </Button>
                   )}
                 </div>
@@ -205,8 +212,20 @@ export default function AppointmentsList({
               )}
             </div>
           </CardContent>
-        </Card>
       ))}
     </div>
+    {hasMore && (
+      <div className="flex justify-center mt-8">
+        <Button 
+          variant="outline" 
+          onClick={onLoadMore} 
+          disabled={isLoadingMore}
+          className="rounded-full px-8 cursor-pointer shadow-sm border-primary/20 hover:border-primary/50"
+        >
+          {isLoadingMore ? "Loading..." : "Load More Appointments"}
+        </Button>
+      </div>
+    )}
+    </>
   );
 }
