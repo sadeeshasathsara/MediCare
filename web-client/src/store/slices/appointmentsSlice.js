@@ -2,6 +2,7 @@ import { createAsyncThunk, createSlice } from '@reduxjs/toolkit'
 import {
     createAppointment,
     getAppointments,
+    getAppointmentById,
     updateAppointmentStatus,
     cancelAppointment,
 } from '@/features/appointments/services/appointmentApi'
@@ -85,6 +86,14 @@ export const cancelAppointmentById = createAsyncThunk(
             appointmentId,
             status: 'CANCELLED',
         }
+    }
+)
+
+export const fetchAppointmentById = createAsyncThunk(
+    'appointments/fetchAppointmentById',
+    async (id) => {
+        const data = await getAppointmentById(id)
+        return data
     }
 )
 
@@ -223,6 +232,21 @@ const appointmentsSlice = createSlice({
                     })
                 }
             })
+            .addCase(fetchAppointmentById.fulfilled, (state, action) => {
+                const item = action.payload
+                if (!item?.id) return
+                // Upsert into every existing query that matches this patient/doctor
+                for (const queryState of Object.values(state.queries)) {
+                    if (!Array.isArray(queryState?.items)) continue
+                    const idx = queryState.items.findIndex((a) => a?.id === item.id)
+                    if (idx >= 0) {
+                        queryState.items[idx] = item
+                    }
+                }
+                // Store in a dedicated single-item lookup
+                state.byId = state.byId || {}
+                state.byId[item.id] = item
+            })
     },
 })
 
@@ -231,6 +255,16 @@ export const { resetCreateAppointmentState } = appointmentsSlice.actions
 export const selectAppointmentsQuery = (state, params = {}) => {
     const queryKey = serializeParams(params)
     return state.appointments?.queries?.[queryKey] || EMPTY_QUERY
+}
+
+// Scans ALL cached query buckets then falls back to byId lookup
+export const selectAppointmentById = (state, id) => {
+    if (!id) return null
+    for (const queryState of Object.values(state.appointments?.queries || {})) {
+        const found = queryState?.items?.find((a) => a?.id === id)
+        if (found) return found
+    }
+    return state.appointments?.byId?.[id] || null
 }
 
 export const selectAppointmentsByParams = (state, params = {}) =>

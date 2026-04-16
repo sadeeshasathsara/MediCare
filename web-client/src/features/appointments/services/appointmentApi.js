@@ -1,5 +1,10 @@
 import api from '@/services/api'
 
+export const getAppointmentById = async (id) => {
+  const { data } = await api.get(`/appointments/${id}`)
+  return data
+}
+
 export const getAppointments = async (params) => {
   const query = new URLSearchParams(params).toString()
   const { data } = await api.get(`/appointments?${query}`)
