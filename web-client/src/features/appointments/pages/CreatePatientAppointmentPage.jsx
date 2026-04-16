@@ -101,17 +101,23 @@ export default function CreatePatientAppointmentPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const userId = user?.id || "";
+  const prefill = location.state?.prefill;
+  const prefillSpecialty = String(prefill?.specialty || "").trim();
+  const prefillDoctorId = String(prefill?.doctorId || "").trim();
+  const prefillDoctorName = String(prefill?.doctorName || "").trim().toLowerCase();
+  const prefillReason = String(prefill?.reason || "").trim();
 
   const [profile, setProfile] = useState(null);
 
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [usePrefillDoctorFallback, setUsePrefillDoctorFallback] = useState(true);
 
   const [form, setForm] = useState({
-    specialty: "",
-    doctorId: "",
+    specialty: prefillSpecialty,
+    doctorId: prefillDoctorId,
     scheduledAt: "",
-    reason: "",
+    reason: prefillReason,
   });
 
   const patientAppointmentsParams = useMemo(
@@ -199,51 +205,49 @@ export default function CreatePatientAppointmentPage() {
     );
   }, [normalizedDoctors, form.specialty]);
 
-  const selectedDoctor = useMemo(() => {
-    if (!form.doctorId) return null;
-    return (
-      normalizedDoctors.find(
-        (doctor) => doctor.appointmentDoctorId === form.doctorId,
-      ) || null
-    );
-  }, [normalizedDoctors, form.doctorId]);
-
-  useEffect(() => {
-    const prefill = location.state?.prefill;
-    if (!prefill) return;
-
-    const normalizedSpecialty = String(prefill.specialty || "").trim();
-    const normalizedDoctorId = String(prefill.doctorId || "").trim();
-    const normalizedDoctorName = String(prefill.doctorName || "").trim().toLowerCase();
+  const prefilledDoctor = useMemo(() => {
+    if (!usePrefillDoctorFallback || form.doctorId) return null;
 
     let matchedDoctor = null;
-    if (normalizedDoctorId) {
+    if (prefillDoctorId) {
       matchedDoctor = normalizedDoctors.find(
-        (doctor) => doctor.appointmentDoctorId === normalizedDoctorId,
+        (doctor) => doctor.appointmentDoctorId === prefillDoctorId,
       );
     }
 
-    if (!matchedDoctor && normalizedDoctorName) {
+    if (!matchedDoctor && prefillDoctorName) {
       matchedDoctor = normalizedDoctors.find((doctor) => {
-        const name = String(doctor?.fullName || doctor?.email || "").trim().toLowerCase();
+        const name = String(doctor?.fullName || doctor?.email || "")
+          .trim()
+          .toLowerCase();
         const specialtyMatches =
-          !normalizedSpecialty ||
+          !prefillSpecialty ||
           String(doctor?.specialty || "").toLowerCase() ===
-            normalizedSpecialty.toLowerCase();
-        return name === normalizedDoctorName && specialtyMatches;
+            prefillSpecialty.toLowerCase();
+        return name === prefillDoctorName && specialtyMatches;
       });
     }
 
-    setForm((prev) => ({
-      ...prev,
-      specialty:
-        (matchedDoctor?.specialty && String(matchedDoctor.specialty).trim()) ||
-        normalizedSpecialty ||
-        prev.specialty,
-      doctorId: matchedDoctor?.appointmentDoctorId || prev.doctorId,
-      reason: String(prefill.reason || "").trim() || prev.reason,
-    }));
-  }, [location.state, normalizedDoctors]);
+    return matchedDoctor || null;
+  }, [
+    usePrefillDoctorFallback,
+    form.doctorId,
+    prefillDoctorId,
+    prefillDoctorName,
+    prefillSpecialty,
+    normalizedDoctors,
+  ]);
+
+  const activeDoctorId = form.doctorId || prefilledDoctor?.appointmentDoctorId || "";
+
+  const activeSelectedDoctor = useMemo(() => {
+    if (!activeDoctorId) return null;
+    return (
+      normalizedDoctors.find(
+        (doctor) => doctor.appointmentDoctorId === activeDoctorId,
+      ) || null
+    );
+  }, [normalizedDoctors, activeDoctorId]);
 
   const patientName = useMemo(() => {
     const fromProfile = String(profile?.name || "").trim();
@@ -260,6 +264,7 @@ export default function CreatePatientAppointmentPage() {
   };
 
   const handleSpecialtyChange = (nextSpecialty) => {
+    setUsePrefillDoctorFallback(false);
     setForm((prev) => ({
       ...prev,
       specialty: nextSpecialty,
@@ -268,6 +273,7 @@ export default function CreatePatientAppointmentPage() {
   };
 
   const handleDoctorChange = (nextDoctorId) => {
+    setUsePrefillDoctorFallback(false);
     const doctor = normalizedDoctors.find(
       (entry) => entry.appointmentDoctorId === nextDoctorId,
     );
@@ -318,7 +324,7 @@ export default function CreatePatientAppointmentPage() {
     }
 
     const doctor = normalizedDoctors.find(
-      (entry) => entry.appointmentDoctorId === form.doctorId,
+      (entry) => entry.appointmentDoctorId === activeDoctorId,
     );
     if (!doctor) {
       setError("Selected doctor is invalid. Please select again.");
@@ -438,7 +444,7 @@ export default function CreatePatientAppointmentPage() {
                   Doctor
                 </label>
                 <select
-                  value={form.doctorId}
+                  value={activeDoctorId}
                   onChange={(event) => handleDoctorChange(event.target.value)}
                   className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
                   style={{
@@ -510,7 +516,7 @@ export default function CreatePatientAppointmentPage() {
               </div>
             </div>
 
-            {selectedDoctor ? (
+            {activeSelectedDoctor ? (
               <div
                 className="rounded-lg border px-3 py-2 text-sm"
                 style={{
@@ -521,12 +527,12 @@ export default function CreatePatientAppointmentPage() {
               >
                 Booking with{" "}
                 <span className="font-medium">
-                  {selectedDoctor.fullName ||
-                    selectedDoctor.email ||
-                    selectedDoctor.appointmentDoctorId}
+                  {activeSelectedDoctor.fullName ||
+                    activeSelectedDoctor.email ||
+                    activeSelectedDoctor.appointmentDoctorId}
                 </span>
-                {selectedDoctor.specialty
-                  ? ` (${selectedDoctor.specialty})`
+                {activeSelectedDoctor.specialty
+                  ? ` (${activeSelectedDoctor.specialty})`
                   : ""}
               </div>
             ) : null}
