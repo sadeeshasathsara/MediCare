@@ -8,10 +8,10 @@ import {
   Clock,
   Loader2,
   Stethoscope,
-  UserRound,
   ClipboardList,
   CreditCard,
-  AlertCircle
+  AlertCircle,
+  Search
 } from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
 import { useAuth } from "@/context/AuthContext";
@@ -72,6 +72,7 @@ export default function BookingPipeline() {
     scheduledAtTime: "",
     slotId: "",
     reason: "",
+    searchQuery: "",
   });
 
   const [availability, setAvailability] = useState([]);
@@ -100,11 +101,13 @@ export default function BookingPipeline() {
 
   const filteredDoctors = useMemo(() => {
     const list = Array.isArray(doctors) ? doctors : [];
-    if (!form.specialty) return list;
-    return list.filter(
-      (d) => String(d?.specialty || "").toLowerCase() === String(form.specialty).toLowerCase()
-    );
-  }, [doctors, form.specialty]);
+    return list.filter(d => {
+      const matchSpecialty = !form.specialty || String(d?.specialty || "").toLowerCase() === String(form.specialty).toLowerCase();
+      const matchSearch = !form.searchQuery || 
+        (d.fullName || d.email || "").toLowerCase().includes(form.searchQuery.toLowerCase());
+      return matchSpecialty && matchSearch;
+    });
+  }, [doctors, form.specialty, form.searchQuery]);
 
   const selectedDoctor = useMemo(() => {
     return filteredDoctors.find(d => (d.userId || d.id) === form.doctorId) || null;
@@ -221,22 +224,34 @@ export default function BookingPipeline() {
                 </div>
                 <div>
                   <h2 className="font-semibold">Select a Specialist</h2>
-                  <p className="text-xs text-muted-foreground">Choose the right expert for your health needs</p>
+                  <p className="text-xs text-muted-foreground">Search and choose the right expert</p>
                 </div>
               </div>
-              <select
-                value={form.specialty}
-                onChange={(e) => setForm(f => ({ ...f, specialty: e.target.value, doctorId: "" }))}
-                className="rounded-lg border bg-background px-3 py-2 text-sm min-w-[200px]"
-              >
-                <option value="">All Specialties</option>
-                {specialties.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
+              <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
+                <div className="relative w-full sm:w-64">
+                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <input
+                    type="text"
+                    placeholder="Search doctor name..."
+                    value={form.searchQuery || ''}
+                    onChange={(e) => setForm(f => ({ ...f, searchQuery: e.target.value, doctorId: "" }))}
+                    className="w-full pl-9 rounded-lg border bg-background px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                  />
+                </div>
+                <select
+                  value={form.specialty}
+                  onChange={(e) => setForm(f => ({ ...f, specialty: e.target.value, doctorId: "" }))}
+                  className="w-full sm:w-auto rounded-lg border bg-background px-3 py-2 text-sm min-w-[160px] focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                >
+                  <option value="">All Specialties</option>
+                  {specialties.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
             </div>
 
             {loadingOptions ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {[1, 2, 3].map(i => <div key={i} className="h-48 rounded-xl bg-muted animate-pulse" />)}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {[1, 2, 3, 4].map(i => <div key={i} className="h-48 rounded-xl bg-muted animate-pulse" />)}
               </div>
             ) : filteredDoctors.length === 0 ? (
               <div className="text-center py-20 bg-muted/20 rounded-2xl border border-dashed">
@@ -245,7 +260,7 @@ export default function BookingPipeline() {
                 <p className="text-muted-foreground">Try selecting a different specialty or clearing filters.</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {filteredDoctors.map(doctor => (
                   <DoctorSelectionCard
                     key={doctor.id || doctor.userId}
