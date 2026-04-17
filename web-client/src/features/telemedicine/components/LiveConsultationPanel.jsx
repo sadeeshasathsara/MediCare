@@ -14,7 +14,15 @@ import {
   loadJitsiExternalApi,
 } from '@/features/telemedicine/services/loadJitsiExternalApi'
 
-export default function LiveConsultationPanel({ currentUser, session, joinInfo, participantLabel = 'participant' }) {
+export default function LiveConsultationPanel({
+  currentUser,
+  session,
+  joinInfo,
+  participantLabel = 'participant',
+  allowEmbed = true,
+  blockedEmbedMessage = '',
+  fullscreen = false,
+}) {
   const containerRef = useRef(null)
   const apiRef = useRef(null)
   const [embedState, setEmbedState] = useState({ status: 'idle', message: '' })
@@ -22,10 +30,10 @@ export default function LiveConsultationPanel({ currentUser, session, joinInfo, 
 
   useEffect(() => {
     const containerNode = containerRef.current
-    if (!joinInfo || !containerNode) return undefined
+    if (!joinInfo || !containerNode || !allowEmbed) return undefined
 
     let cancelled = false
-    let teardown = () => {}
+    let teardown = () => { }
 
     async function mountJitsi() {
       setEmbedState({ status: 'loading', message: 'Loading the Jitsi meeting frame...' })
@@ -140,12 +148,101 @@ export default function LiveConsultationPanel({ currentUser, session, joinInfo, 
       cancelled = true
       teardown()
       if (apiRef.current) {
-        apiRef.current.dispose()
+        try {
+          apiRef.current.dispose()
+        } catch {
+          // Ignore dispose errors when the provider already tore down the frame.
+        }
         apiRef.current = null
       }
       containerNode.innerHTML = ''
     }
-  }, [currentUser?.email, currentUser?.name, joinInfo, retryIndex])
+  }, [allowEmbed, currentUser?.email, currentUser?.name, joinInfo?.jitsiDomain, joinInfo?.roomId, joinInfo?.token, retryIndex])
+
+  if (fullscreen) {
+    return (
+      <div className="flex h-full min-h-0 flex-col">
+        {!joinInfo && session ? (
+          <div className="p-4">
+            <FeatureNotice
+              tone="warning"
+              title="Join access required"
+              message={`Prepare ${participantLabel} join access to launch the Jitsi consultation here. If JWT credentials are missing, the telemedicine service will fall back to a public Jitsi room.`}
+            />
+          </div>
+        ) : null}
+
+        {joinInfo && !allowEmbed ? (
+          <div className="p-4">
+            <FeatureNotice
+              tone="info"
+              title="Waiting room"
+              message={
+                blockedEmbedMessage ||
+                'The consultation room is ready. Waiting for the doctor before entering the live meeting.'
+              }
+            />
+          </div>
+        ) : null}
+
+        {joinInfo && embedState.status === 'error' ? (
+          <div className="p-4">
+            <FeatureNotice tone="error" title="Jitsi embed failed" message={embedState.message}>
+              <button
+                type="button"
+                onClick={() => setRetryIndex((index) => index + 1)}
+                className="mt-3 inline-flex items-center rounded-2xl border px-4 py-2 text-sm font-semibold transition hover:bg-black/[0.03] dark:hover:bg-white/[0.05]"
+                style={{ borderColor: 'hsl(var(--border))', color: 'hsl(var(--foreground))' }}
+              >
+                Retry meeting load
+              </button>
+            </FeatureNotice>
+          </div>
+        ) : null}
+
+        {joinInfo && embedState.status === 'loading' ? (
+          <div className="px-4">
+            <div
+              className="flex min-h-[6rem] items-center justify-center rounded-[24px] border border-dashed"
+              style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--background) / 0.5)' }}
+            >
+              <div className="flex items-center gap-3 text-sm font-medium" style={{ color: 'hsl(var(--muted-foreground))' }}>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                {embedState.message}
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        <div className="flex-1 min-h-0 p-3 lg:p-4">
+          <div className="relative h-full w-full">
+            <div
+              ref={containerRef}
+              className="h-full w-full overflow-hidden rounded-[18px] bg-black"
+            />
+
+            {!joinInfo || !allowEmbed ? (
+              <div
+                className="absolute inset-0 flex h-full min-h-[16rem] items-center justify-center rounded-[18px] border px-6 py-10 text-center"
+                style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--background))' }}
+              >
+                <div className="max-w-md space-y-3">
+                  <p className="text-lg font-semibold" style={{ color: 'hsl(var(--foreground))' }}>
+                    Meeting frame will appear here
+                  </p>
+                  <p className="text-sm leading-6" style={{ color: 'hsl(var(--muted-foreground))' }}>
+                    {joinInfo && !allowEmbed
+                      ? 'Waiting for the doctor to join before mounting the live meeting.'
+                      : 'Prepare consultation join access to mount the live Jitsi room.'}
+                  </p>
+                </div>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <TelemedicineSection
@@ -212,6 +309,17 @@ export default function LiveConsultationPanel({ currentUser, session, joinInfo, 
           />
         ) : null}
 
+        {joinInfo && !allowEmbed ? (
+          <FeatureNotice
+            tone="info"
+            title="Waiting room"
+            message={
+              blockedEmbedMessage ||
+              'The consultation room is ready. Waiting for the doctor before entering the live meeting.'
+            }
+          />
+        ) : null}
+
         {joinInfo && embedState.status === 'error' ? (
           <FeatureNotice tone="error" title="Jitsi embed failed" message={embedState.message}>
             <button
@@ -255,7 +363,7 @@ export default function LiveConsultationPanel({ currentUser, session, joinInfo, 
             ) : null}
           </div>
 
-          {joinInfo ? (
+          <div className="relative w-full">
             <div
               ref={containerRef}
               className="w-full bg-black"
@@ -265,18 +373,22 @@ export default function LiveConsultationPanel({ currentUser, session, joinInfo, 
                 maxHeight: '34rem',
               }}
             />
-          ) : (
-            <div className="flex min-h-[24rem] items-center justify-center px-6 py-10 text-center">
-              <div className="max-w-md space-y-3">
-                <p className="text-lg font-semibold" style={{ color: 'hsl(var(--foreground))' }}>
-                  Meeting frame will appear here
-                </p>
-                <p className="text-sm leading-6" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                  Prepare consultation join access to mount the live Jitsi room inline. You can still review the appointment and session status before entering the consultation.
-                </p>
+
+            {!joinInfo || !allowEmbed ? (
+              <div className="absolute inset-0 flex min-h-[24rem] items-center justify-center px-6 py-10 text-center">
+                <div className="max-w-md space-y-3">
+                  <p className="text-lg font-semibold" style={{ color: 'hsl(var(--foreground))' }}>
+                    Meeting frame will appear here
+                  </p>
+                  <p className="text-sm leading-6" style={{ color: 'hsl(var(--muted-foreground))' }}>
+                    {joinInfo && !allowEmbed
+                      ? 'Waiting for the doctor to join before mounting the live meeting.'
+                      : 'Prepare consultation join access to mount the live Jitsi room inline. You can still review the appointment and session status before entering the consultation.'}
+                  </p>
+                </div>
               </div>
-            </div>
-          )}
+            ) : null}
+          </div>
         </div>
       </div>
     </TelemedicineSection>

@@ -8,11 +8,12 @@ import com.healthcare.telemedicine.model.ConsultationSession;
 import com.healthcare.telemedicine.model.enums.SessionStatus;
 
 public interface SessionService {
-    ConsultationSession createSession(String appointmentId, String actorId);
+    ConsultationSession createSession(String appointmentId, String actorId, String actorRole);
 
     ConsultationSession getSessionById(String sessionId, String actorId, String actorRole);
 
-    JoinTokenResponse generateJoinToken(String sessionId, String role, boolean markJoined, String actorId, String actorRole);
+    JoinTokenResponse generateJoinToken(String sessionId, String role, boolean markJoined, String actorId,
+            String actorRole);
 
     ConsultationSession startSession(String sessionId, String actorId);
 

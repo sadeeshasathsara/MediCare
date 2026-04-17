@@ -84,11 +84,13 @@ class SessionServiceImplTest {
                 Instant.now());
 
         when(appointmentGateway.getById("apt-1", "doctor-1", "DOCTOR")).thenReturn(appointment);
-        when(sessionRepository.findByAppointmentIdAndDeletedAtIsNull("apt-1")).thenReturn(Optional.empty());
+        when(sessionRepository.findFirstByAppointmentIdAndDeletedAtIsNullOrderByCreatedAtDesc("apt-1"))
+                .thenReturn(Optional.empty());
         when(jitsiService.roomNameForAppointment("apt-1")).thenReturn("consult-apt-1");
-        when(sessionRepository.save(any(ConsultationSession.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(sessionRepository.save(any(ConsultationSession.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
 
-        ConsultationSession created = sessionService.createSession("apt-1", "doctor-1");
+        ConsultationSession created = sessionService.createSession("apt-1", "doctor-1", "DOCTOR");
 
         assertEquals("consult-apt-1", created.getJitsiRoomId());
         assertNull(created.getJitsiRoomToken());
@@ -110,8 +112,10 @@ class SessionServiceImplTest {
 
         when(sessionRepository.findByIdAndDeletedAtIsNull("session-1")).thenReturn(Optional.of(session));
         when(jitsiService.getDomain()).thenReturn("meet.jit.si");
+        when(jitsiService.isJwtConfigured()).thenReturn(false);
 
-        JoinTokenResponse response = sessionService.generateJoinToken("session-1", "doctor", false, "doctor-1", "DOCTOR");
+        JoinTokenResponse response = sessionService.generateJoinToken("session-1", "doctor", false, "doctor-1",
+                "DOCTOR");
 
         assertEquals("session-1", response.getSessionId());
         assertEquals("consult-apt-1", response.getRoomId());

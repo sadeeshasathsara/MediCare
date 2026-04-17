@@ -45,7 +45,11 @@ public class TelemedicineAppointmentAdapter {
     }
 
     public boolean isEligibleForSession(ExternalAppointment appointment) {
-        return appointment != null && appointment.status() == ExternalAppointmentStatus.CONFIRMED;
+        if (appointment == null || appointment.status() == null) {
+            return false;
+        }
+        return appointment.status() == ExternalAppointmentStatus.CONFIRMED
+                || appointment.status() == ExternalAppointmentStatus.PENDING;
     }
 
     public TelemedicineAppointmentResponse toTelemedicineAppointment(ExternalAppointment appointment) {

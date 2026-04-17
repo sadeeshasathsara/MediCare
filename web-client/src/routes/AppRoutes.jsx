@@ -53,6 +53,8 @@ const patientLinks = [
   { label: 'Dashboard', path: '/' },
   { label: 'Book Consultation', path: '/patient/book' },
   { label: 'My Appointments', path: '/appointments' },
+  { label: 'Telemedicine', path: '/telemedicine' },
+  { label: 'Notifications', path: '/notifications' },
   { label: 'AI Symptom', path: '/patient/symptom-checker' },
 ]
 
@@ -252,6 +254,35 @@ export default function AppRoutes() {
           "PATIENT",
           <TopNavLayout navLinks={patientLinks}>
             <AppointmentDetailsPage />
+          </TopNavLayout>,
+        )}
+      />
+
+      <Route
+        path="/telemedicine"
+        element={requireRole(
+          "PATIENT",
+          <TopNavLayout navLinks={patientLinks}>
+            <PatientTelemedicinePage />
+          </TopNavLayout>,
+        )}
+      />
+      <Route
+        path="/telemedicine/:appointmentId"
+        element={requireRole(
+          "PATIENT",
+          <TopNavLayout navLinks={patientLinks}>
+            <PatientTelemedicinePage />
+          </TopNavLayout>,
+        )}
+      />
+
+      <Route
+        path="/notifications"
+        element={requireRole(
+          "PATIENT",
+          <TopNavLayout navLinks={patientLinks}>
+            <NotificationsPage />
           </TopNavLayout>,
         )}
       />

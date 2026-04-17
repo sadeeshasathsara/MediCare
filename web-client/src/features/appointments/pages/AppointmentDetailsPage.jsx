@@ -30,7 +30,6 @@ import {
   History,
   Pill,
   Paperclip,
-  Phone,
   MapPin,
   CheckCircle2,
   XCircle,
@@ -410,6 +409,22 @@ export default function AppointmentDetailsPage() {
     }
   };
 
+  const openTelemedicineCall = () => {
+    if (!appointment) return;
+    if (!isRemote) return;
+
+    const status = String(appointment.status || '').toUpperCase();
+    const blockedStatuses = new Set(["CANCELLED", "COMPLETED"]);
+    if (blockedStatuses.has(status)) return;
+
+    if (isDoctor) {
+      window.open(`/doctor/telemedicine/${appointment.id}?autostart=1&popup=1`, "_blank");
+      return;
+    }
+
+    window.open(`/telemedicine/${appointment.id}?autojoin=1&popup=1`, "_blank");
+  };
+
   useEffect(() => {
     if (appointment && currentTab === "prescriptions" && prescriptionsState.status === "idle") {
       dispatch(fetchPrescriptionsByAppointment(id));
@@ -488,7 +503,8 @@ export default function AppointmentDetailsPage() {
   }
 
   const cfg = STATUS_CONFIG[appointment.status] || STATUS_CONFIG.PENDING;
-  const isRemote = appointment.telemedicine || appointment.reason?.toLowerCase().includes("video");
+  // Platform is online-only: treat all appointments as telemedicine.
+  const isRemote = true;
   const isActive = appointment.status !== "CANCELLED" && appointment.status !== "COMPLETED";
 
   const scheduledDate = new Date(appointment.scheduledAt);
@@ -576,16 +592,20 @@ export default function AppointmentDetailsPage() {
 
             {/* Action buttons */}
             <div className="flex flex-wrap gap-2 shrink-0">
-              {isRemote && appointment.status === "CONFIRMED" && (
-                <Button className="gap-2 font-semibold cursor-pointer shadow-sm">
-                  <Video className="h-4 w-4" /> Join Call
+              {isRemote ? (
+                <Button
+                  className="gap-2 font-semibold cursor-pointer shadow-sm"
+                  onClick={openTelemedicineCall}
+                  disabled={["CANCELLED", "COMPLETED"].includes(String(appointment.status || "").toUpperCase())}
+                  title={
+                    ["CANCELLED", "COMPLETED"].includes(String(appointment.status || "").toUpperCase())
+                      ? "Not available for cancelled or completed appointments"
+                      : ""
+                  }
+                >
+                  <Video className="h-4 w-4" /> Join Video Consultation
                 </Button>
-              )}
-              {appointment.status === "CONFIRMED" && !isDoctor && (
-                <Button variant="outline" className="gap-2 cursor-pointer">
-                  <Phone className="h-4 w-4" /> Contact Clinic
-                </Button>
-              )}
+              ) : null}
               {!isDoctor ? (
                 <Button variant="outline" className="gap-2 cursor-pointer" onClick={openBilling}>
                   <CreditCard className="h-4 w-4" /> Billing
@@ -603,7 +623,7 @@ export default function AppointmentDetailsPage() {
           <div className="flex flex-wrap gap-3 mt-6">
             <InfoChip icon={Calendar} label="Date" value={formattedDate} />
             <InfoChip icon={Clock} label="Time" value={formattedTime} highlight />
-            <InfoChip icon={isRemote ? Video : MapPin} label="Type" value={isRemote ? "Telemedicine" : "In-Clinic"} />
+            <InfoChip icon={Video} label="Type" value="Telemedicine" />
             {!isDoctor && <InfoChip icon={Stethoscope} label="Specialty" value={appointment.doctorSpecialty || "General Medicine"} />}
           </div>
         </div>
