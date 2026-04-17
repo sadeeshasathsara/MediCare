@@ -24,6 +24,8 @@ function normalizeRecommendedDoctorIds(value) {
 
 function mapSymptomResponse(raw) {
   return {
+    aiMessage: raw?.aiMessage || '',
+    isDiagnostic: Boolean(raw?.isDiagnostic),
     possibleConditions: normalizeConditions(raw?.possibleConditions),
     recommendedSpecialty: String(raw?.recommendedSpecialty || 'General Practice'),
     recommendedDoctor: String(raw?.recommendedDoctor || 'General Physician'),

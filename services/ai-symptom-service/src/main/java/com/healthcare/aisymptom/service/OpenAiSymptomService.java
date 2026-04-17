@@ -75,10 +75,10 @@ public class OpenAiSymptomService {
         String dynamicSystemPrompt = "You are 'MediCare AI', a professional and empathetic medical assistant. " +
                 "Your goal is to help patients understand their symptoms through conversation and recommend the right specialist. " +
                 "GUIDELINES: " +
-                "1. If info is insufficient, ask ONE clarifying question at a time to narrow down the conditions. " +
-                "2. When you have enough info, provide a diagnosis summary and doctor recommendations. " +
+                "1. If info is insufficient, ask ONE clarifying question at a time to narrow down the conditions. ALWAYS set 'isDiagnostic': false. " +
+                "2. When you have enough info, provide a diagnosis summary and doctor recommendations. YOU MUST set 'isDiagnostic': true. " +
                 "3. Always maintain a professional, calm, and reassuring tone. " +
-                "4. If symptoms sound life-threatening, recommend EMERGENCY immediately. " +
+                "4. If symptoms sound life-threatening, recommend EMERGENCY immediately and set 'isDiagnostic': true. " +
                 "5. RETURN ONLY JSON.";
         
         messages.add(Map.of("role", "system", "content", dynamicSystemPrompt));
@@ -161,8 +161,8 @@ public class OpenAiSymptomService {
 
         sb.append("\nOUTPUT FORMAT (Return ONLY this JSON schema):\n");
         sb.append("{\n")
-          .append("  \"aiMessage\": \"A conversational response as a doctor. If not diagnostic yet, ask a follow-up.\",\n")
-          .append("  \"isDiagnostic\": true/false,\n")
+          .append("  \"aiMessage\": \"A conversational response as a doctor. If not diagnostic yet, ask a follow-up. If diagnostic, summarize the findings.\",\n")
+          .append("  \"isDiagnostic\": true/false, // Set to true ONLY when you are recommending doctors or giving a final summary\n")
           .append("  \"possibleConditions\": [\"...\"],\n")
           .append("  \"recommendedSpecialty\": \"Cardiology|Dermatology|...\",\n")
           .append("  \"recommendedDoctorIds\": [\"...\"],\n")

@@ -53,7 +53,7 @@ const patientLinks = [
   { label: 'Dashboard', path: '/' },
   { label: 'Book Consultation', path: '/patient/book' },
   { label: 'My Appointments', path: '/appointments' },
-  { label: 'AI Symptom', path: '/symptom-checker' },
+  { label: 'AI Symptom', path: '/patient/symptom-checker' },
 ]
 
 const doctorLinks = [
@@ -256,7 +256,7 @@ export default function AppRoutes() {
         )}
       />
       <Route
-        path="/symptom-checker"
+        path="/patient/symptom-checker"
         element={requireRole('PATIENT', <TopNavLayout navLinks={patientLinks}><SymptomCheckerPage /></TopNavLayout>)}
       />
 

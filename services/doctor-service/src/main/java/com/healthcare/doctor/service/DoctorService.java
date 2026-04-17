@@ -1,7 +1,20 @@
-import com.healthcare.doctor.storage.StoredObject;
+package com.healthcare.doctor.service;
+
+import com.healthcare.doctor.dto.DoctorResponse;
+import com.healthcare.doctor.dto.UpdateDoctorRequest;
+import com.healthcare.doctor.model.Doctor;
+import com.healthcare.doctor.repository.DoctorRepository;
 import com.healthcare.doctor.storage.StorageService;
+import com.healthcare.doctor.storage.StoredObject;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -25,6 +38,12 @@ public class DoctorService {
         Doctor doctor = doctorRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Doctor not found"));
         return toResponse(doctor);
+    }
+
+    public void ensureDoctorExists(String doctorId) {
+        if (!doctorRepository.existsById(doctorId)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Doctor not found");
+        }
     }
 
     public DoctorResponse updateDoctor(String id, UpdateDoctorRequest request) {
