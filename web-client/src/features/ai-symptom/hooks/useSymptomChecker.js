@@ -33,10 +33,12 @@ export function useSymptomChecker() {
   const [recommendedDoctors, setRecommendedDoctors] = useState([])
   const [doctorLookupStatus, setDoctorLookupStatus] = useState('idle')
   const [doctorLookupError, setDoctorLookupError] = useState('')
+  const [latestOptions, setLatestOptions] = useState([])
 
   const submitCheck = async (payload, currentHistory = []) => {
     setLoading(true)
     setError('')
+    setLatestOptions([])
     
     // We only clear these if it's the final diagnostic step
     // but for internal state, let's keep them scoped
@@ -63,6 +65,10 @@ export function useSymptomChecker() {
         const doctorsToShow = pickRecommendedDoctors(allDoctors, data)
         setRecommendedDoctors(doctorsToShow)
         setDoctorLookupStatus('success')
+        setLatestOptions([]) // No options when diagnostic
+      } else {
+        // Store options for follow-up chips
+        setLatestOptions(data.options || [])
       }
       
       return data
@@ -93,6 +99,7 @@ export function useSymptomChecker() {
     recommendedDoctors,
     doctorLookupStatus,
     doctorLookupError,
+    latestOptions,
     submitCheck,
   }
 }

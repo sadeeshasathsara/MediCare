@@ -13,6 +13,7 @@ public class SymptomResponse {
     private String urgencyLevel;
     private String advice;
     private String disclaimer;
+    private List<String> options;
 
     public SymptomResponse() {
     }
@@ -98,5 +99,13 @@ public class SymptomResponse {
 
     public void setDisclaimer(String disclaimer) {
         this.disclaimer = disclaimer;
+    }
+
+    public List<String> getOptions() {
+        return options;
+    }
+
+    public void setOptions(List<String> options) {
+        this.options = options;
     }
 }

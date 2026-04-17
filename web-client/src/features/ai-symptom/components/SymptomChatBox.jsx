@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { Send, Bot, User, Loader2, AlertTriangle, ShieldCheck, Zap, AlertOctagon, RotateCcw } from 'lucide-react'
+import { Send, Bot, User, Loader2, AlertTriangle, ShieldCheck, Zap, AlertOctagon, RotateCcw, Stethoscope, MessageCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { useSymptomChecker } from '@/features/ai-symptom/hooks/useSymptomChecker'
@@ -84,20 +84,18 @@ function AiMessage({ content, result, doctors, doctorsLoading }) {
             {/* Advice */}
             {result.advice && (
               <div className="p-4 rounded-xl bg-muted/30 border border-dashed border-muted-foreground/30 text-[13px] text-muted-foreground leading-relaxed italic">
-                “{result.advice}”
+                "{result.advice}"
               </div>
             )}
             
             {/* Recommended Doctors Card */}
-            {(doctors?.length > 0 || doctorsLoading) && (
-              <div className="pt-2">
-                 <RecommendedDoctors 
-                    doctors={doctors}
-                    isLoading={doctorsLoading}
-                    specialty={result.recommendedSpecialty}
-                 />
-              </div>
-            )}
+            <div className="pt-2">
+               <RecommendedDoctors 
+                  doctors={doctors}
+                  isLoading={doctorsLoading}
+                  specialty={result.recommendedSpecialty}
+               />
+            </div>
 
             {/* Disclaimer */}
             {result.disclaimer && (
@@ -148,6 +146,45 @@ function TypingIndicator() {
   )
 }
 
+function OptionChips({ options, onSelect, disabled }) {
+  if (!options || options.length === 0) return null
+
+  return (
+    <div className="flex gap-3 items-start animate-in fade-in slide-in-from-bottom-2 duration-300">
+      <div className="h-9 w-9 shrink-0" /> {/* Spacer to align with AI messages */}
+      <div className="flex flex-wrap gap-2 max-w-[90%]">
+        {options.map((option, i) => {
+          const isOther = option.toLowerCase().includes('other')
+          return (
+            <button
+              key={i}
+              onClick={() => onSelect(option, isOther)}
+              disabled={disabled}
+              className={`
+                px-4 py-2.5 rounded-2xl text-[13px] font-medium 
+                border transition-all duration-200 cursor-pointer
+                hover:scale-[1.03] active:scale-[0.97]
+                disabled:opacity-50 disabled:cursor-not-allowed
+                ${isOther 
+                  ? 'border-dashed border-muted-foreground/40 text-muted-foreground bg-muted/20 hover:bg-muted/40 hover:border-muted-foreground/60'
+                  : 'border-primary/20 text-primary bg-primary/5 hover:bg-primary/10 hover:border-primary/40 shadow-sm'
+                }
+              `}
+            >
+              {isOther ? (
+                <span className="flex items-center gap-1.5">
+                  <MessageCircle size={14} />
+                  {option}
+                </span>
+              ) : option}
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 export default function SymptomChatBox({ profile, onBookAppointment }) {
   const { 
     loading, 
@@ -157,10 +194,12 @@ export default function SymptomChatBox({ profile, onBookAppointment }) {
     result, 
     recommendedDoctors, 
     doctorLookupStatus, 
+    latestOptions,
     submitCheck 
   } = useSymptomChecker()
   
   const [input, setInput] = useState('')
+  const [showTextInput, setShowTextInput] = useState(true)
   const bottomRef = useRef(null)
 
   // Initialize with welcome message if empty
@@ -176,10 +215,19 @@ export default function SymptomChatBox({ profile, onBookAppointment }) {
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages, loading])
+  }, [messages, loading, latestOptions])
 
-  const handleSend = async () => {
-    const trimmed = input.trim()
+  // When options arrive, hide text input unless user clicks "Other"
+  useEffect(() => {
+    if (latestOptions.length > 0) {
+      setShowTextInput(false)
+    } else {
+      setShowTextInput(true)
+    }
+  }, [latestOptions])
+
+  const sendMessage = async (text) => {
+    const trimmed = text.trim()
     if (!trimmed || loading) return
 
     const userMsg = { role: 'user', content: trimmed }
@@ -188,6 +236,7 @@ export default function SymptomChatBox({ profile, onBookAppointment }) {
     // Add user message to UI immediately
     setMessages(prev => [...prev, userMsg])
     setInput('')
+    setShowTextInput(true)
 
     try {
       await submitCheck({
@@ -197,6 +246,22 @@ export default function SymptomChatBox({ profile, onBookAppointment }) {
       }, [...currentHistory, userMsg])
     } catch (err) {
       console.error('Symptom check failed:', err)
+    }
+  }
+
+  const handleSend = () => sendMessage(input)
+
+  const handleOptionSelect = (option, isOther) => {
+    if (isOther) {
+      setShowTextInput(true)
+      setInput('')
+      // Focus the textarea after a tick
+      setTimeout(() => {
+        const textarea = document.querySelector('[data-symptom-input]')
+        textarea?.focus()
+      }, 100)
+    } else {
+      sendMessage(option)
     }
   }
 
@@ -210,6 +275,7 @@ export default function SymptomChatBox({ profile, onBookAppointment }) {
   const handleReset = () => {
     setMessages([])
     setInput('')
+    setShowTextInput(true)
   }
 
   const calculateAge = (dob) => {
@@ -241,6 +307,16 @@ export default function SymptomChatBox({ profile, onBookAppointment }) {
                 />
               : <UserMessage key={i} content={msg.content} />
           ))}
+
+          {/* Option chips - shown after the last AI message */}
+          {!loading && latestOptions.length > 0 && (
+            <OptionChips 
+              options={latestOptions} 
+              onSelect={handleOptionSelect}
+              disabled={loading}
+            />
+          )}
+
           {loading && <TypingIndicator />}
           <div ref={bottomRef} className="h-2" />
         </div>
@@ -270,10 +346,11 @@ export default function SymptomChatBox({ profile, onBookAppointment }) {
                 </Button>
                 
                 <Textarea
+                    data-symptom-input
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     onKeyDown={handleKeyDown}
-                    placeholder="Tell me how you're feeling today..."
+                    placeholder={showTextInput ? "Tell me how you're feeling today..." : "Select an option above or type here..."}
                     className="min-h-[52px] max-h-32 resize-none flex-1 bg-transparent border-0 ring-0 focus-visible:ring-0 text-[15px] p-4 placeholder:text-muted-foreground/40"
                     disabled={loading}
                 />

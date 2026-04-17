@@ -26,6 +26,7 @@ function mapSymptomResponse(raw) {
   return {
     aiMessage: raw?.aiMessage || '',
     isDiagnostic: Boolean(raw?.isDiagnostic),
+    options: Array.isArray(raw?.options) ? raw.options.filter(o => typeof o === 'string' && o.trim()) : [],
     possibleConditions: normalizeConditions(raw?.possibleConditions),
     recommendedSpecialty: String(raw?.recommendedSpecialty || 'General Practice'),
     recommendedDoctor: String(raw?.recommendedDoctor || 'General Physician'),

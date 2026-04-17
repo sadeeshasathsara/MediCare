@@ -70,17 +70,32 @@ public class OpenAiSymptomService {
         }
 
         List<Map<String, String>> messages = new ArrayList<>();
-        
-        // 1. Better System Prompt for a conversational doctor
+
+        // Count conversation turns to know when to force a diagnosis
+        int userTurns = 0;
+        if (request.history() != null) {
+            for (var msg : request.history()) {
+                if ("user".equals(msg.role())) userTurns++;
+            }
+        }
+        userTurns++; // current message
+        boolean forceDiagnosis = userTurns >= 3;
+
+        // 1. System Prompt
         String dynamicSystemPrompt = "You are 'MediCare AI', a professional and empathetic medical assistant. " +
-                "Your goal is to help patients understand their symptoms through conversation and recommend the right specialist. " +
-                "GUIDELINES: " +
-                "1. If info is insufficient, ask ONE clarifying question at a time to narrow down the conditions. ALWAYS set 'isDiagnostic': false. " +
-                "2. When you have enough info, provide a diagnosis summary and doctor recommendations. YOU MUST set 'isDiagnostic': true. " +
-                "3. Always maintain a professional, calm, and reassuring tone. " +
-                "4. If symptoms sound life-threatening, recommend EMERGENCY immediately and set 'isDiagnostic': true. " +
-                "5. RETURN ONLY JSON.";
-        
+                "Your goal is to help patients understand their symptoms and recommend the right specialist from our database. " +
+                "STRICT RULES: " +
+                "1. When asking a follow-up question, ALWAYS set 'isDiagnostic': false AND provide an 'options' array with 3-4 multiple-choice answers relevant to the question. The LAST option should always be 'Other (type your own)'. " +
+                "2. After 2-3 exchanges OR when patient says 'give me a doctor' or similar, you MUST conclude: set 'isDiagnostic': true, fill ALL diagnostic fields (possibleConditions, recommendedSpecialty, recommendedDoctorIds, urgencyLevel, advice). " +
+                "3. When isDiagnostic is true, you MUST select recommendedDoctorIds from the AVAILABLE DOCTORS list provided. Pick doctors whose specialty matches. " +
+                "4. If symptoms sound life-threatening, skip questions and set isDiagnostic to true with urgencyLevel EMERGENCY. " +
+                "5. Keep aiMessage concise (2-3 sentences max). " +
+                "6. RETURN ONLY valid JSON, no markdown.";
+
+        if (forceDiagnosis) {
+            dynamicSystemPrompt += " IMPORTANT: This is the patient's " + userTurns + "th message. You MUST provide your final diagnosis NOW. Set isDiagnostic to true and fill all diagnostic fields including recommendedDoctorIds.";
+        }
+
         messages.add(Map.of("role", "system", "content", dynamicSystemPrompt));
 
         // 2. Add History
@@ -91,7 +106,7 @@ public class OpenAiSymptomService {
         }
 
         // 3. Add Current Input (with demographic context)
-        String userContextPrompt = buildUserContextPrompt(request);
+        String userContextPrompt = buildUserContextPrompt(request, forceDiagnosis);
         messages.add(Map.of("role", "user", "content", userContextPrompt));
 
         Map<String, Object> payload = Map.of(
@@ -118,25 +133,47 @@ public class OpenAiSymptomService {
 
             String content = root.path("choices").path(0).path("message").path("content").asText();
             if (content == null || content.isBlank()) throw new AiIntegrationException(HttpStatus.BAD_GATEWAY, "No AI content");
+            
+            System.out.println("========== OPENAI RAW RESPONSE ==========");
+            System.out.println(content);
+            System.out.println("=========================================");
 
             JsonNode structuredResponse = parseStructuredResponse(content.trim());
 
             SymptomResponse res = new SymptomResponse();
             res.setAiMessage(asTextOrDefault(structuredResponse.path("aiMessage"), "How can I help you today?"));
-            res.setDiagnostic(structuredResponse.path("isDiagnostic").asBoolean(false));
+
+            boolean diagFlag = structuredResponse.path("isDiagnostic").asBoolean(false);
+
+            // AI fallback: if it populated conditions/specialty but forgot the flag
+            if (!diagFlag && structuredResponse.has("possibleConditions") && structuredResponse.path("possibleConditions").isArray() && structuredResponse.path("possibleConditions").size() > 0) {
+                diagFlag = true;
+            }
+            if (!diagFlag && structuredResponse.has("recommendedSpecialty") && !structuredResponse.path("recommendedSpecialty").asText("").isBlank()) {
+                diagFlag = true;
+            }
+            // Force diagnosis after enough turns
+            if (!diagFlag && forceDiagnosis) {
+                diagFlag = true;
+            }
+
+            res.setDiagnostic(diagFlag);
 
             if (res.isDiagnostic()) {
                 res.setPossibleConditions(readConditions(structuredResponse.path("possibleConditions")));
                 String spec = normalizeSpecialty(asTextOrDefault(structuredResponse.path("recommendedSpecialty"), DEFAULT_SPECIALTY));
                 res.setRecommendedSpecialty(spec);
                 res.setRecommendedDoctor(asTextOrDefault(structuredResponse.path("recommendedDoctor"), spec));
-                
+
                 List<String> docIds = readRecommendedDoctorIds(structuredResponse.path("recommendedDoctorIds"), request.availableDoctors());
                 if (docIds.isEmpty()) docIds = fallbackRecommendationIds(request.availableDoctors(), spec);
                 res.setRecommendedDoctorIds(docIds);
-                
+
                 res.setUrgencyLevel(asTextOrDefault(structuredResponse.path("urgencyLevel"), "MODERATE"));
                 res.setAdvice(asTextOrDefault(structuredResponse.path("advice"), "Please consult a professional."));
+            } else {
+                // Parse options for follow-up questions
+                res.setOptions(readConditions(structuredResponse.path("options")));
             }
 
             res.setDisclaimer(DEFAULT_DISCLAIMER);
@@ -147,28 +184,34 @@ public class OpenAiSymptomService {
         }
     }
 
-    private String buildUserContextPrompt(SymptomCheckRequest request) {
+    private String buildUserContextPrompt(SymptomCheckRequest request, boolean forceDiagnosis) {
         StringBuilder sb = new StringBuilder();
         sb.append("USER INPUT: ").append(request.symptoms()).append("\n\n");
-        
-        sb.append("PATIENT CONTEXT (Keep in mind but don't repeat unless relevant):\n");
+
+        sb.append("PATIENT CONTEXT:\n");
         if (request.age() != null) sb.append("- Age: ").append(request.age()).append("\n");
         if (request.gender() != null) sb.append("- Gender: ").append(request.gender()).append("\n");
         if (request.medicalHistory() != null) sb.append("- History: ").append(request.medicalHistory()).append("\n");
 
         String docs = buildDoctorCatalogSnippet(request.availableDoctors());
-        if (!docs.isBlank()) sb.append("\nAVAILABLE DOCTORS:\n").append(docs);
+        if (!docs.isBlank()) sb.append("\nAVAILABLE DOCTORS (use these EXACT IDs in recommendedDoctorIds):\n").append(docs);
 
-        sb.append("\nOUTPUT FORMAT (Return ONLY this JSON schema):\n");
+        if (forceDiagnosis) {
+            sb.append("\n*** YOU MUST PROVIDE A FINAL DIAGNOSIS NOW. Set isDiagnostic=true, fill possibleConditions, recommendedSpecialty, recommendedDoctorIds (pick from available doctors above), urgencyLevel, and advice. ***\n");
+        }
+
+        sb.append("\nRETURN ONLY this JSON:\n");
         sb.append("{\n")
-          .append("  \"aiMessage\": \"A conversational response as a doctor. If not diagnostic yet, ask a follow-up. If diagnostic, summarize the findings.\",\n")
-          .append("  \"isDiagnostic\": true/false, // Set to true ONLY when you are recommending doctors or giving a final summary\n")
-          .append("  \"possibleConditions\": [\"...\"],\n")
-          .append("  \"recommendedSpecialty\": \"Cardiology|Dermatology|...\",\n")
-          .append("  \"recommendedDoctorIds\": [\"...\"],\n")
+          .append("  \"aiMessage\": \"Your response as a doctor\",\n")
+          .append("  \"isDiagnostic\": false,\n")
+          .append("  \"options\": [\"Option A\", \"Option B\", \"Option C\", \"Other (type your own)\"],\n")
+          .append("  \"possibleConditions\": [\"condition1\", \"condition2\"],\n")
+          .append("  \"recommendedSpecialty\": \"Neurology\",\n")
+          .append("  \"recommendedDoctorIds\": [\"doctor-id-from-list\"],\n")
           .append("  \"urgencyLevel\": \"LOW|MODERATE|HIGH|EMERGENCY\",\n")
-          .append("  \"advice\": \"Concise advice\"\n")
-          .append("}");
+          .append("  \"advice\": \"Advice text\"\n")
+          .append("}\n")
+          .append("RULES: When isDiagnostic=false, include options array. When isDiagnostic=true, include possibleConditions, recommendedSpecialty, recommendedDoctorIds, urgencyLevel, and advice. Omit options when diagnostic.");
 
         return sb.toString();
     }
