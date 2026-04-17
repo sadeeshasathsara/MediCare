@@ -28,9 +28,13 @@ export default function LiveConsultationPanel({
   const [embedState, setEmbedState] = useState({ status: 'idle', message: '' })
   const [retryIndex, setRetryIndex] = useState(0)
 
+  const jitsiDomain = joinInfo?.jitsiDomain
+  const roomId = joinInfo?.roomId
+  const token = joinInfo?.token
+
   useEffect(() => {
     const containerNode = containerRef.current
-    if (!joinInfo || !containerNode || !allowEmbed) return undefined
+    if (!jitsiDomain || !roomId || !containerNode || !allowEmbed) return undefined
 
     let cancelled = false
     let teardown = () => { }
@@ -39,7 +43,7 @@ export default function LiveConsultationPanel({
       setEmbedState({ status: 'loading', message: 'Loading the Jitsi meeting frame...' })
 
       try {
-        const JitsiMeetExternalAPI = await loadJitsiExternalApi(joinInfo.jitsiDomain)
+        const JitsiMeetExternalAPI = await loadJitsiExternalApi(jitsiDomain)
         if (cancelled || !containerNode) return
 
         if (apiRef.current) {
@@ -49,7 +53,7 @@ export default function LiveConsultationPanel({
 
         containerNode.innerHTML = ''
 
-        const domain = getNormalizedJitsiDomain(joinInfo.jitsiDomain)
+        const domain = getNormalizedJitsiDomain(jitsiDomain)
         const syncLargeVideoLayout = () => {
           try {
             const frameWidth = containerNode.clientWidth || 1280
@@ -61,7 +65,7 @@ export default function LiveConsultationPanel({
         }
 
         const jitsiOptions = {
-          roomName: joinInfo.roomId,
+          roomName: roomId,
           parentNode: containerNode,
           width: '100%',
           height: '100%',
@@ -82,8 +86,8 @@ export default function LiveConsultationPanel({
           },
         }
 
-        if (joinInfo.token) {
-          jitsiOptions.jwt = joinInfo.token
+        if (token) {
+          jitsiOptions.jwt = token
         }
 
         const jitsiApi = new JitsiMeetExternalAPI(domain, jitsiOptions)

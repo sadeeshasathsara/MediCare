@@ -87,14 +87,14 @@ function AiMessage({ content, result, doctors, doctorsLoading }) {
                 "{result.advice}"
               </div>
             )}
-            
+
             {/* Recommended Doctors Card */}
             <div className="pt-2">
-               <RecommendedDoctors 
-                  doctors={doctors}
-                  isLoading={doctorsLoading}
-                  specialty={result.recommendedSpecialty}
-               />
+              <RecommendedDoctors
+                doctors={doctors}
+                isLoading={doctorsLoading}
+                specialty={result.recommendedSpecialty}
+              />
             </div>
 
             {/* Disclaimer */}
@@ -165,7 +165,7 @@ function OptionChips({ options, onSelect, disabled }) {
                 border transition-all duration-200 cursor-pointer
                 hover:scale-[1.03] active:scale-[0.97]
                 disabled:opacity-50 disabled:cursor-not-allowed
-                ${isOther 
+                ${isOther
                   ? 'border-dashed border-muted-foreground/40 text-muted-foreground bg-muted/20 hover:bg-muted/40 hover:border-muted-foreground/60'
                   : 'border-primary/20 text-primary bg-primary/5 hover:bg-primary/10 hover:border-primary/40 shadow-sm'
                 }
@@ -185,19 +185,28 @@ function OptionChips({ options, onSelect, disabled }) {
   )
 }
 
-export default function SymptomChatBox({ profile, onBookAppointment, initialPrompt, isLocked }) {
-  const { 
-    loading, 
-    error, 
-    messages, 
-    setMessages, 
-    result, 
-    recommendedDoctors, 
-    doctorLookupStatus, 
+function calculateAge(dob) {
+  const birthDate = new Date(dob)
+  const today = new Date()
+  let age = today.getFullYear() - birthDate.getFullYear()
+  const m = today.getMonth() - birthDate.getMonth()
+  if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) age--
+  return age
+}
+
+export default function SymptomChatBox({ profile, initialPrompt, isLocked }) {
+  const {
+    loading,
+    error,
+    messages,
+    setMessages,
+    result,
+    recommendedDoctors,
+    doctorLookupStatus,
     latestOptions,
-    submitCheck 
+    submitCheck
   } = useSymptomChecker()
-  
+
   const [input, setInput] = useState('')
   const [showTextInput, setShowTextInput] = useState(true)
   const bottomRef = useRef(null)
@@ -209,7 +218,7 @@ export default function SymptomChatBox({ profile, onBookAppointment, initialProm
 
     const userMsg = { role: 'user', content: trimmed }
     const newHistory = [...currentHistory, userMsg]
-    
+
     // Add user message to UI immediately
     setMessages(newHistory)
     setInput('')
@@ -235,12 +244,12 @@ export default function SymptomChatBox({ profile, onBookAppointment, initialProm
         role: 'assistant',
         content: `Hi ${name}! I'm your MediCare AI assistant 👋 Tell me how you're feeling today — describe any symptoms you're experiencing and I'll help recommend the right specialist for you.`
       }
-      
+
       setMessages([welcomeMsg])
 
       // Auto-submit if navigated from dashboard hero
       if (initialPrompt && initialPrompt.trim()) {
-         performSubmit(initialPrompt.trim(), [welcomeMsg])
+        performSubmit(initialPrompt.trim(), [welcomeMsg])
       }
     }
   }, [profile, messages.length, setMessages, initialPrompt])
@@ -259,9 +268,9 @@ export default function SymptomChatBox({ profile, onBookAppointment, initialProm
   }, [latestOptions])
 
   const handleSend = () => {
-     if (input.trim() && !loading) {
-         performSubmit(input, messages)
-     }
+    if (input.trim() && !loading) {
+      performSubmit(input, messages)
+    }
   }
 
   const handleOptionSelect = (option, isOther) => {
@@ -291,15 +300,6 @@ export default function SymptomChatBox({ profile, onBookAppointment, initialProm
     setShowTextInput(true)
   }
 
-  const calculateAge = (dob) => {
-    const birthDate = new Date(dob)
-    const today = new Date()
-    let age = today.getFullYear() - birthDate.getFullYear()
-    const m = today.getMonth() - birthDate.getMonth()
-    if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) age--
-    return age
-  }
-
   return (
     <div className="flex flex-col gap-6 transition-all duration-700 h-full w-full">
       {/* Chat window container */}
@@ -309,7 +309,7 @@ export default function SymptomChatBox({ profile, onBookAppointment, initialProm
       `}>
         {/* Header decoration */}
         <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-transparent via-primary/20 to-transparent" />
-        
+
         {/* Messages area */}
         <div className={`
           flex-1 overflow-y-auto p-6 md:p-10 space-y-8 scrollbar-thin scrollbar-thumb-primary/10 scrollbar-track-transparent transition-all duration-700
@@ -317,20 +317,20 @@ export default function SymptomChatBox({ profile, onBookAppointment, initialProm
         `}>
           {messages.map((msg, i) => (
             msg.role === 'assistant'
-              ? <AiMessage 
-                  key={i} 
-                  content={msg.content} 
-                  result={i === messages.length - 1 ? result : null} 
-                  doctors={i === messages.length - 1 ? recommendedDoctors : []}
-                  doctorsLoading={i === messages.length - 1 && doctorLookupStatus === 'loading'}
-                />
+              ? <AiMessage
+                key={i}
+                content={msg.content}
+                result={i === messages.length - 1 ? result : null}
+                doctors={i === messages.length - 1 ? recommendedDoctors : []}
+                doctorsLoading={i === messages.length - 1 && doctorLookupStatus === 'loading'}
+              />
               : <UserMessage key={i} content={msg.content} />
           ))}
 
           {/* Option chips - shown after the last AI message */}
           {!loading && latestOptions.length > 0 && (
-            <OptionChips 
-              options={latestOptions} 
+            <OptionChips
+              options={latestOptions}
               onSelect={handleOptionSelect}
               disabled={loading}
             />
@@ -355,36 +355,36 @@ export default function SymptomChatBox({ profile, onBookAppointment, initialProm
         `}>
           <div className={`relative mx-auto group transition-all duration-700 ${isLocked ? 'max-w-5xl' : 'max-w-3xl'}`}>
             <div className="absolute -inset-1 bg-gradient-to-r from-primary/20 to-primary/5 rounded-[2rem] blur opacity-25 group-hover:opacity-40 transition duration-1000 group-hover:duration-200" />
-            
+
             <div className="relative flex gap-3 p-2 rounded-[1.8rem] bg-card border border-border shadow-2xl items-center">
-                <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="h-12 w-12 rounded-full text-muted-foreground/40 hover:text-primary transition-colors shrink-0"
-                    onClick={handleReset}
-                    title="Reset Conversation"
-                >
-                    <RotateCcw size={18} />
-                </Button>
-                
-                <Textarea
-                    data-symptom-input
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    placeholder={showTextInput ? "Tell me how you're feeling today..." : "Select an option above or type here..."}
-                    className="min-h-[52px] max-h-32 resize-none flex-1 bg-transparent border-0 ring-0 focus-visible:ring-0 text-[15px] p-4 placeholder:text-muted-foreground/40"
-                    disabled={loading}
-                />
-                
-                <Button
-                    onClick={handleSend}
-                    disabled={!input.trim() || loading}
-                    size="icon"
-                    className="h-12 w-12 rounded-full shrink-0 shadow-lg shadow-primary/20 transition-all hover:scale-105 active:scale-95 bg-primary hover:bg-primary/90"
-                >
-                    {loading ? <Loader2 className="animate-spin h-5 w-5" /> : <Send size={20} />}
-                </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-12 w-12 rounded-full text-muted-foreground/40 hover:text-primary transition-colors shrink-0"
+                onClick={handleReset}
+                title="Reset Conversation"
+              >
+                <RotateCcw size={18} />
+              </Button>
+
+              <Textarea
+                data-symptom-input
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder={showTextInput ? "Tell me how you're feeling today..." : "Select an option above or type here..."}
+                className="min-h-[52px] max-h-32 resize-none flex-1 bg-transparent border-0 ring-0 focus-visible:ring-0 text-[15px] p-4 placeholder:text-muted-foreground/40"
+                disabled={loading}
+              />
+
+              <Button
+                onClick={handleSend}
+                disabled={!input.trim() || loading}
+                size="icon"
+                className="h-12 w-12 rounded-full shrink-0 shadow-lg shadow-primary/20 transition-all hover:scale-105 active:scale-95 bg-primary hover:bg-primary/90"
+              >
+                {loading ? <Loader2 className="animate-spin h-5 w-5" /> : <Send size={20} />}
+              </Button>
             </div>
           </div>
           <p className="mt-4 text-[10px] text-center text-muted-foreground/40 font-medium tracking-tight uppercase tracking-widest">

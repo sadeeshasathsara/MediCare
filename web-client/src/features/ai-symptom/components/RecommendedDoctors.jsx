@@ -1,13 +1,13 @@
 import React from 'react'
 import { useNavigate } from 'react-router-dom'
-import { 
-  Stethoscope, 
-  Star, 
-  CalendarPlus, 
-  ChevronRight, 
-  ShieldCheck, 
-  Users, 
-  Award, 
+import {
+  Stethoscope,
+  Star,
+  CalendarPlus,
+  ChevronRight,
+  ShieldCheck,
+  Users,
+  Award,
   DollarSign,
   Briefcase,
   Zap
@@ -15,6 +15,26 @@ import {
 import ProfileAvatar from '@/components/ProfileAvatar'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+
+function hashStringToUint32(value) {
+  const str = String(value || '')
+  let hash = 2166136261
+  for (let i = 0; i < str.length; i += 1) {
+    hash ^= str.charCodeAt(i)
+    hash = Math.imul(hash, 16777619)
+  }
+  return hash >>> 0
+}
+
+function numberInRange(seed, min, max) {
+  const a = Number(min)
+  const b = Number(max)
+  const low = Math.min(a, b)
+  const high = Math.max(a, b)
+  const span = high - low + 1
+  if (!Number.isFinite(span) || span <= 0) return low
+  return low + (seed % span)
+}
 
 function DoctorCard({ doctor }) {
   const navigate = useNavigate()
@@ -26,21 +46,22 @@ function DoctorCard({ doctor }) {
   const name = doctor.fullName || doctor.name || 'Unknown'
   const specialty = doctor.specialization || doctor.specialty || 'General Practice'
   const rating = doctor.rating || 4.8
-  const experience = doctor.yearsOfExperience || (Math.floor(Math.random() * 10) + 5)
-  const patientCount = doctor.totalPatients || (Math.floor(Math.random() * 500) + 100)
-  const fee = doctor.consultationFee || (Math.floor(Math.random() * 50) + 30)
+  const seed = hashStringToUint32(doctor.id || doctor.userId || name)
+  const experience = doctor.yearsOfExperience ?? numberInRange(seed, 5, 14)
+  const patientCount = doctor.totalPatients ?? numberInRange(hashStringToUint32(`${seed}:patients`), 100, 599)
+  const fee = doctor.consultationFee ?? numberInRange(hashStringToUint32(`${seed}:fee`), 30, 79)
 
   return (
     <div className="group relative flex flex-col rounded-[2.2rem] border border-primary/10 bg-card/40 backdrop-blur-xl overflow-hidden transition-all duration-500 hover:shadow-[0_22px_60px_-15px_rgba(var(--primary-rgb),0.15)] hover:-translate-y-2 hover:border-primary/30">
       {/* Decorative background element */}
       <div className="absolute -top-12 -right-12 h-32 w-32 bg-primary/5 rounded-full blur-3xl transition-all duration-500 group-hover:bg-primary/10" />
-      
+
       <div className="p-6 flex flex-col flex-1 gap-6 relative z-10">
         {/* Floating Specialty Tag */}
         <div className="absolute top-4 right-4 animate-in fade-in zoom-in duration-700">
-           <div className="px-3 py-1 rounded-full bg-primary/10 border border-primary/20 backdrop-blur-md">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-primary">{specialty}</span>
-           </div>
+          <div className="px-3 py-1 rounded-full bg-primary/10 border border-primary/20 backdrop-blur-md">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-primary">{specialty}</span>
+          </div>
         </div>
 
         {/* Profile Section */}
@@ -71,7 +92,7 @@ function DoctorCard({ doctor }) {
                 <ShieldCheck className="h-4 w-4 text-primary shrink-0 drop-shadow-sm" />
               )}
             </div>
-            
+
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-1">
                 <Star className="h-3.5 w-3.5 text-amber-400 fill-amber-400" />
@@ -112,7 +133,7 @@ function DoctorCard({ doctor }) {
         >
           {/* Shine effect on button */}
           <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover/btn:animate-[shimmer_2s_infinite]" />
-          
+
           <CalendarPlus className="h-5 w-5" />
           <span>Select Specialist</span>
           <ChevronRight className="h-4 w-4 ml-auto opacity-40 group-hover/btn:translate-x-1 group-hover/btn:opacity-100 transition-all" />
@@ -144,20 +165,20 @@ function DoctorCardSkeleton() {
   )
 }
 
-export default function RecommendedDoctors({ doctors, isLoading, specialty }) {
+export default function RecommendedDoctors({ doctors, isLoading }) {
   const hasResults = Array.isArray(doctors) && doctors.length > 0
 
   return (
     <div className="space-y-6">
       {/* Premium Header */}
       <div className="flex items-center justify-between px-2">
-         <div className="space-y-1">
-            <div className="flex items-center gap-2">
-               <div className="h-5 w-1 bg-primary rounded-full" />
-               <h2 className="text-sm font-black uppercase tracking-widest text-foreground/80">Available Specialists</h2>
-            </div>
-            <p className="text-[11px] text-muted-foreground font-medium pl-3">Top-rated matches based on your reported symptoms</p>
-         </div>
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <div className="h-5 w-1 bg-primary rounded-full" />
+            <h2 className="text-sm font-black uppercase tracking-widest text-foreground/80">Available Specialists</h2>
+          </div>
+          <p className="text-[11px] text-muted-foreground font-medium pl-3">Top-rated matches based on your reported symptoms</p>
+        </div>
       </div>
 
       {isLoading ? (

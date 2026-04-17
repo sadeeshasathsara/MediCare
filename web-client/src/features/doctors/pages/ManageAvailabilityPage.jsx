@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { 
-  Calendar, 
-  Clock, 
-  Plus, 
-  Trash2, 
-  Users, 
-  CheckCircle2, 
+import {
+  Calendar,
+  Clock,
+  Plus,
+  Trash2,
+  Users,
+  CheckCircle2,
   AlertCircle,
   Loader2,
   CalendarDays
@@ -21,7 +21,7 @@ const DAYS = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'
 export default function ManageAvailabilityPage() {
   const { user } = useAuth();
   const doctorId = user?.id;
-  
+
   const [slots, setSlots] = useState([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -42,7 +42,7 @@ export default function ManageAvailabilityPage() {
     try {
       const data = await getDoctorAvailability(doctorId);
       setSlots(data);
-    } catch (err) {
+    } catch {
       setError('Failed to load your availability schedule.');
     } finally {
       setLoading(false);
@@ -71,7 +71,7 @@ export default function ManageAvailabilityPage() {
       await createDoctorAvailability(doctorId, payload);
       setSuccess('Successfully added new availability slot!');
       fetchSlots();
-    } catch (err) {
+    } catch {
       setError('Failed to add slot. Ensure end time is after start time.');
     } finally {
       setSubmitting(false);
@@ -84,7 +84,7 @@ export default function ManageAvailabilityPage() {
     try {
       await deleteDoctorAvailabilitySlot(doctorId, slotId);
       setSlots(prev => prev.filter(s => s.id !== slotId));
-    } catch (err) {
+    } catch {
       setError('Failed to delete slot. Please try again.');
     } finally {
       setDeletingId(null);
@@ -112,7 +112,7 @@ export default function ManageAvailabilityPage() {
               <form onSubmit={handleCreate} className="space-y-4">
                 <div className="space-y-2">
                   <label className="text-xs font-bold uppercase text-muted-foreground">Day of Week</label>
-                  <select 
+                  <select
                     value={newSlot.dayOfWeek}
                     onChange={(e) => setNewSlot(s => ({ ...s, dayOfWeek: e.target.value }))}
                     className="w-full rounded-lg border bg-background px-3 py-2 text-sm"
@@ -124,7 +124,7 @@ export default function ManageAvailabilityPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <label className="text-xs font-bold uppercase text-muted-foreground">Start Time</label>
-                    <input 
+                    <input
                       type="time"
                       value={newSlot.startTime}
                       onChange={(e) => setNewSlot(s => ({ ...s, startTime: e.target.value }))}
@@ -133,7 +133,7 @@ export default function ManageAvailabilityPage() {
                   </div>
                   <div className="space-y-2">
                     <label className="text-xs font-bold uppercase text-muted-foreground">End Time</label>
-                    <input 
+                    <input
                       type="time"
                       value={newSlot.endTime}
                       onChange={(e) => setNewSlot(s => ({ ...s, endTime: e.target.value }))}
@@ -147,7 +147,7 @@ export default function ManageAvailabilityPage() {
                     <label className="text-xs font-bold uppercase text-muted-foreground">Session Capacity</label>
                     <Badge variant="outline" className="text-primary">{newSlot.maxCapacity} Patients</Badge>
                   </div>
-                  <input 
+                  <input
                     type="range"
                     min="1"
                     max="50"
@@ -198,78 +198,78 @@ export default function ManageAvailabilityPage() {
             </div>
           ) : (
             <div className="grid gap-4">
-              {slots.slice().sort((a,b) => DAYS.indexOf(a.dayOfWeek) - DAYS.indexOf(b.dayOfWeek)).map(slot => {
+              {slots.slice().sort((a, b) => DAYS.indexOf(a.dayOfWeek) - DAYS.indexOf(b.dayOfWeek)).map(slot => {
                 const isFull = slot.currentBookings >= slot.maxCapacity;
                 const fillPct = slot.maxCapacity > 0 ? Math.min(100, Math.round((slot.currentBookings / slot.maxCapacity) * 100)) : 0;
                 return (
-                <Card key={slot.id} className="overflow-hidden border group transition-all hover:bg-muted/30">
-                  <div className="flex flex-col sm:flex-row items-center">
-                    <div className="w-full sm:w-32 bg-primary/5 p-4 flex flex-col items-center justify-center border-b sm:border-b-0 sm:border-r">
-                      <span className="text-xs font-bold text-primary">{slot.dayOfWeek.substring(0, 3)}</span>
-                      <span className="text-lg font-bold text-foreground">{slot.dayOfWeek.charAt(0) + slot.dayOfWeek.substring(1).toLowerCase()}</span>
-                    </div>
-                    
-                    <div className="flex-1 p-4 space-y-3">
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 items-center">
-                        <div className="flex items-center gap-3">
-                          <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">
-                            <Clock className="h-4 w-4 text-muted-foreground" />
+                  <Card key={slot.id} className="overflow-hidden border group transition-all hover:bg-muted/30">
+                    <div className="flex flex-col sm:flex-row items-center">
+                      <div className="w-full sm:w-32 bg-primary/5 p-4 flex flex-col items-center justify-center border-b sm:border-b-0 sm:border-r">
+                        <span className="text-xs font-bold text-primary">{slot.dayOfWeek.substring(0, 3)}</span>
+                        <span className="text-lg font-bold text-foreground">{slot.dayOfWeek.charAt(0) + slot.dayOfWeek.substring(1).toLowerCase()}</span>
+                      </div>
+
+                      <div className="flex-1 p-4 space-y-3">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 items-center">
+                          <div className="flex items-center gap-3">
+                            <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">
+                              <Clock className="h-4 w-4 text-muted-foreground" />
+                            </div>
+                            <div>
+                              <p className="text-[10px] uppercase font-bold text-muted-foreground">Time Window</p>
+                              <p className="text-sm font-bold">{slot.startTime} - {slot.endTime}</p>
+                            </div>
                           </div>
-                          <div>
-                            <p className="text-[10px] uppercase font-bold text-muted-foreground">Time Window</p>
-                            <p className="text-sm font-bold">{slot.startTime} - {slot.endTime}</p>
+
+                          <div className="flex items-center gap-3">
+                            <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">
+                              <Users className="h-4 w-4 text-muted-foreground" />
+                            </div>
+                            <div>
+                              <p className="text-[10px] uppercase font-bold text-muted-foreground">Occupancy</p>
+                              <p className="text-sm font-bold">
+                                {slot.currentBookings ?? 0} / {slot.maxCapacity}
+                                <span className="ml-2 text-[10px] font-normal text-muted-foreground">Filled</span>
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="text-right sm:text-center">
+                            {isFull ? (
+                              <Badge variant="destructive">FULL</Badge>
+                            ) : (
+                              <Badge variant={slot.status === 'AVAILABLE' ? 'default' : 'secondary'}>
+                                {slot.status}
+                              </Badge>
+                            )}
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-3">
-                          <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">
-                            <Users className="h-4 w-4 text-muted-foreground" />
+                        {/* Capacity progress bar */}
+                        <div className="space-y-1">
+                          <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
+                            <div
+                              className={`h-full rounded-full transition-all duration-500 ${isFull ? 'bg-destructive' : fillPct > 75 ? 'bg-amber-500' : 'bg-primary'}`}
+                              style={{ width: `${fillPct}%` }}
+                            />
                           </div>
-                          <div>
-                            <p className="text-[10px] uppercase font-bold text-muted-foreground">Occupancy</p>
-                            <p className="text-sm font-bold">
-                              {slot.currentBookings ?? 0} / {slot.maxCapacity}
-                              <span className="ml-2 text-[10px] font-normal text-muted-foreground">Filled</span>
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="text-right sm:text-center">
-                          {isFull ? (
-                            <Badge variant="destructive">FULL</Badge>
-                          ) : (
-                            <Badge variant={slot.status === 'AVAILABLE' ? 'default' : 'secondary'}>
-                              {slot.status}
-                            </Badge>
-                          )}
+                          <p className="text-[9px] text-muted-foreground font-medium">{fillPct}% capacity used</p>
                         </div>
                       </div>
 
-                      {/* Capacity progress bar */}
-                      <div className="space-y-1">
-                        <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
-                          <div 
-                            className={`h-full rounded-full transition-all duration-500 ${isFull ? 'bg-destructive' : fillPct > 75 ? 'bg-amber-500' : 'bg-primary'}`}
-                            style={{ width: `${fillPct}%` }}
-                          />
-                        </div>
-                        <p className="text-[9px] text-muted-foreground font-medium">{fillPct}% capacity used</p>
+                      <div className="p-4 border-t sm:border-t-0 sm:border-l flex gap-2">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="text-destructive hover:bg-destructive/10"
+                          disabled={deletingId === slot.id}
+                          onClick={() => handleDelete(slot.id)}
+                        >
+                          {deletingId === slot.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                        </Button>
                       </div>
                     </div>
-
-                    <div className="p-4 border-t sm:border-t-0 sm:border-l flex gap-2">
-                       <Button 
-                         variant="ghost" 
-                         size="icon" 
-                         className="text-destructive hover:bg-destructive/10"
-                         disabled={deletingId === slot.id}
-                         onClick={() => handleDelete(slot.id)}
-                       >
-                         {deletingId === slot.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                       </Button>
-                    </div>
-                  </div>
-                </Card>
+                  </Card>
                 );
               })}
             </div>

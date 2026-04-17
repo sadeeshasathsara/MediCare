@@ -14,15 +14,11 @@ import api from "@/services/api";
  */
 export default function ProfileAvatar({ src, alt = "Profile", className = "", fallback = null }) {
   const [objectUrl, setObjectUrl] = useState(null);
-  const [failed, setFailed] = useState(false);
+  const [failedForSrc, setFailedForSrc] = useState(null);
+  const [objectUrlForSrc, setObjectUrlForSrc] = useState(null);
 
   useEffect(() => {
-    // Reset state when src changes
-    setObjectUrl(null);
-    setFailed(false);
-
     if (!src) {
-      setFailed(true);
       return;
     }
 
@@ -35,9 +31,14 @@ export default function ProfileAvatar({ src, alt = "Profile", className = "", fa
         if (revoked) return;
         blobUrl = URL.createObjectURL(res.data);
         setObjectUrl(blobUrl);
+        setObjectUrlForSrc(src);
+        setFailedForSrc(null);
       })
       .catch(() => {
-        if (!revoked) setFailed(true);
+        if (!revoked) {
+          setFailedForSrc(src);
+          setObjectUrlForSrc(src);
+        }
       });
 
     return () => {
@@ -49,7 +50,10 @@ export default function ProfileAvatar({ src, alt = "Profile", className = "", fa
 
   const wrapperClass = `relative overflow-hidden ${className}`;
 
-  if (failed || (!objectUrl && !src)) {
+  const failed = failedForSrc === src;
+  const hasObjectUrlForCurrentSrc = objectUrlForSrc === src && Boolean(objectUrl);
+
+  if (!src || failed) {
     return (
       <div className={`${wrapperClass} flex items-center justify-center bg-muted`}>
         {fallback}
@@ -57,7 +61,7 @@ export default function ProfileAvatar({ src, alt = "Profile", className = "", fa
     );
   }
 
-  if (!objectUrl) {
+  if (!hasObjectUrlForCurrentSrc) {
     // Loading skeleton pulse
     return <div className={`${wrapperClass} bg-muted animate-pulse`} />;
   }
@@ -68,7 +72,7 @@ export default function ProfileAvatar({ src, alt = "Profile", className = "", fa
         src={objectUrl}
         alt={alt}
         className="h-full w-full object-cover"
-        onError={() => setFailed(true)}
+        onError={() => setFailedForSrc(src)}
       />
     </div>
   );

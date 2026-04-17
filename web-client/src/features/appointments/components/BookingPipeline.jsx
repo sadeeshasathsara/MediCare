@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import {
   Calendar,
@@ -106,7 +106,6 @@ export default function BookingPipeline() {
   };
   const [profile, setProfile] = useState(null);
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
   const [createdAppointmentId, setCreatedAppointmentId] = useState("");
 
   // If the page reloads (e.g., after Stripe 3DS), restore appointmentId from URL.

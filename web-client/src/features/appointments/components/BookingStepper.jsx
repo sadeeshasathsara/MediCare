@@ -1,6 +1,5 @@
 import React from 'react';
 import { Check } from 'lucide-react';
-import { cn } from '@/lib/utils';
 
 const steps = [
   { id: 1, name: 'Select Doctor', description: 'Choose your specialist' },

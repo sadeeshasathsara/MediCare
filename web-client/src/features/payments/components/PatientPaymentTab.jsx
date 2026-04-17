@@ -26,7 +26,7 @@ function formatDisplayMoney(amount, currency) {
     }
 }
 
-function PaymentForm({ user, userId, clientSecret, paymentIntentId, onPaid, busy, setBusy, setError }) {
+function PaymentForm({ user, userId, paymentIntentId, onPaid, busy, setBusy, setError }) {
     const stripe = useStripe()
     const elements = useElements()
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   Calendar,
@@ -26,9 +26,6 @@ import {
 } from "@/store/slices/doctorsSlice";
 import {
   createPatientAppointment,
-  fetchAppointments,
-  selectAppointmentsByParams,
-  selectAppointmentsStatusByParams,
   selectCreateAppointmentState,
 } from "@/store/slices/appointmentsSlice";
 import { getDoctorAvailability } from "@/features/doctors/services/doctorApi";
@@ -58,15 +55,14 @@ export default function CreatePatientAppointmentPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const userId = user?.id || "";
-  
+
   const prefill = location.state?.prefill;
   const prefillSpecialty = String(prefill?.specialty || "").trim();
   const prefillDoctorId = String(prefill?.doctorId || "").trim();
-  
+
   const [currentStep, setCurrentStep] = useState(1);
   const [profile, setProfile] = useState(null);
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
 
   const [form, setForm] = useState({
     specialty: prefillSpecialty,
@@ -97,7 +93,7 @@ export default function CreatePatientAppointmentPage() {
     if (!userId) return;
     dispatch(fetchDoctors());
     dispatch(fetchDoctorSpecialties());
-    
+
     getPatientProfile(userId).then(setProfile).catch(() => null);
   }, [dispatch, userId]);
 
@@ -137,11 +133,11 @@ export default function CreatePatientAppointmentPage() {
 
   const mappedSlots = useMemo(() => {
     if (!form.scheduledAtDate || !availability.length) return [];
-    
+
     // Get day of week for selected date
     const date = new Date(form.scheduledAtDate);
     const dayOfWeek = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'][date.getDay()];
-    
+
     return availability.filter(slot => slot.dayOfWeek === dayOfWeek && slot.status === 'AVAILABLE');
   }, [form.scheduledAtDate, availability]);
 
@@ -160,7 +156,7 @@ export default function CreatePatientAppointmentPage() {
       setError("Please provide a reason for your consultation.");
       return;
     }
-    
+
     setError("");
     setCurrentStep(prev => prev + 1);
   };
@@ -172,7 +168,7 @@ export default function CreatePatientAppointmentPage() {
 
   const handleSubmit = async () => {
     setError("");
-    
+
     const dateTime = `${form.scheduledAtDate}T${form.scheduledAtTime}`;
     const scheduledTime = new Date(dateTime).getTime();
 
@@ -193,9 +189,9 @@ export default function CreatePatientAppointmentPage() {
     try {
       // NOTE: Here we would ideally also call `bookSlot(doctorId, slotId)`
       // for now we trust the booking flow will be reinforced by backend triggers.
-      
+
       const response = await dispatch(createPatientAppointment(payload)).unwrap();
-      
+
       navigate("/patient/payments", {
         state: {
           appointmentId: response?.id || "",
@@ -282,7 +278,7 @@ export default function CreatePatientAppointmentPage() {
                 onDateChange={(date) => setForm(f => ({ ...f, scheduledAtDate: date }))}
                 onSlotChange={(slotId, time) => setForm(f => ({ ...f, slotId, scheduledAtTime: time }))}
               />
-              
+
               {isLoadingAvailability && (
                 <div className="flex items-center justify-center py-10 gap-2 text-muted-foreground">
                   <Loader2 className="animate-spin h-5 w-5" /> Loading current availability...

@@ -1,16 +1,6 @@
 import { useState } from 'react'
 import { checkSymptoms } from '@/features/ai-symptom/services/aiSymptomApi'
-import {
-  fetchAllDoctors,
-  mapDoctorsForAi,
-} from '@/features/ai-symptom/services/doctorApi'
-
-function normalizeSpecialty(value) {
-  return String(value || '')
-    .trim()
-    .replace(/\s+/g, ' ')
-    .toLowerCase()
-}
+import { fetchAllDoctors, mapDoctorsForAi } from '@/features/ai-symptom/services/doctorApi'
 
 function pickRecommendedDoctors(allDoctors, symptomResult) {
   if (!Array.isArray(allDoctors) || allDoctors.length === 0) return []
@@ -38,7 +28,7 @@ export function useSymptomChecker() {
     setLoading(true)
     setError('')
     setLatestOptions([])
-    
+
     // We only clear these if it's the final diagnostic step
     // but for internal state, let's keep them scoped
     setDoctorLookupStatus('idle')
@@ -54,7 +44,7 @@ export function useSymptomChecker() {
       }
 
       const data = await checkSymptoms(aiPayload)
-      
+
       // Update the messages state with the AI's response
       const aiMessage = { role: 'assistant', content: data.aiMessage }
       setMessages(prev => [...prev, aiMessage])
@@ -69,7 +59,7 @@ export function useSymptomChecker() {
         // Store options for follow-up chips
         setLatestOptions(data.options || [])
       }
-      
+
       return data
     } catch (err) {
       const message =

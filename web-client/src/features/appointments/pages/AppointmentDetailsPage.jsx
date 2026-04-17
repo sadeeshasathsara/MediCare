@@ -6,7 +6,6 @@ import { fetchAppointmentById, selectAppointmentById, updateAppointmentNotesById
 import { fetchPrescriptionsByAppointment, selectPrescriptionsByAppointment, createPrescription } from "@/store/slices/prescriptionsSlice";
 import { fetchPatientReports, selectPatientReports, uploadPatientReport } from "@/store/slices/patientReportsSlice";
 import { getAppointments } from "@/features/appointments/services/appointmentApi";
-import api from "@/services/api";
 import { listUserPayments } from "@/features/payments/services/paymentApi";
 import DocumentViewer from "@/components/DocumentViewer";
 import ProfileAvatar from "@/components/ProfileAvatar";

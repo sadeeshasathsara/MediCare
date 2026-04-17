@@ -43,13 +43,12 @@ export default function SymptomCheckerPage() {
   const { user } = useAuth()
   const [profile, setProfile] = useState(null)
   const userId = user?.id || ''
-  
+
   const initialPrompt = location.state?.initialPrompt || ''
 
   // Focus Mode State
   const [isLocked, setIsLocked] = useState(false)
   const chatContainerRef = useRef(null)
-  const [chatBoxHeight, setChatBoxHeight] = useState(0)
 
   useEffect(() => {
     if (userId) {
@@ -63,15 +62,15 @@ export default function SymptomCheckerPage() {
   useEffect(() => {
     const handleScroll = () => {
       if (!chatContainerRef.current) return
-      
+
       const rect = chatContainerRef.current.getBoundingClientRect()
       const threshold = window.innerHeight / 2
-      
+
       // Lock if top is near or past the middle of the viewport
       if (!isLocked && rect.top <= threshold) {
         setIsLocked(true)
       }
-      
+
       // Unlock if we scroll back up below the middle of the viewport
       if (isLocked && rect.top > threshold) {
         setIsLocked(false)
@@ -119,13 +118,13 @@ export default function SymptomCheckerPage() {
         {/* Abstract background elements */}
         <div className="absolute top-0 right-0 w-96 h-96 bg-primary/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
         <div className="absolute bottom-0 left-0 w-64 h-64 bg-primary/5 rounded-full blur-2xl translate-y-1/2 -translate-x-1/2" />
-        
+
         <div className="relative z-10 flex flex-col items-center text-center space-y-6">
           <div className="flex items-center gap-3 px-4 py-1.5 rounded-full bg-primary/10 border border-primary/20 text-primary">
             <HeartPulse size={16} />
             <span className="text-xs font-bold tracking-widest uppercase">MediCare AI Doctor</span>
           </div>
-          
+
           <div className="space-y-4 max-w-2xl">
             <h1 className="text-4xl md:text-5xl font-black tracking-tight text-foreground leading-[1.1]">
               How are you feeling, <span className="text-primary">{profile?.name || user?.name || 'today'}?</span>
@@ -151,8 +150,8 @@ export default function SymptomCheckerPage() {
       </header>
 
       {/* ── Main Chat Section (Sticky/Locked Wrapper) ────────────────────────────── */}
-      <section 
-        ref={chatContainerRef} 
+      <section
+        ref={chatContainerRef}
         className="relative w-full"
         style={{ minHeight: isLocked ? '150vh' : 'auto' }}
       >
@@ -161,25 +160,25 @@ export default function SymptomCheckerPage() {
           transition-all duration-700 ease-[cubic-bezier(0.2,0.8,0.2,1)]
           ${isLocked ? 'w-full' : 'w-full max-w-4xl px-4 md:px-0'}
         `}>
-          <div 
+          <div
             data-chat-box
             className={`
               w-full transition-all duration-700 ease-[cubic-bezier(0.2,0.8,0.2,1)]
-              ${isLocked 
-                ? 'w-[95vw] md:w-[80vw] max-w-[80vw] h-[80vh] shadow-[0_30px_100px_rgba(0,0,0,0.2)] md:shadow-[0_45px_150px_rgba(0,0,0,0.3)]' 
+              ${isLocked
+                ? 'w-[95vw] md:w-[80vw] max-w-[80vw] h-[80vh] shadow-[0_30px_100px_rgba(0,0,0,0.2)] md:shadow-[0_45px_150px_rgba(0,0,0,0.3)]'
                 : 'w-full h-[600px] shadow-xl'
               }
             `}
           >
-            <SymptomChatBox 
-              profile={profile} 
+            <SymptomChatBox
+              profile={profile}
               onBookAppointment={handleBookAppointment}
               initialPrompt={initialPrompt}
               isLocked={isLocked}
             />
           </div>
         </div>
-        
+
         {/* Backdrop for locked state */}
         <div className={`
           fixed inset-0 bg-background/60 backdrop-blur-md z-40 transition-opacity duration-700 pointer-events-none
@@ -192,7 +191,7 @@ export default function SymptomCheckerPage() {
         <div className="inline-flex items-center gap-2 p-3 px-5 rounded-2xl bg-muted/50 border border-border/50 text-muted-foreground text-[11px] max-w-xl mx-auto leading-relaxed">
           <ShieldCheck size={14} className="shrink-0 text-primary" />
           <span>
-            <strong>Safety Note:</strong> AI assessments are for informational purposes only and are not medical diagnoses. 
+            <strong>Safety Note:</strong> AI assessments are for informational purposes only and are not medical diagnoses.
             In case of emergency, please visit your nearest hospital immediately.
           </span>
         </div>
