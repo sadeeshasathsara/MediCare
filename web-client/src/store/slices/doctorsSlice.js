@@ -1,4 +1,4 @@
-import { createAsyncThunk, createSlice } from '@reduxjs/toolkit'
+import { createAsyncThunk, createSlice, createSelector } from '@reduxjs/toolkit'
 import {
     getDoctorAvailability,
     getDoctorByUserId,
@@ -179,10 +179,13 @@ const doctorsSlice = createSlice({
 export const selectDoctorsResource = (state) => state.doctors?.doctors || EMPTY_RESOURCE
 export const selectDoctors = (state) => selectDoctorsResource(state).items
 export const selectDoctorsStatus = (state) => selectDoctorsResource(state).status
-export const selectDoctorsPagination = (state) => ({
-    totalPages: selectDoctorsResource(state).totalPages || 0,
-    page: selectDoctorsResource(state).page || 0,
-})
+export const selectDoctorsPagination = createSelector(
+    selectDoctorsResource,
+    (resource) => ({
+        totalPages: resource.totalPages || 0,
+        page: resource.page || 0,
+    })
+)
 
 export const selectSpecialtiesResource = (state) => state.doctors?.specialties || EMPTY_RESOURCE
 export const selectDoctorSpecialties = (state) => selectSpecialtiesResource(state).items

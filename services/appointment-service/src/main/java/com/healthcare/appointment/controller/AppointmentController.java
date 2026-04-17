@@ -29,7 +29,7 @@ public class AppointmentController {
             @RequestHeader(value = "X-User-Id", required = false) String userId,
             @RequestHeader(value = "X-User-Role", required = false) String role,
             @Valid @RequestBody CreateAppointmentRequest request) {
-        
+
         if (userId == null || !role.equals("PATIENT")) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only patients can book appointments");
         }
@@ -46,7 +46,8 @@ public class AppointmentController {
 
         AppointmentResponse appointment = appointmentService.getAppointmentById(id);
 
-        if (!role.equals("ADMIN") && !appointment.getPatientId().equals(userId) && !appointment.getDoctorId().equals(userId)) {
+        if (!role.equals("ADMIN") && !appointment.getPatientId().equals(userId)
+                && !appointment.getDoctorId().equals(userId)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied");
         }
 
@@ -87,6 +88,19 @@ public class AppointmentController {
         }
 
         return ResponseEntity.ok(appointmentService.updateStatus(id, request, userId));
+    }
+
+    @PostMapping("/{id}/confirm")
+    public ResponseEntity<AppointmentResponse> confirmAppointmentAfterPayment(
+            @PathVariable String id,
+            @RequestHeader(value = "X-User-Id", required = false) String userId,
+            @RequestHeader(value = "X-User-Role", required = false) String role) {
+
+        if (userId == null || !"PATIENT".equals(role)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only patients can confirm appointments");
+        }
+
+        return ResponseEntity.ok(appointmentService.confirmAfterPayment(id, userId));
     }
 
     @GetMapping

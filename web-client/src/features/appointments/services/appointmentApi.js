@@ -30,3 +30,8 @@ export const cancelAppointment = async (appointmentId) => {
   const { data } = await api.delete(`/appointments/${appointmentId}`)
   return data
 }
+
+export const confirmAppointmentAfterPayment = async (appointmentId) => {
+  const { data } = await api.post(`/appointments/${appointmentId}/confirm`)
+  return data
+}

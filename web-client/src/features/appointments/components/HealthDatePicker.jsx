@@ -18,7 +18,12 @@ const getNextDays = (count = 14) => {
 };
 
 const formatDayName = (date) => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][date.getDay()];
-const formatDateStr = (date) => date.toISOString().split('T')[0];
+const formatDateStr = (date) => {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+};
 
 export default function HealthDatePicker({ selectedDate, selectedSlotId, onDateChange, onSlotChange, slots = [] }) {
   const days = useMemo(() => getNextDays(), []);

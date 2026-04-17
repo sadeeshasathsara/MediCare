@@ -30,15 +30,37 @@ import {
 } from "@/store/slices/doctorsSlice";
 import {
   createPatientAppointment,
+  fetchAppointmentById,
   selectCreateAppointmentState,
 } from "@/store/slices/appointmentsSlice";
 import { getDoctorAvailability } from "@/features/doctors/services/doctorApi";
+import { confirmAppointmentAfterPayment } from "@/features/appointments/services/appointmentApi";
 import BookingStepper from "./BookingStepper";
 import DoctorSelectionCard from "./DoctorSelectionCard";
 import HealthDatePicker from "./HealthDatePicker";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import PatientPaymentTab from "@/features/payments/components/PatientPaymentTab";
+
+function formatDateStr(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function normalizeDoctorDisplayName(name) {
+  const raw = String(name || '').trim();
+  if (!raw) return '';
+  const stripped = raw.replace(/^(dr\.?\s+)+/i, '').trim();
+  return stripped ? `Dr. ${stripped}` : 'Dr.';
+}
+
+function formatLongDateOrToday(dateStr) {
+  const parsed = new Date(dateStr);
+  const date = dateStr && Number.isFinite(parsed.getTime()) ? parsed : new Date();
+  return date.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' });
+}
 
 function formatApiError(error) {
   const status = error?.response?.status;
@@ -60,20 +82,39 @@ export default function BookingPipeline() {
   const location = useLocation();
   const navigate = useNavigate();
   const userId = user?.id || "";
-  
-  const [searchParams] = useSearchParams();
+
+  const [searchParams, setSearchParams] = useSearchParams();
   const queryDoctorId = searchParams.get('doctorId') || "";
   const querySpecialty = searchParams.get('specialty') || "";
-  
+  const queryAppointmentId = searchParams.get('appointmentId') || "";
+
   const prefill = location.state?.prefill;
   const prefillSpecialty = String(prefill?.specialty || querySpecialty || "").trim();
   const prefillDoctorId = String(prefill?.doctorId || queryDoctorId || "").trim();
-  
-  const [currentStep, setCurrentStep] = useState(prefillDoctorId ? 2 : 1);
+
+  const stepParam = parseInt(searchParams.get('step') || '1', 10);
+  const currentStep = !isNaN(stepParam) && stepParam >= 1 && stepParam <= 5 ? stepParam : (prefillDoctorId ? 2 : 1);
+
+  const setCurrentStep = (step, options = {}) => {
+    const { appointmentId } = options;
+    const newParams = new URLSearchParams(searchParams);
+    newParams.set('step', step);
+    if (form.doctorId) newParams.set('doctorId', form.doctorId);
+    const idToPersist = appointmentId || createdAppointmentId || queryAppointmentId;
+    if (idToPersist) newParams.set('appointmentId', idToPersist);
+    setSearchParams(newParams);
+  };
   const [profile, setProfile] = useState(null);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [createdAppointmentId, setCreatedAppointmentId] = useState("");
+
+  // If the page reloads (e.g., after Stripe 3DS), restore appointmentId from URL.
+  useEffect(() => {
+    if (!createdAppointmentId && queryAppointmentId) {
+      setCreatedAppointmentId(queryAppointmentId);
+    }
+  }, [createdAppointmentId, queryAppointmentId]);
 
   const [form, setForm] = useState({
     specialty: prefillSpecialty,
@@ -84,6 +125,16 @@ export default function BookingPipeline() {
     reason: "",
     searchQuery: "",
   });
+
+  // Default the scheduling date to today when scheduling/review/payment steps load.
+  useEffect(() => {
+    if (currentStep < 2 || currentStep > 5) return;
+
+    setForm((prev) => {
+      if (prev.scheduledAtDate) return prev;
+      return { ...prev, scheduledAtDate: formatDateStr(new Date()) };
+    });
+  }, [currentStep]);
 
   const [availability, setAvailability] = useState([]);
   const [isLoadingAvailability, setIsLoadingAvailability] = useState(false);
@@ -143,22 +194,23 @@ export default function BookingPipeline() {
   const currentDoctor = useSelector(selectCurrentDoctor);
 
   const selectedDoctor = useMemo(() => {
-    const listDoctor = filteredDoctors.find(d => (d.userId || d.id) === form.doctorId);
+    const listDoctor = filteredDoctors.find(d => d.id === form.doctorId);
     if (listDoctor) return listDoctor;
-    if (currentDoctor && (currentDoctor.userId || currentDoctor.id) === form.doctorId) return currentDoctor;
+    if (currentDoctor && currentDoctor.id === form.doctorId) return currentDoctor;
     return null;
   }, [filteredDoctors, currentDoctor, form.doctorId]);
 
-  // If we have a doctorId but the doctor isn't in our paged list, fetch them explicitly
+  // If URL has a doctorId but it's not in the paged list yet, fetch it individually.
+  // Don't block on doctorsStatus — fire immediately on mount.
   useEffect(() => {
-    if (form.doctorId && !selectedDoctor && doctorsStatus !== 'loading' && doctorsStatus !== 'idle') {
+    if (form.doctorId && !selectedDoctor) {
       dispatch(fetchDoctorById(form.doctorId));
     }
-  }, [form.doctorId, selectedDoctor, doctorsStatus, dispatch]);
+  }, [form.doctorId, selectedDoctor, dispatch]);
 
   // FETCH AVAILABILITY WHEN DOCTOR IS SELECTED
   useEffect(() => {
-    if (!selectedDoctor?.userId && !selectedDoctor?.id) {
+    if (!selectedDoctor?.id) {
       setAvailability([]);
       return;
     }
@@ -166,7 +218,7 @@ export default function BookingPipeline() {
     const loadAvailability = async () => {
       setIsLoadingAvailability(true);
       try {
-        const data = await getDoctorAvailability(selectedDoctor.userId || selectedDoctor.id);
+        const data = await getDoctorAvailability(selectedDoctor.id);
         setAvailability(data);
       } catch (e) {
         console.error("Failed to load availability", e);
@@ -180,15 +232,15 @@ export default function BookingPipeline() {
 
   const mappedSlots = useMemo(() => {
     if (!form.scheduledAtDate || !availability.length) return [];
-    
+
     // Get day of week for selected date
     const date = new Date(form.scheduledAtDate);
     const dayOfWeek = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'][date.getDay()];
-    
+
     // Filter to available slots that are NOT full
-    return availability.filter(slot => 
-      slot.dayOfWeek === dayOfWeek && 
-      slot.status === 'AVAILABLE' && 
+    return availability.filter(slot =>
+      slot.dayOfWeek === dayOfWeek &&
+      slot.status === 'AVAILABLE' &&
       (slot.currentBookings ?? 0) < slot.maxCapacity
     );
   }, [form.scheduledAtDate, availability]);
@@ -208,19 +260,19 @@ export default function BookingPipeline() {
       setError("Please provide a reason for your consultation.");
       return;
     }
-    
+
     setError("");
-    setCurrentStep(prev => prev + 1);
+    setCurrentStep(currentStep + 1);
   };
 
   const handleBack = () => {
     setError("");
-    setCurrentStep(prev => prev - 1);
+    setCurrentStep(currentStep - 1);
   };
 
   const handleSubmit = async () => {
     setError("");
-    
+
     const dateTime = `${form.scheduledAtDate}T${form.scheduledAtTime}`;
     const scheduledTime = new Date(dateTime).getTime();
 
@@ -230,7 +282,7 @@ export default function BookingPipeline() {
     }
 
     const payload = {
-      doctorId: selectedDoctor.userId || selectedDoctor.id,
+      doctorId: selectedDoctor.id,
       doctorName: selectedDoctor.fullName || selectedDoctor.email,
       doctorSpecialty: selectedDoctor.specialty || "General",
       patientName,
@@ -240,8 +292,9 @@ export default function BookingPipeline() {
 
     try {
       const response = await dispatch(createPatientAppointment(payload)).unwrap();
-      setCreatedAppointmentId(response?.id || "");
-      setCurrentStep(5); // advance to payment step
+      const newId = response?.id || "";
+      setCreatedAppointmentId(newId);
+      setCurrentStep(5, { appointmentId: newId }); // advance to payment step + persist id
     } catch (e) {
       setError(formatApiError(e));
     }
@@ -302,10 +355,10 @@ export default function BookingPipeline() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                   {filteredDoctors.map(doctor => (
                     <DoctorSelectionCard
-                      key={doctor.id || doctor.userId}
+                      key={doctor.id}
                       doctor={doctor}
-                      isSelected={form.doctorId === (doctor.userId || doctor.id)}
-                      onSelect={(d) => setForm(f => ({ ...f, doctorId: d.userId || d.id }))}
+                      isSelected={form.doctorId === doctor.id}
+                      onSelect={(d) => setForm(f => ({ ...f, doctorId: d.id }))}
                     />
                   ))}
                 </div>
@@ -319,16 +372,18 @@ export default function BookingPipeline() {
                       <button
                         onClick={() => setCurrentPage(p => Math.max(0, p - 1))}
                         disabled={page === 0 || loadingOptions}
-                        className="px-4 py-2 border rounded-lg hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1 text-sm font-medium transition-colors"
+                        className="p-2 border rounded-lg hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
+                        aria-label="Previous Page"
                       >
-                        <ChevronLeft className="w-4 h-4" /> Previous
+                        <ChevronLeft className="w-5 h-5" />
                       </button>
                       <button
                         onClick={() => setCurrentPage(p => Math.min(totalPages - 1, p + 1))}
                         disabled={page >= totalPages - 1 || loadingOptions}
-                        className="px-4 py-2 border rounded-lg hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1 text-sm font-medium transition-colors"
+                        className="p-2 border rounded-lg hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
+                        aria-label="Next Page"
                       >
-                        Next <ChevronRight className="w-4 h-4" />
+                        <ChevronRight className="w-5 h-5" />
                       </button>
                     </div>
                   </div>
@@ -393,30 +448,30 @@ export default function BookingPipeline() {
                 </CardTitle>
               </div>
               <CardContent className="p-6 space-y-6">
-                  <div className="flex items-center gap-4 p-4 rounded-xl bg-muted/50">
-                    <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
-                      <UserRound className="text-primary h-6 w-6" />
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-lg">{selectedDoctor?.fullName}</h4>
-                      <p className="text-sm text-primary font-medium">{selectedDoctor?.specialty}</p>
-                    </div>
+                <div className="flex items-center gap-4 p-4 rounded-xl bg-muted/50">
+                  <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
+                    <UserRound className="text-primary h-6 w-6" />
                   </div>
+                  <div>
+                    <h4 className="font-bold text-lg">{selectedDoctor?.fullName}</h4>
+                    <p className="text-sm text-primary font-medium">{selectedDoctor?.specialty}</p>
+                  </div>
+                </div>
 
-                  <div className="grid grid-cols-2 gap-6">
-                    <div className="space-y-1">
-                      <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Date</p>
-                      <p className="font-medium">{new Date(form.scheduledAtDate).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}</p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Time</p>
-                      <p className="font-medium">{form.scheduledAtTime}</p>
-                    </div>
-                    <div className="space-y-1 col-span-2">
-                      <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Reason</p>
-                      <p className="font-medium text-sm italic">"{form.reason}"</p>
-                    </div>
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Date</p>
+                    <p className="font-medium">{new Date(form.scheduledAtDate).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}</p>
                   </div>
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Time</p>
+                    <p className="font-medium">{form.scheduledAtTime}</p>
+                  </div>
+                  <div className="space-y-1 col-span-2">
+                    <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Reason</p>
+                    <p className="font-medium text-sm italic">"{form.reason}"</p>
+                  </div>
+                </div>
               </CardContent>
               <div className="p-6 bg-muted/30 border-t flex items-center justify-between">
                 <div>
@@ -432,21 +487,40 @@ export default function BookingPipeline() {
         {/* STEP 5: PAYMENT */}
         {currentStep === 5 && (
           <div className="max-w-2xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center gap-3">
-              <CalendarPlus className="h-5 w-5 text-emerald-600 shrink-0" />
+            <div className="p-4 rounded-xl bg-primary/10 border border-primary/20 flex items-center gap-3">
+              <CalendarPlus className="h-5 w-5 text-primary shrink-0" />
               <div>
-                <p className="text-sm font-semibold text-emerald-700">Appointment Booked Successfully!</p>
-                <p className="text-xs text-emerald-600">Complete your payment below to confirm the session with Dr. {selectedDoctor?.fullName}.</p>
+                <p className="text-sm font-semibold text-foreground">Appointment booked successfully</p>
+                <p className="text-xs text-muted-foreground">Complete your payment below to confirm the session with {normalizeDoctorDisplayName(selectedDoctor?.fullName)}.</p>
               </div>
             </div>
             <PatientPaymentTab
               user={user}
               userId={userId}
-              initialAmount={selectedDoctor?.consultationFee || ''}
+              showSavedRecords={false}
+              editableDetails={false}
+              initialAmount={selectedDoctor?.consultationFee != null ? String(selectedDoctor.consultationFee) : ''}
               initialCurrency="usd"
-              initialDescription={`Appointment with Dr. ${selectedDoctor?.fullName || ''} on ${new Date(form.scheduledAtDate).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}`}
+              initialDescription={`Appointment ${createdAppointmentId || queryAppointmentId || ''} with ${normalizeDoctorDisplayName(selectedDoctor?.fullName)} on ${formatLongDateOrToday(form.scheduledAtDate)}`.trim()}
               onPaymentSuccess={async () => {
-                navigate('/appointments', { replace: true });
+                const appointmentId = createdAppointmentId || queryAppointmentId;
+                try {
+                  if (appointmentId) {
+                    await confirmAppointmentAfterPayment(appointmentId);
+                    // Refresh cache so appointment status isn't stuck as PENDING.
+                    await dispatch(fetchAppointmentById(appointmentId)).unwrap();
+                  }
+                } catch (e) {
+                  console.error('Failed to confirm appointment after payment', e);
+                  setError(formatApiError(e));
+                  return;
+                }
+
+                if (appointmentId) {
+                  navigate(`/appointments/${appointmentId}`, { replace: true });
+                } else {
+                  navigate('/appointments', { replace: true });
+                }
               }}
             />
           </div>
@@ -462,15 +536,17 @@ export default function BookingPipeline() {
       )}
 
       {/* CONTROLS */}
-      <div className="flex items-center justify-between pt-8 border-t">
-        <Button
-          variant="ghost"
-          onClick={handleBack}
-          disabled={currentStep === 1 || currentStep === 5 || submitting}
-          className="flex items-center gap-2"
-        >
-          <ChevronLeft size={16} /> Previous
-        </Button>
+      <div className={`flex items-center pt-8 border-t ${currentStep === 1 ? 'justify-end' : 'justify-between'}`}>
+        {currentStep > 1 && (
+          <Button
+            variant="ghost"
+            onClick={handleBack}
+            disabled={currentStep === 5 || submitting}
+            className="flex items-center gap-2"
+          >
+            <ChevronLeft size={16} /> Previous
+          </Button>
+        )}
 
         {currentStep < 4 ? (
           <Button

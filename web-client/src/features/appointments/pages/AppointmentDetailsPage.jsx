@@ -7,6 +7,7 @@ import { fetchPrescriptionsByAppointment, selectPrescriptionsByAppointment, crea
 import { fetchPatientReports, selectPatientReports, uploadPatientReport } from "@/store/slices/patientReportsSlice";
 import { getAppointments } from "@/features/appointments/services/appointmentApi";
 import api from "@/services/api";
+import { listUserPayments } from "@/features/payments/services/paymentApi";
 import DocumentViewer from "@/components/DocumentViewer";
 import ProfileAvatar from "@/components/ProfileAvatar";
 import { Button } from "@/components/ui/button";
@@ -46,10 +47,10 @@ import {
 
 // ─── Status helpers ───────────────────────────────────────────────────────────
 const STATUS_CONFIG = {
-  PENDING:   { label: "Pending",   color: "bg-amber-500/15 text-amber-600 border-amber-500/30",   icon: AlertCircle,   bar: "bg-amber-500"  },
+  PENDING: { label: "Pending", color: "bg-amber-500/15 text-amber-600 border-amber-500/30", icon: AlertCircle, bar: "bg-amber-500" },
   CONFIRMED: { label: "Confirmed", color: "bg-emerald-500/15 text-emerald-600 border-emerald-500/30", icon: CheckCircle2, bar: "bg-emerald-500" },
-  CANCELLED: { label: "Cancelled", color: "bg-red-500/15 text-red-600 border-red-500/30",         icon: XCircle,       bar: "bg-red-500"    },
-  COMPLETED: { label: "Completed", color: "bg-primary/10 text-primary border-primary/30",          icon: CheckCircle2,  bar: "bg-primary"    },
+  CANCELLED: { label: "Cancelled", color: "bg-red-500/15 text-red-600 border-red-500/30", icon: XCircle, bar: "bg-red-500" },
+  COMPLETED: { label: "Completed", color: "bg-primary/10 text-primary border-primary/30", icon: CheckCircle2, bar: "bg-primary" },
 };
 
 function StatusBadge({ status }) {
@@ -106,7 +107,7 @@ function InfoChip({ icon: Icon, label, value, highlight }) {
 // ─── Prescription card ────────────────────────────────────────────────────────
 const MOCK_PRESCRIPTIONS = [
   { id: 1, name: "Amoxicillin", dose: "500 mg", frequency: "3×/day", duration: "7 days", type: "Antibiotic" },
-  { id: 2, name: "Ibuprofen",   dose: "400 mg", frequency: "2×/day", duration: "5 days", type: "Pain Relief" },
+  { id: 2, name: "Ibuprofen", dose: "400 mg", frequency: "2×/day", duration: "5 days", type: "Pain Relief" },
 ];
 
 function PrescriptionRow({ rx }) {
@@ -131,9 +132,9 @@ function PrescriptionRow({ rx }) {
 
 // ─── History timeline entry ───────────────────────────────────────────────────
 const MOCK_HISTORY = [
-  { id: 1, date: "Mar 2025", title: "Hypertension Diagnosis",       icon: HeartPulse,   note: "Blood pressure consistently above 140/90. Started Losartan 50mg." },
-  { id: 2, date: "Jan 2025", title: "Annual Blood Panel",           icon: FlaskConical, note: "Cholesterol: 185 mg/dL. All markers within normal range." },
-  { id: 3, date: "Oct 2024", title: "Chest X-Ray",                 icon: ScanLine,     note: "Lungs clear. No abnormalities identified." },
+  { id: 1, date: "Mar 2025", title: "Hypertension Diagnosis", icon: HeartPulse, note: "Blood pressure consistently above 140/90. Started Losartan 50mg." },
+  { id: 2, date: "Jan 2025", title: "Annual Blood Panel", icon: FlaskConical, note: "Cholesterol: 185 mg/dL. All markers within normal range." },
+  { id: 3, date: "Oct 2024", title: "Chest X-Ray", icon: ScanLine, note: "Lungs clear. No abnormalities identified." },
 ];
 
 function HistoryEntry({ entry }) {
@@ -159,9 +160,167 @@ function HistoryEntry({ entry }) {
 
 // ─── Document row ─────────────────────────────────────────────────────────────
 const MOCK_DOCS = [
-  { id: 1, name: "Blood Test Results — March 2025.pdf",  size: "1.2 MB", type: "Lab Report", url: "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",    mimetype: "application/pdf" },
-  { id: 2, name: "Chest X-Ray — October 2024.png",      size: "3.8 MB", type: "Imaging",    url: "https://upload.wikimedia.org/wikipedia/commons/a/a7/Camponotus_flavomarginatus_ant.jpg", mimetype: "image/jpeg" },
+  { id: 1, name: "Blood Test Results — March 2025.pdf", size: "1.2 MB", type: "Lab Report", url: "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf", mimetype: "application/pdf" },
+  { id: 2, name: "Chest X-Ray — October 2024.png", size: "3.8 MB", type: "Imaging", url: "https://upload.wikimedia.org/wikipedia/commons/a/a7/Camponotus_flavomarginatus_ant.jpg", mimetype: "image/jpeg" },
 ];
+
+function formatMoneyFromCents(amountCents, currency) {
+  const cents = Number(amountCents);
+  if (!Number.isFinite(cents)) return "-";
+  const code = String(currency || "usd").toUpperCase();
+  const value = cents / 100;
+  try {
+    return new Intl.NumberFormat(undefined, { style: "currency", currency: code }).format(value);
+  } catch {
+    return `${value.toFixed(2)} ${code}`;
+  }
+}
+
+function pickPaymentForAppointment(payments, appointment) {
+  const list = Array.isArray(payments) ? payments : [];
+  if (!appointment) return list[0] || null;
+
+  const apptId = String(appointment.id || "").trim();
+  const succeeded = list.filter((p) => p?.status === "SUCCEEDED");
+
+  if (apptId) {
+    const exact = succeeded.find((p) => String(p?.description || "").includes(apptId));
+    if (exact) return exact;
+  }
+
+  // Fallback: pick the latest SUCCEEDED payment.
+  const toTime = (val) => {
+    if (!val) return 0;
+    const d = new Date(val);
+    const t = d.getTime();
+    return Number.isFinite(t) ? t : 0;
+  };
+
+  const succeededSorted = [...succeeded].sort((a, b) => {
+    const aTime = toTime(a?.paidAt) || toTime(a?.createdAt) || toTime(a?.updatedAt);
+    const bTime = toTime(b?.paidAt) || toTime(b?.createdAt) || toTime(b?.updatedAt);
+    return bTime - aTime;
+  });
+
+  return succeededSorted[0] || list[0] || null;
+}
+
+function downloadBillingReportPng({ appointment, payment }) {
+  const a = appointment || {};
+  const p = payment || {};
+
+  const canvas = document.createElement("canvas");
+  const width = 980;
+  const height = 620;
+  const scale = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+  canvas.width = Math.floor(width * scale);
+  canvas.height = Math.floor(height * scale);
+  canvas.style.width = `${width}px`;
+  canvas.style.height = `${height}px`;
+
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+  ctx.scale(scale, scale);
+
+  // Background
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, width, height);
+
+  // Header
+  ctx.fillStyle = "#0f172a";
+  ctx.font = "700 28px system-ui, -apple-system, Segoe UI, Roboto, sans-serif";
+  ctx.fillText("MediCare — Billing Report", 40, 56);
+
+  ctx.fillStyle = "#334155";
+  ctx.font = "500 14px system-ui, -apple-system, Segoe UI, Roboto, sans-serif";
+  const nowStr = new Date().toLocaleString();
+  ctx.fillText(`Generated: ${nowStr}`, 40, 80);
+
+  // Divider
+  ctx.strokeStyle = "#e2e8f0";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(40, 102);
+  ctx.lineTo(width - 40, 102);
+  ctx.stroke();
+
+  const leftX = 40;
+  const rightX = 520;
+  let y = 140;
+
+  const label = (x, yPos, text) => {
+    ctx.fillStyle = "#64748b";
+    ctx.font = "700 11px system-ui, -apple-system, Segoe UI, Roboto, sans-serif";
+    ctx.fillText(String(text).toUpperCase(), x, yPos);
+  };
+
+  const value = (x, yPos, text) => {
+    ctx.fillStyle = "#0f172a";
+    ctx.font = "500 14px system-ui, -apple-system, Segoe UI, Roboto, sans-serif";
+    const s = String(text ?? "-");
+    ctx.fillText(s, x, yPos);
+  };
+
+  // Appointment block
+  label(leftX, y, "Appointment");
+  y += 22;
+  value(leftX, y, `ID: ${a.id || "-"}`);
+  y += 20;
+  value(leftX, y, `Doctor: Dr. ${a.doctorName || "-"}`);
+  y += 20;
+  value(leftX, y, `Patient: ${a.patientName || "-"}`);
+  y += 20;
+  value(leftX, y, `Scheduled: ${a.scheduledAt ? new Date(a.scheduledAt).toLocaleString() : "-"}`);
+
+  // Payment block
+  let y2 = 140;
+  label(rightX, y2, "Payment");
+  y2 += 22;
+  value(rightX, y2, `Status: ${p.status || "-"}`);
+  y2 += 20;
+  value(rightX, y2, `Amount: ${formatMoneyFromCents(p.amount, p.currency)}`);
+  y2 += 20;
+  value(rightX, y2, `Paid At: ${p.paidAt ? new Date(p.paidAt).toLocaleString() : "-"}`);
+  y2 += 20;
+  value(rightX, y2, `Card: ${p.cardBrand ? `${p.cardBrand} •••• ${p.cardLast4 || ""}`.trim() : "-"}`);
+  y2 += 20;
+  value(rightX, y2, `Intent: ${p.stripePaymentIntentId || "-"}`);
+
+  // Description
+  ctx.fillStyle = "#64748b";
+  ctx.font = "700 11px system-ui, -apple-system, Segoe UI, Roboto, sans-serif";
+  ctx.fillText("DESCRIPTION", 40, 360);
+  ctx.fillStyle = "#0f172a";
+  ctx.font = "500 14px system-ui, -apple-system, Segoe UI, Roboto, sans-serif";
+  const desc = String(p.description || "-");
+  const maxWidth = width - 80;
+  const words = desc.split(/\s+/);
+  let line = "";
+  let dy = 386;
+  for (const w of words) {
+    const next = line ? `${line} ${w}` : w;
+    if (ctx.measureText(next).width > maxWidth) {
+      ctx.fillText(line, 40, dy);
+      dy += 18;
+      line = w;
+    } else {
+      line = next;
+    }
+  }
+  if (line) ctx.fillText(line, 40, dy);
+
+  canvas.toBlob((blob) => {
+    if (!blob) return;
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `billing-appointment-${a.id || "report"}.png`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }, "image/png");
+}
 
 function DocumentRow({ doc, onClick }) {
   return (
@@ -201,7 +360,7 @@ export default function AppointmentDetailsPage() {
   // States for dynamic functionality
   const [isEditingNotes, setIsEditingNotes] = useState(false);
   const [notesInput, setNotesInput] = useState("");
-  
+
   const [isAddingMed, setIsAddingMed] = useState(false);
   const [medData, setMedData] = useState({ name: "", dose: "", frequency: "", duration: "", type: "General" });
 
@@ -211,19 +370,45 @@ export default function AppointmentDetailsPage() {
   const prescriptionsState = useSelector((s) => selectPrescriptionsByAppointment(s, id));
   const reportsState = useSelector((s) => selectPatientReports(s, patientId));
   const fileInputRef = React.useRef(null);
-  
+
   const [medicalHistory, setMedicalHistory] = useState([]);
   const [historyFetched, setHistoryFetched] = useState(false);
 
+  const [billingOpen, setBillingOpen] = useState(false);
+  const [billingLoading, setBillingLoading] = useState(false);
+  const [billingError, setBillingError] = useState("");
+  const [billingPayment, setBillingPayment] = useState(null);
+
   useEffect(() => {
-    if (!appointment && fetchStatus === "idle") {
-      setFetchStatus("loading");
-      dispatch(fetchAppointmentById(id))
-        .unwrap()
-        .then(() => setFetchStatus("succeeded"))
-        .catch(() => setFetchStatus("failed"));
+    setFetchStatus("loading");
+    dispatch(fetchAppointmentById(id))
+      .unwrap()
+      .then(() => setFetchStatus("succeeded"))
+      .catch(() => setFetchStatus("failed"));
+  }, [id, dispatch]);
+
+  const openBilling = async () => {
+    if (isDoctor) return;
+    if (!userId) return;
+
+    setBillingOpen(true);
+    setBillingLoading(true);
+    setBillingError("");
+    setBillingPayment(null);
+
+    try {
+      const payments = await listUserPayments(userId);
+      const selected = pickPaymentForAppointment(payments, appointment);
+      setBillingPayment(selected);
+      if (!selected) {
+        setBillingError("No payment record found for this appointment yet.");
+      }
+    } catch (e) {
+      setBillingError(e?.response?.data?.message || e?.message || "Failed to load payment details");
+    } finally {
+      setBillingLoading(false);
     }
-  }, [id, appointment, fetchStatus, dispatch]);
+  };
 
   useEffect(() => {
     if (appointment && currentTab === "prescriptions" && prescriptionsState.status === "idle") {
@@ -268,12 +453,12 @@ export default function AppointmentDetailsPage() {
         medications: [medData]
       }
     }))
-    .unwrap()
-    .then(() => {
-      setIsAddingMed(false);
-      setMedData({ name: "", dose: "", frequency: "", duration: "", type: "General" });
-    })
-    .catch(console.error);
+      .unwrap()
+      .then(() => {
+        setIsAddingMed(false);
+        setMedData({ name: "", dose: "", frequency: "", duration: "", type: "General" });
+      })
+      .catch(console.error);
   };
 
   const handleFileUpload = (e) => {
@@ -374,7 +559,7 @@ export default function AppointmentDetailsPage() {
                   </div>
                 </div>
               </div>
-              
+
               <div>
                 <div className="flex flex-wrap items-center gap-3 mb-1.5">
                   <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
@@ -401,9 +586,11 @@ export default function AppointmentDetailsPage() {
                   <Phone className="h-4 w-4" /> Contact Clinic
                 </Button>
               )}
-              <Button variant="outline" className="gap-2 cursor-pointer">
-                <CreditCard className="h-4 w-4" /> Billing
-              </Button>
+              {!isDoctor ? (
+                <Button variant="outline" className="gap-2 cursor-pointer" onClick={openBilling}>
+                  <CreditCard className="h-4 w-4" /> Billing
+                </Button>
+              ) : null}
               {isDoctor && appointment.status === "CONFIRMED" && (
                 <Button variant="outline" className="gap-2 cursor-pointer">
                   <ClipboardEdit className="h-4 w-4" /> Write Notes
@@ -415,7 +602,7 @@ export default function AppointmentDetailsPage() {
           {/* Info chips row */}
           <div className="flex flex-wrap gap-3 mt-6">
             <InfoChip icon={Calendar} label="Date" value={formattedDate} />
-            <InfoChip icon={Clock}    label="Time" value={formattedTime}  highlight />
+            <InfoChip icon={Clock} label="Time" value={formattedTime} highlight />
             <InfoChip icon={isRemote ? Video : MapPin} label="Type" value={isRemote ? "Telemedicine" : "In-Clinic"} />
             {!isDoctor && <InfoChip icon={Stethoscope} label="Specialty" value={appointment.doctorSpecialty || "General Medicine"} />}
           </div>
@@ -426,10 +613,10 @@ export default function AppointmentDetailsPage() {
       <Tabs value={currentTab} onValueChange={(val) => setSearchParams({ tab: val }, { replace: true })} className="w-full">
         <TabsList className="w-full justify-start border-b rounded-none h-auto p-0 bg-transparent gap-1">
           {[
-            { val: "overview",      label: "Overview",        icon: Activity   },
-            { val: "prescriptions", label: "Prescriptions",   icon: Pill       },
-            { val: "history",       label: "Medical History", icon: History    },
-            { val: "documents",     label: "Documents",       icon: Paperclip  },
+            { val: "overview", label: "Overview", icon: Activity },
+            { val: "prescriptions", label: "Prescriptions", icon: Pill },
+            { val: "history", label: "Medical History", icon: History },
+            { val: "documents", label: "Documents", icon: Paperclip },
           ].map(({ val, label, icon: Icon }) => (
             <TabsTrigger
               key={val}
@@ -477,10 +664,10 @@ export default function AppointmentDetailsPage() {
                   <CardContent>
                     {isEditingNotes ? (
                       <div className="space-y-3">
-                        <Textarea 
-                          value={notesInput} 
-                          onChange={(e) => setNotesInput(e.target.value)} 
-                          placeholder="Enter clinical notes, diagnoses, and observations..." 
+                        <Textarea
+                          value={notesInput}
+                          onChange={(e) => setNotesInput(e.target.value)}
+                          placeholder="Enter clinical notes, diagnoses, and observations..."
                           className="min-h-[120px] text-sm"
                         />
                         <div className="flex justify-end gap-2">
@@ -542,9 +729,8 @@ export default function AppointmentDetailsPage() {
                     ].map(({ label, value, icon: Icon, done }, idx) => (
                       <div key={label} className="flex gap-3 pb-4 last:pb-0">
                         <div className="flex flex-col items-center">
-                          <div className={`h-7 w-7 rounded-full flex items-center justify-center shrink-0 border-2 ${
-                            done ? "bg-primary/10 border-primary/40" : "bg-muted border-muted"
-                          }`}>
+                          <div className={`h-7 w-7 rounded-full flex items-center justify-center shrink-0 border-2 ${done ? "bg-primary/10 border-primary/40" : "bg-muted border-muted"
+                            }`}>
                             <Icon className={`h-3.5 w-3.5 ${done ? "text-primary" : "text-muted-foreground"}`} />
                           </div>
                           {idx < 2 && <div className="w-px flex-1 bg-border mt-1 mb-1 min-h-[16px]" />}
@@ -580,9 +766,8 @@ export default function AppointmentDetailsPage() {
                       { text: "Write down your symptoms and questions", done: false },
                     ]).map(({ text, done }) => (
                       <div key={text} className="flex items-start gap-2.5">
-                        <div className={`h-4 w-4 rounded-full border-2 mt-0.5 shrink-0 flex items-center justify-center ${
-                          done ? "bg-primary border-primary" : "border-muted-foreground/30"
-                        }`}>
+                        <div className={`h-4 w-4 rounded-full border-2 mt-0.5 shrink-0 flex items-center justify-center ${done ? "bg-primary border-primary" : "border-muted-foreground/30"
+                          }`}>
                           {done && <CheckCircle2 className="h-3 w-3 text-primary-foreground" />}
                         </div>
                         <span className="text-xs text-muted-foreground leading-relaxed">{text}</span>
@@ -615,10 +800,10 @@ export default function AppointmentDetailsPage() {
                 {isAddingMed && (
                   <div className="p-4 border rounded-xl bg-muted/10 space-y-3 mb-4">
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                      <Input placeholder="Medication name" value={medData.name} onChange={(e) => setMedData({...medData, name: e.target.value})} className="col-span-2 md:col-span-1" />
-                      <Input placeholder="Dose (e.g. 500mg)" value={medData.dose} onChange={(e) => setMedData({...medData, dose: e.target.value})} />
-                      <Input placeholder="Frequency" value={medData.frequency} onChange={(e) => setMedData({...medData, frequency: e.target.value})} />
-                      <Input placeholder="Duration" value={medData.duration} onChange={(e) => setMedData({...medData, duration: e.target.value})} />
+                      <Input placeholder="Medication name" value={medData.name} onChange={(e) => setMedData({ ...medData, name: e.target.value })} className="col-span-2 md:col-span-1" />
+                      <Input placeholder="Dose (e.g. 500mg)" value={medData.dose} onChange={(e) => setMedData({ ...medData, dose: e.target.value })} />
+                      <Input placeholder="Frequency" value={medData.frequency} onChange={(e) => setMedData({ ...medData, frequency: e.target.value })} />
+                      <Input placeholder="Duration" value={medData.duration} onChange={(e) => setMedData({ ...medData, duration: e.target.value })} />
                     </div>
                     <div className="flex justify-end gap-2">
                       <Button variant="ghost" size="sm" onClick={() => setIsAddingMed(false)}>Cancel</Button>
@@ -628,9 +813,9 @@ export default function AppointmentDetailsPage() {
                 )}
                 {prescriptionsState.items?.flatMap(p => p.medications).length > 0 ? (
                   prescriptionsState.items.flatMap(p => p.medications).map((rx, idx) => (
-                    <PrescriptionRow 
-                      key={`${rx.name}-${idx}`} 
-                      rx={{ name: rx.name, dose: rx.dosage, frequency: rx.frequency, duration: rx.duration, type: "Prescribed" }} 
+                    <PrescriptionRow
+                      key={`${rx.name}-${idx}`}
+                      rx={{ name: rx.name, dose: rx.dosage, frequency: rx.frequency, duration: rx.duration, type: "Prescribed" }}
                     />
                   ))
                 ) : (
@@ -659,15 +844,15 @@ export default function AppointmentDetailsPage() {
                 {medicalHistory.length > 0 ? (
                   <div className="mt-2">
                     {medicalHistory.map((appt) => (
-                      <HistoryEntry 
-                        key={appt.id} 
-                        entry={{ 
-                          id: appt.id, 
-                          date: new Date(appt.scheduledAt).toLocaleDateString(undefined, {month: "short", year: "numeric"}), 
-                          title: `${appt.doctorSpecialty || 'General'} Consultation`, 
-                          icon: History, 
-                          note: appt.notes || appt.reason || 'No clinical notes available.' 
-                        }} 
+                      <HistoryEntry
+                        key={appt.id}
+                        entry={{
+                          id: appt.id,
+                          date: new Date(appt.scheduledAt).toLocaleDateString(undefined, { month: "short", year: "numeric" }),
+                          title: `${appt.doctorSpecialty || 'General'} Consultation`,
+                          icon: History,
+                          note: appt.notes || appt.reason || 'No clinical notes available.'
+                        }}
                       />
                     ))}
                   </div>
@@ -691,12 +876,12 @@ export default function AppointmentDetailsPage() {
                   </CardTitle>
                   <p className="text-xs text-muted-foreground mt-0.5">Lab results, X-rays, and medical certificates</p>
                 </div>
-                <input 
-                  type="file" 
-                  ref={fileInputRef} 
-                  className="hidden" 
-                  onChange={handleFileUpload} 
-                  accept=".pdf,image/png,image/jpeg" 
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  className="hidden"
+                  onChange={handleFileUpload}
+                  accept=".pdf,image/png,image/jpeg"
                 />
                 <Button onClick={() => fileInputRef.current?.click()} size="sm" variant="outline" className="gap-2 text-xs cursor-pointer">
                   <Plus className="h-3.5 w-3.5" /> Upload
@@ -705,20 +890,21 @@ export default function AppointmentDetailsPage() {
               <CardContent className="space-y-3">
                 {reportsState.items?.length > 0 ? (
                   reportsState.items.map((doc) => (
-                    <DocumentRow 
-                      key={doc.id} 
-                      doc={{ 
-                        name: doc.displayFileName || doc.originalFileName, 
-                        size: (doc.size / 1024 / 1024).toFixed(2) + ' MB', 
-                        type: doc.contentType?.includes('pdf') ? "Document" : "Image", 
-                        url: `${import.meta.env.VITE_API_BASE_URL || "/api"}/patients/${patientId}/reports/${doc.id}/download`, 
-                        mimetype: doc.contentType 
-                      }} 
-                      onClick={() => setViewerDoc({...doc, 
-                        name: doc.displayFileName || doc.originalFileName, 
+                    <DocumentRow
+                      key={doc.id}
+                      doc={{
+                        name: doc.displayFileName || doc.originalFileName,
+                        size: (doc.size / 1024 / 1024).toFixed(2) + ' MB',
+                        type: doc.contentType?.includes('pdf') ? "Document" : "Image",
                         url: `${import.meta.env.VITE_API_BASE_URL || "/api"}/patients/${patientId}/reports/${doc.id}/download`,
                         mimetype: doc.contentType
-                      })} 
+                      }}
+                      onClick={() => setViewerDoc({
+                        ...doc,
+                        name: doc.displayFileName || doc.originalFileName,
+                        url: `${import.meta.env.VITE_API_BASE_URL || "/api"}/patients/${patientId}/reports/${doc.id}/download`,
+                        mimetype: doc.contentType
+                      })}
                     />
                   ))
                 ) : (
@@ -736,6 +922,73 @@ export default function AppointmentDetailsPage() {
 
         </div>
       </Tabs>
+
+      {billingOpen ? (
+        <div className="fixed inset-0 z-50">
+          <div
+            className="absolute inset-0 bg-black/40"
+            onClick={() => setBillingOpen(false)}
+            aria-hidden="true"
+          />
+          <div className="absolute inset-0 flex items-center justify-center p-4">
+            <div className="w-full max-w-2xl" onClick={(e) => e.stopPropagation()}>
+              <Card className="border shadow-sm max-h-[85vh] overflow-auto">
+                <CardHeader className="flex flex-row items-start justify-between gap-4">
+                  <div className="space-y-1">
+                    <CardTitle className="text-lg">Billing Report</CardTitle>
+                    <p className="text-sm text-muted-foreground">Payment details for this appointment</p>
+                  </div>
+                  <Button variant="ghost" className="cursor-pointer" onClick={() => setBillingOpen(false)}>
+                    Close
+                  </Button>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {billingLoading ? (
+                    <div className="text-sm text-muted-foreground">Loading payment details…</div>
+                  ) : billingError ? (
+                    <div className="text-sm text-destructive">{billingError}</div>
+                  ) : null}
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="rounded-xl border bg-muted/20 p-4 space-y-2">
+                      <p className="text-[10px] font-semibold text-muted-foreground tracking-widest uppercase">Appointment</p>
+                      <p className="text-sm"><span className="text-muted-foreground">ID:</span> <span className="font-medium">{appointment?.id}</span></p>
+                      <p className="text-sm"><span className="text-muted-foreground">Doctor:</span> <span className="font-medium">Dr. {appointment?.doctorName}</span></p>
+                      <p className="text-sm"><span className="text-muted-foreground">Patient:</span> <span className="font-medium">{appointment?.patientName}</span></p>
+                      <p className="text-sm"><span className="text-muted-foreground">Scheduled:</span> <span className="font-medium">{appointment?.scheduledAt ? new Date(appointment.scheduledAt).toLocaleString() : "-"}</span></p>
+                    </div>
+
+                    <div className="rounded-xl border bg-muted/20 p-4 space-y-2">
+                      <p className="text-[10px] font-semibold text-muted-foreground tracking-widest uppercase">Payment</p>
+                      <p className="text-sm"><span className="text-muted-foreground">Status:</span> <span className="font-medium">{billingPayment?.status || "-"}</span></p>
+                      <p className="text-sm"><span className="text-muted-foreground">Amount:</span> <span className="font-medium">{formatMoneyFromCents(billingPayment?.amount, billingPayment?.currency)}</span></p>
+                      <p className="text-sm"><span className="text-muted-foreground">Paid At:</span> <span className="font-medium">{billingPayment?.paidAt ? new Date(billingPayment.paidAt).toLocaleString() : "-"}</span></p>
+                      <p className="text-sm"><span className="text-muted-foreground">Card:</span> <span className="font-medium">{billingPayment?.cardBrand ? `${billingPayment.cardBrand} •••• ${billingPayment.cardLast4 || ""}`.trim() : "-"}</span></p>
+                      <p className="text-sm break-all"><span className="text-muted-foreground">Intent:</span> <span className="font-medium">{billingPayment?.stripePaymentIntentId || "-"}</span></p>
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border p-4 space-y-2">
+                    <p className="text-[10px] font-semibold text-muted-foreground tracking-widest uppercase">Description</p>
+                    <p className="text-sm text-foreground/90 break-words">{billingPayment?.description || "-"}</p>
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2">
+                    <Button
+                      variant="outline"
+                      className="cursor-pointer"
+                      disabled={!billingPayment}
+                      onClick={() => downloadBillingReportPng({ appointment, payment: billingPayment })}
+                    >
+                      Download PNG
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <DocumentViewer
         isOpen={!!viewerDoc}
