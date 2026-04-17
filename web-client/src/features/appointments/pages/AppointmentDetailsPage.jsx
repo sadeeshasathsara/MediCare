@@ -640,13 +640,13 @@ export default function AppointmentDetailsPage() {
           ].map(({ val, label, icon }) => {
             const Icon = icon
             return (
-            <TabsTrigger
-              key={val}
-              value={val}
-              className="cursor-pointer inline-flex items-center gap-2 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent py-3 px-4 data-[state=active]:shadow-none text-sm font-medium text-muted-foreground data-[state=active]:text-primary transition-colors"
-            >
-              <Icon className="h-4 w-4" /> {label}
-            </TabsTrigger>
+              <TabsTrigger
+                key={val}
+                value={val}
+                className="cursor-pointer inline-flex items-center gap-2 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent py-3 px-4 data-[state=active]:shadow-none text-sm font-medium text-muted-foreground data-[state=active]:text-primary transition-colors"
+              >
+                <Icon className="h-4 w-4" /> {label}
+              </TabsTrigger>
             )
           })}
         </TabsList>
@@ -752,19 +752,19 @@ export default function AppointmentDetailsPage() {
                     ].map(({ label, value, icon, done }, idx) => {
                       const Icon = icon
                       return (
-                      <div key={label} className="flex gap-3 pb-4 last:pb-0">
-                        <div className="flex flex-col items-center">
-                          <div className={`h-7 w-7 rounded-full flex items-center justify-center shrink-0 border-2 ${done ? "bg-primary/10 border-primary/40" : "bg-muted border-muted"
-                            }`}>
-                            <Icon className={`h-3.5 w-3.5 ${done ? "text-primary" : "text-muted-foreground"}`} />
+                        <div key={label} className="flex gap-3 pb-4 last:pb-0">
+                          <div className="flex flex-col items-center">
+                            <div className={`h-7 w-7 rounded-full flex items-center justify-center shrink-0 border-2 ${done ? "bg-primary/10 border-primary/40" : "bg-muted border-muted"
+                              }`}>
+                              <Icon className={`h-3.5 w-3.5 ${done ? "text-primary" : "text-muted-foreground"}`} />
+                            </div>
+                            {idx < 2 && <div className="w-px flex-1 bg-border mt-1 mb-1 min-h-[16px]" />}
                           </div>
-                          {idx < 2 && <div className="w-px flex-1 bg-border mt-1 mb-1 min-h-[16px]" />}
+                          <div className="pt-1 pb-2">
+                            <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">{label}</p>
+                            <div className="text-xs font-medium mt-0.5">{value}</div>
+                          </div>
                         </div>
-                        <div className="pt-1 pb-2">
-                          <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">{label}</p>
-                          <div className="text-xs font-medium mt-0.5">{value}</div>
-                        </div>
-                      </div>
                       )
                     })}
                   </CardContent>

@@ -257,9 +257,9 @@ export default function SymptomChatBox({ profile, initialPrompt, isLocked }) {
 
       // Auto-submit if navigated from dashboard hero
       if (initialPrompt && initialPrompt.trim()) {
-         window.setTimeout(() => {
-           performSubmit(initialPrompt.trim(), [welcomeMsg])
-         }, 0)
+        window.setTimeout(() => {
+          performSubmit(initialPrompt.trim(), [welcomeMsg])
+        }, 0)
       }
     }
   }, [profile, messages.length, setMessages, initialPrompt])
