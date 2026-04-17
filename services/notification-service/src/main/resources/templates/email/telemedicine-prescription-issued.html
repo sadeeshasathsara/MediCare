@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Telemedicine Prescription Issued</title>
+</head>
+<body style="font-family: Arial, sans-serif; color: #1f2937; line-height: 1.5;">
+<h2 style="margin-bottom: 8px;">Telemedicine Prescription Issued</h2>
+<p>Hi {{recipientName}},</p>
+<p>A prescription has been issued after your telemedicine consultation.</p>
+<ul>
+    <li><strong>Appointment ID:</strong> {{appointmentId}}</li>
+    <li><strong>Prescription ID:</strong> {{prescriptionId}}</li>
+    <li><strong>Consultation ID:</strong> {{consultationId}}</li>
+    <li><strong>Issued at:</strong> {{issuedAt}}</li>
+    <li><strong>Expires at:</strong> {{expiresAt}}</li>
+    <li><strong>{{counterpartRole}}:</strong> {{counterpartName}}</li>
+</ul>
+<p>Thank you,<br>MediCare Team</p>
+</body>
+</html>

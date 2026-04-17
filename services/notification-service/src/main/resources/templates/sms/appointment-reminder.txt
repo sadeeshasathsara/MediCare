@@ -1,0 +1,1 @@
+MediCare reminder: Appointment {{appointmentId}} starts in about 1 hour at {{appointmentDateTime}} via {{channel}} with {{counterpartRole}} {{counterpartName}}.

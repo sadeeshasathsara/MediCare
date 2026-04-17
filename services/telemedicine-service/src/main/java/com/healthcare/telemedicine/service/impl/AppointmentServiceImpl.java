@@ -22,6 +22,7 @@ import com.healthcare.telemedicine.integration.appointment.AppointmentGateway;
 import com.healthcare.telemedicine.integration.appointment.ExternalAppointment;
 import com.healthcare.telemedicine.integration.appointment.ExternalAppointmentStatus;
 import com.healthcare.telemedicine.integration.appointment.TelemedicineAppointmentAdapter;
+import com.healthcare.telemedicine.integration.notification.TelemedicineNotificationClient;
 import com.healthcare.telemedicine.model.ConsultationSession;
 import com.healthcare.telemedicine.model.enums.SessionStatus;
 import com.healthcare.telemedicine.repository.ConsultationSessionRepository;
@@ -39,18 +40,21 @@ public class AppointmentServiceImpl implements AppointmentService {
     private final ConsultationSessionRepository sessionRepository;
     private final TelemedicineEventPublisher eventPublisher;
     private final AuditLogService auditLogService;
+    private final TelemedicineNotificationClient notificationClient;
 
     public AppointmentServiceImpl(
             AppointmentGateway appointmentGateway,
             TelemedicineAppointmentAdapter appointmentAdapter,
             ConsultationSessionRepository sessionRepository,
             TelemedicineEventPublisher eventPublisher,
-            AuditLogService auditLogService) {
+            AuditLogService auditLogService,
+            TelemedicineNotificationClient notificationClient) {
         this.appointmentGateway = appointmentGateway;
         this.appointmentAdapter = appointmentAdapter;
         this.sessionRepository = sessionRepository;
         this.eventPublisher = eventPublisher;
         this.auditLogService = auditLogService;
+        this.notificationClient = notificationClient;
     }
 
     @Override
@@ -116,6 +120,7 @@ public class AppointmentServiceImpl implements AppointmentService {
         TelemedicineAppointmentResponse mapped = appointmentAdapter.toTelemedicineAppointment(updated);
         auditStatusChange(mapped, previousStatus, mapped.getStatus(), actorId, "appointment.accepted");
         eventPublisher.publishAppointmentStatusUpdated(mapped);
+        notificationClient.notifyAppointmentStatus(mapped);
         return mapped;
     }
 
@@ -144,6 +149,7 @@ public class AppointmentServiceImpl implements AppointmentService {
         cancelLinkedSession(mapped, actorId, "appointment.rejected");
         auditStatusChange(mapped, previousStatus, mapped.getStatus(), actorId, "appointment.rejected");
         eventPublisher.publishAppointmentStatusUpdated(mapped);
+        notificationClient.notifyAppointmentStatus(mapped);
         return mapped;
     }
 
@@ -183,6 +189,7 @@ public class AppointmentServiceImpl implements AppointmentService {
         cancelLinkedSession(mapped, actorId, "appointment.rescheduled");
         auditStatusChange(mapped, previousStatus, mapped.getStatus(), actorId, "appointment.rescheduled");
         eventPublisher.publishAppointmentStatusUpdated(mapped);
+        notificationClient.notifyAppointmentStatus(mapped);
         return mapped;
     }
 
