@@ -185,7 +185,7 @@ function OptionChips({ options, onSelect, disabled }) {
   )
 }
 
-export default function SymptomChatBox({ profile, onBookAppointment }) {
+export default function SymptomChatBox({ profile, onBookAppointment, initialPrompt }) {
   const { 
     loading, 
     error, 
@@ -201,17 +201,49 @@ export default function SymptomChatBox({ profile, onBookAppointment }) {
   const [input, setInput] = useState('')
   const [showTextInput, setShowTextInput] = useState(true)
   const bottomRef = useRef(null)
+  const initializedRef = useRef(false)
+
+  const performSubmit = async (text, currentHistory) => {
+    const trimmed = text.trim()
+    if (!trimmed) return
+
+    const userMsg = { role: 'user', content: trimmed }
+    const newHistory = [...currentHistory, userMsg]
+    
+    // Add user message to UI immediately
+    setMessages(newHistory)
+    setInput('')
+    setShowTextInput(true)
+
+    try {
+      await submitCheck({
+        symptoms: trimmed,
+        age: profile?.dob ? calculateAge(profile.dob) : null,
+        gender: profile?.gender || null
+      }, newHistory)
+    } catch (err) {
+      console.error('Symptom check failed:', err)
+    }
+  }
 
   // Initialize with welcome message if empty
   useEffect(() => {
-    if (messages.length === 0) {
+    if (messages.length === 0 && !initializedRef.current) {
+      initializedRef.current = true
       const name = profile?.name?.split(' ')[0] || 'there'
-      setMessages([{
+      const welcomeMsg = {
         role: 'assistant',
         content: `Hi ${name}! I'm your MediCare AI assistant 👋 Tell me how you're feeling today — describe any symptoms you're experiencing and I'll help recommend the right specialist for you.`
-      }])
+      }
+      
+      setMessages([welcomeMsg])
+
+      // Auto-submit if navigated from dashboard hero
+      if (initialPrompt && initialPrompt.trim()) {
+         performSubmit(initialPrompt.trim(), [welcomeMsg])
+      }
     }
-  }, [profile, messages.length, setMessages])
+  }, [profile, messages.length, setMessages, initialPrompt])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -226,30 +258,11 @@ export default function SymptomChatBox({ profile, onBookAppointment }) {
     }
   }, [latestOptions])
 
-  const sendMessage = async (text) => {
-    const trimmed = text.trim()
-    if (!trimmed || loading) return
-
-    const userMsg = { role: 'user', content: trimmed }
-    const currentHistory = [...messages]
-    
-    // Add user message to UI immediately
-    setMessages(prev => [...prev, userMsg])
-    setInput('')
-    setShowTextInput(true)
-
-    try {
-      await submitCheck({
-        symptoms: trimmed,
-        age: profile?.dob ? calculateAge(profile.dob) : null,
-        gender: profile?.gender || null
-      }, [...currentHistory, userMsg])
-    } catch (err) {
-      console.error('Symptom check failed:', err)
-    }
+  const handleSend = () => {
+     if (input.trim() && !loading) {
+         performSubmit(input, messages)
+     }
   }
-
-  const handleSend = () => sendMessage(input)
 
   const handleOptionSelect = (option, isOther) => {
     if (isOther) {
@@ -261,7 +274,7 @@ export default function SymptomChatBox({ profile, onBookAppointment }) {
         textarea?.focus()
       }, 100)
     } else {
-      sendMessage(option)
+      performSubmit(option, messages)
     }
   }
 

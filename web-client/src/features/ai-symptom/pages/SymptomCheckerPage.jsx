@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import {
   Sparkles,
   BrainCircuit,
@@ -39,9 +39,12 @@ const FEATURES = [
 
 export default function SymptomCheckerPage() {
   const navigate = useNavigate()
+  const location = useLocation()
   const { user } = useAuth()
   const [profile, setProfile] = useState(null)
   const userId = user?.id || ''
+  
+  const initialPrompt = location.state?.initialPrompt || ''
 
   useEffect(() => {
     if (userId) {
@@ -124,6 +127,7 @@ export default function SymptomCheckerPage() {
         <SymptomChatBox 
           profile={profile} 
           onBookAppointment={handleBookAppointment}
+          initialPrompt={initialPrompt}
         />
       </section>
 

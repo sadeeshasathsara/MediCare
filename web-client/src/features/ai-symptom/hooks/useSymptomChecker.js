@@ -17,12 +17,28 @@ function pickRecommendedDoctors(allDoctors, symptomResult) {
 
   const recommendedSpecialty = normalizeSpecialty(symptomResult?.recommendedSpecialty)
   if (!recommendedSpecialty) {
-    return []
+    return allDoctors.slice(0, 3)
   }
 
-  return allDoctors.filter(
+  // Exact match
+  const matches = allDoctors.filter(
     (doctor) => normalizeSpecialty(doctor?.specialty) === recommendedSpecialty,
   )
+  
+  if (matches.length > 0) {
+    return matches
+  }
+
+  // Fallback 1: Try to match "General Practice"
+  const generalMatches = allDoctors.filter(
+    (doctor) => normalizeSpecialty(doctor?.specialty).includes('general')
+  )
+  if (generalMatches.length > 0) {
+    return generalMatches.slice(0, 3)
+  }
+
+  // Fallback 2: Just return any 3 doctors
+  return allDoctors.slice(0, 3)
 }
 
 export function useSymptomChecker() {

@@ -145,13 +145,6 @@ public class OpenAiSymptomService {
 
             boolean diagFlag = structuredResponse.path("isDiagnostic").asBoolean(false);
 
-            // AI fallback: if it populated conditions/specialty but forgot the flag
-            if (!diagFlag && structuredResponse.has("possibleConditions") && structuredResponse.path("possibleConditions").isArray() && structuredResponse.path("possibleConditions").size() > 0) {
-                diagFlag = true;
-            }
-            if (!diagFlag && structuredResponse.has("recommendedSpecialty") && !structuredResponse.path("recommendedSpecialty").asText("").isBlank()) {
-                diagFlag = true;
-            }
             // Force diagnosis after enough turns
             if (!diagFlag && forceDiagnosis) {
                 diagFlag = true;
