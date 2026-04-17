@@ -13,6 +13,7 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.healthcare.telemedicine.exception.ApiException;
@@ -24,9 +25,9 @@ import com.healthcare.telemedicine.exception.NotFoundException;
 @Component
 public class AppointmentGatewayRestClient implements AppointmentGateway {
 
-    private static final ParameterizedTypeReference<List<ExternalAppointment>> LIST_TYPE =
-            new ParameterizedTypeReference<>() {
-            };
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private record ExternalAppointmentPage(List<ExternalAppointment> content) {
+    }
 
     private final RestClient restClient;
     private final ObjectMapper objectMapper;
@@ -42,15 +43,19 @@ public class AppointmentGatewayRestClient implements AppointmentGateway {
     @Override
     public List<ExternalAppointment> listByDoctorId(String doctorId, String actorId, String actorRole) {
         try {
-            List<ExternalAppointment> appointments = restClient.get()
+            ExternalAppointmentPage page = restClient.get()
                     .uri(uriBuilder -> uriBuilder
                             .path("/appointments")
                             .queryParam("doctorId", doctorId)
                             .build())
                     .headers(headers -> applyActorHeaders(headers, actorId, actorRole))
                     .retrieve()
-                    .body(LIST_TYPE);
-            return appointments == null ? List.of() : appointments;
+                    .body(ExternalAppointmentPage.class);
+
+            if (page == null || page.content() == null) {
+                return List.of();
+            }
+            return page.content();
         } catch (RestClientResponseException ex) {
             throw translate(ex, "Unable to fetch doctor appointments from appointment-service.");
         } catch (RestClientException ex) {
@@ -61,15 +66,19 @@ public class AppointmentGatewayRestClient implements AppointmentGateway {
     @Override
     public List<ExternalAppointment> listByPatientId(String patientId, String actorId, String actorRole) {
         try {
-            List<ExternalAppointment> appointments = restClient.get()
+            ExternalAppointmentPage page = restClient.get()
                     .uri(uriBuilder -> uriBuilder
                             .path("/appointments")
                             .queryParam("patientId", patientId)
                             .build())
                     .headers(headers -> applyActorHeaders(headers, actorId, actorRole))
                     .retrieve()
-                    .body(LIST_TYPE);
-            return appointments == null ? List.of() : appointments;
+                    .body(ExternalAppointmentPage.class);
+
+            if (page == null || page.content() == null) {
+                return List.of();
+            }
+            return page.content();
         } catch (RestClientResponseException ex) {
             throw translate(ex, "Unable to fetch patient appointments from appointment-service.");
         } catch (RestClientException ex) {

@@ -8,7 +8,7 @@ import {
   useState,
 } from 'react'
 import { RefreshCcw } from 'lucide-react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 
 import { useAuth } from '@/context/AuthContext'
 import AppointmentDetailsPanel from '@/features/telemedicine/components/AppointmentDetailsPanel'
@@ -135,6 +135,7 @@ function actionError(kind, error) {
 export default function TelemedicinePage() {
   const navigate = useNavigate()
   const { appointmentId: routeAppointmentId } = useParams()
+  const [searchParams] = useSearchParams()
 
   const { user, accessToken } = useAuth()
   const doctorId = useMemo(() => {
@@ -171,18 +172,32 @@ export default function TelemedicinePage() {
   const [prescriptionActionState, setPrescriptionActionState] = useState(EMPTY_ACTION_STATE)
   const [consultationModalOpen, setConsultationModalOpen] = useState(false)
 
+  const autoStartTriggeredRef = useRef(false)
+  const autoStartRequested = searchParams.get('autostart') === '1'
+  const popupMode = searchParams.get('popup') === '1'
+
   const enrichedAppointments = useMemo(
     () => appointments.map((appointment) => enrichTelemedicineAppointment(appointment, user, doctorId)),
     [appointments, doctorId, user]
   )
   const deferredAppointments = useDeferredValue(enrichedAppointments)
   const selectedAppointment = enrichedAppointments.find((appointment) => appointment.id === selectedAppointmentId) || null
-  const selectedSession = selectedAppointment ? sessionsByAppointmentId[selectedAppointment.id] || null : null
+  const selectedAppointmentKey = useMemo(() => {
+    const direct = normalizeId(selectedAppointment?.id)
+    if (direct) return direct
+
+    const fromSelection = normalizeId(selectedAppointmentId)
+    if (fromSelection) return fromSelection
+
+    return normalizeId(routeAppointmentId)
+  }, [routeAppointmentId, selectedAppointment?.id, selectedAppointmentId])
+
+  const selectedSession = selectedAppointmentKey ? sessionsByAppointmentId[selectedAppointmentKey] || null : null
   const selectedReadiness = selectedSession ? readinessBySessionId[selectedSession.id] || null : null
   const selectedConsultation = selectedSession ? consultationsBySessionId[selectedSession.id] || null : null
   const selectedPrescriptions = selectedConsultation ? prescriptionsByConsultationId[selectedConsultation.id] || [] : []
   const selectedSessionId = selectedSession?.id || null
-  const selectedSessionAppointmentId = selectedSession?.appointmentId || null
+  const selectedSessionAppointmentId = selectedSession?.appointmentId || selectedAppointmentKey || null
   const selectedSessionStatus = selectedSession?.sessionStatus || null
   const appointmentIdForSessionCreation = useMemo(() => {
     const routeId = normalizeId(routeAppointmentId)
@@ -252,7 +267,20 @@ export default function TelemedicinePage() {
     try {
       const sessions = await listSessions()
       const nextSessionMap = sessions.reduce((map, session) => {
-        map[session.appointmentId] = session
+        const key = normalizeId(session?.appointmentId)
+        if (!key) return map
+
+        const current = map[key]
+        if (!current) {
+          map[key] = session
+          return map
+        }
+
+        const currentCreatedAt = new Date(current?.createdAt || 0).getTime()
+        const candidateCreatedAt = new Date(session?.createdAt || 0).getTime()
+        if (candidateCreatedAt >= currentCreatedAt) {
+          map[key] = session
+        }
         return map
       }, {})
 
@@ -319,6 +347,106 @@ export default function TelemedicinePage() {
     }
   }, [])
 
+  useEffect(() => {
+    if (!autoStartRequested) return
+
+    const appointmentId = normalizeId(routeAppointmentId)
+    if (!appointmentId) return
+
+    if (autoStartTriggeredRef.current) return
+    autoStartTriggeredRef.current = true
+
+    let cancelled = false
+
+    async function autoStart() {
+      setSessionActionState(actionLoading('autostart'))
+
+      try {
+        const existingSession = await refreshSessionForAppointment(appointmentId, { showLoading: false })
+        let session = existingSession
+
+        if (!session) {
+          session = await createSession(appointmentId)
+          startTransition(() => {
+            setSessionsByAppointmentId((current) => ({
+              ...current,
+              [appointmentId]: session,
+            }))
+          })
+        }
+
+        const status = String(session?.sessionStatus || '').toUpperCase()
+        if (['COMPLETED', 'MISSED', 'CANCELLED'].includes(status)) {
+          throw new Error('This consultation session cannot be started.')
+        }
+
+        const joinInfo = await getJoinToken(session.id, 'doctor', true)
+        if (!cancelled) {
+          setDoctorJoinInfo(joinInfo)
+        }
+
+        const liveSession = status === 'LIVE' ? session : await startSession(session.id)
+        if (!cancelled) {
+          startTransition(() => {
+            setSessionsByAppointmentId((current) => ({
+              ...current,
+              [appointmentId]: liveSession,
+            }))
+          })
+        }
+
+        await refreshReadinessForSession(liveSession)
+
+        if (!cancelled) {
+          if (!popupMode) {
+            setConsultationModalOpen(true)
+          }
+          setSessionActionState(actionSuccess('autostart', 'Consultation started.'))
+          navigate(`/doctor/telemedicine/${appointmentId}${popupMode ? '?popup=1' : ''}`, { replace: true })
+        }
+      } catch (error) {
+        if (cancelled) return
+        setSessionActionState(actionError('autostart', getErrorMessage(error, 'Unable to start the consultation.')))
+      }
+    }
+
+    autoStart()
+    return () => {
+      cancelled = true
+    }
+  }, [
+    autoStartRequested,
+    navigate,
+    popupMode,
+    refreshReadinessForSession,
+    refreshSessionForAppointment,
+    routeAppointmentId,
+  ])
+
+  useEffect(() => {
+    if (!popupMode) return
+    if (!selectedSession?.id) return
+    if (doctorJoinInfo && doctorJoinInfo.sessionId === selectedSession.id) return
+
+    let cancelled = false
+
+    async function ensureJoinAccess() {
+      try {
+        const joinInfo = await getJoinToken(selectedSession.id, 'doctor', true)
+        if (!cancelled) {
+          setDoctorJoinInfo(joinInfo)
+        }
+      } catch {
+        // Surface errors via existing action panels/state; popup mode will still show session status.
+      }
+    }
+
+    ensureJoinAccess()
+    return () => {
+      cancelled = true
+    }
+  }, [doctorJoinInfo, popupMode, selectedSession?.id])
+
   const refreshConsultationForSession = useCallback(async (session) => {
     if (!session?.id) return null
 
@@ -363,13 +491,14 @@ export default function TelemedicinePage() {
   }, [refreshAppointments, routeAppointmentId])
 
   useEffect(() => {
-    if (!selectedAppointment?.id) {
+    const appointmentKey = normalizeId(selectedAppointment?.id || selectedAppointmentId || routeAppointmentId)
+    if (!appointmentKey) {
       setSessionError('')
       return
     }
 
-    refreshSessionForAppointment(selectedAppointment.id)
-  }, [refreshSessionForAppointment, selectedAppointment?.id])
+    refreshSessionForAppointment(appointmentKey)
+  }, [refreshSessionForAppointment, routeAppointmentId, selectedAppointment?.id, selectedAppointmentId])
 
   useEffect(() => {
     if (!selectedSessionId || !READY_POLL_STATUSES.has(selectedSessionStatus)) {
@@ -506,11 +635,12 @@ export default function TelemedicinePage() {
   }
 
   const handleRefreshSelectedSession = async () => {
-    if (!selectedAppointment?.id) return
+    const appointmentKey = normalizeId(selectedSessionAppointmentId)
+    if (!appointmentKey) return
 
     setSessionActionState(actionLoading('refresh'))
 
-    const refreshedSession = await refreshSessionForAppointment(selectedAppointment.id)
+    const refreshedSession = await refreshSessionForAppointment(appointmentKey)
     if (refreshedSession !== undefined) {
       setSessionActionState(actionSuccess('refresh', 'Session details refreshed.'))
     } else {
@@ -530,14 +660,17 @@ export default function TelemedicinePage() {
   }
 
   const handleGenerateDoctorJoin = async () => {
-    if (!selectedSession || !selectedAppointment) return
+    if (!selectedSession) return
+
+    const appointmentKey = normalizeId(selectedSession.appointmentId || selectedSessionAppointmentId)
+    if (!appointmentKey) return
 
     setSessionActionState(actionLoading('join'))
 
     try {
       const joinInfo = await getJoinToken(selectedSession.id, 'doctor', true)
       setDoctorJoinInfo(joinInfo)
-      await refreshSessionForAppointment(selectedAppointment.id, { showLoading: false })
+      await refreshSessionForAppointment(appointmentKey, { showLoading: false })
       await refreshReadinessForSession(selectedSession)
       setSessionActionState(
         actionSuccess(
@@ -553,7 +686,10 @@ export default function TelemedicinePage() {
   }
 
   const handleStartSession = async () => {
-    if (!selectedSession || !selectedAppointment) return
+    if (!selectedSession) return
+
+    const appointmentKey = normalizeId(selectedSession.appointmentId || selectedSessionAppointmentId)
+    if (!appointmentKey) return
 
     setSessionActionState(actionLoading('start'))
 
@@ -568,13 +704,22 @@ export default function TelemedicinePage() {
       startTransition(() => {
         setSessionsByAppointmentId((current) => ({
           ...current,
-          [selectedAppointment.id]: updatedSession,
+          [appointmentKey]: updatedSession,
         }))
         if (joinInfo) {
           setDoctorJoinInfo(joinInfo)
         }
       })
       await refreshReadinessForSession(updatedSession)
+      if (!popupMode) {
+        const appointmentKeyForUrl = normalizeId(updatedSession.appointmentId || appointmentKey)
+        if (appointmentKeyForUrl) {
+          window.open(`/doctor/telemedicine/${appointmentKeyForUrl}?autostart=1&popup=1`, '_blank')
+        }
+        setSessionActionState(actionSuccess('start', 'Session marked as live. Opening the video call in a new window...'))
+        return
+      }
+
       setConsultationModalOpen(true)
       setSessionActionState(actionSuccess('start', 'Session marked as live. Consultation workspace opened.'))
     } catch (error) {
@@ -583,7 +728,10 @@ export default function TelemedicinePage() {
   }
 
   const handleEndSession = async () => {
-    if (!selectedSession || !selectedAppointment) return
+    if (!selectedSession) return
+
+    const appointmentKey = normalizeId(selectedSession.appointmentId || selectedSessionAppointmentId)
+    if (!appointmentKey) return
 
     setSessionActionState(actionLoading('end'))
 
@@ -592,7 +740,7 @@ export default function TelemedicinePage() {
       startTransition(() => {
         setSessionsByAppointmentId((current) => ({
           ...current,
-          [selectedAppointment.id]: updatedSession,
+          [appointmentKey]: updatedSession,
         }))
       })
       await refreshConsultationForSession(updatedSession)
@@ -695,6 +843,69 @@ export default function TelemedicinePage() {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }, [navigate])
 
+  if (popupMode) {
+    return (
+      <div className="flex h-screen min-h-0 flex-col bg-[hsl(var(--background))]">
+        <div
+          className="flex items-center justify-between border-b px-4 py-3 lg:px-6"
+          style={{ borderColor: 'hsl(var(--border))' }}
+        >
+          <div className="min-w-0">
+            <p className="text-xs uppercase tracking-[0.18em]" style={{ color: 'hsl(var(--muted-foreground))' }}>
+              Doctor video consultation
+            </p>
+            <p className="mt-1 truncate text-base font-semibold" style={{ color: 'hsl(var(--foreground))' }}>
+              {selectedSession?.jitsiRoomId || selectedSession?.id || normalizeId(routeAppointmentId) || 'Consultation'}
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {selectedSession?.sessionStatus ? <StatusBadge status={selectedSession.sessionStatus} /> : null}
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="inline-flex items-center justify-center rounded-2xl border px-4 py-2 text-sm font-semibold transition hover:bg-black/4 dark:hover:bg-white/6"
+              style={{ borderColor: 'hsl(var(--border))', color: 'hsl(var(--foreground))' }}
+            >
+              <RefreshCcw className="mr-2 h-4 w-4" />
+              Refresh
+            </button>
+          </div>
+        </div>
+
+        {sessionActionState.error ? (
+          <div className="p-4">
+            <FeatureNotice tone="error" title="Unable to start consultation" message={sessionActionState.error} />
+          </div>
+        ) : null}
+
+        {!selectedSession ? (
+          <div className="p-4">
+            <FeatureNotice
+              tone="info"
+              title="Loading session"
+              message="Fetching the telemedicine session for this appointment..."
+            />
+          </div>
+        ) : null}
+
+        {selectedSession && selectedSession.sessionStatus !== 'LIVE' ? (
+          <div className="p-4">
+            <FeatureNotice
+              tone="warning"
+              title="Session not live"
+              message="This session is not marked LIVE yet. Use the main telemedicine workspace to start it, or open this window with autostart enabled."
+            />
+          </div>
+        ) : null}
+
+        <div className="flex-1 min-h-0">
+          <LiveConsultationPanel currentUser={user} session={selectedSession} joinInfo={doctorJoinInfo} fullscreen />
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
 
@@ -782,7 +993,7 @@ export default function TelemedicinePage() {
       )}
 
       {consultationModalOpen && selectedSession ? (
-        <div className="fixed inset-0 z-90 bg-black/55">
+        <div className="fixed inset-0 z-[9999] bg-black/55">
           <div
             className="h-screen w-screen bg-[hsl(var(--background))]"
             role="dialog"
@@ -838,8 +1049,13 @@ export default function TelemedicinePage() {
 
             {selectedSession.sessionStatus === 'LIVE' ? (
               <div className="h-[calc(100vh-4.5rem)] min-h-0 p-3 lg:p-4">
-                <div className="h-full min-h-0 overflow-y-auto rounded-[20px] border p-2" style={{ borderColor: 'hsl(var(--border))' }}>
-                  <LiveConsultationPanel currentUser={user} session={selectedSession} joinInfo={doctorJoinInfo} />
+                <div className="h-full min-h-0 overflow-hidden rounded-[20px] border" style={{ borderColor: 'hsl(var(--border))' }}>
+                  <LiveConsultationPanel
+                    currentUser={user}
+                    session={selectedSession}
+                    joinInfo={doctorJoinInfo}
+                    fullscreen
+                  />
                 </div>
               </div>
             ) : (

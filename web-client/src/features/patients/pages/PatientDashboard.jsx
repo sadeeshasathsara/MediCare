@@ -1,1140 +1,133 @@
-import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { useAuth } from "@/context/AuthContext";
-import {
-  getPatientHistory,
-  getPatientPrescriptions,
-  getPatientProfile,
-  listPatientReports,
-} from "@/features/patients/services/patientApi";
-import { listAppointments } from "@/features/telemedicine/services/telemedicineApi";
-import {
-  formatDateTime,
-  humanizeStatus,
-} from "@/features/telemedicine/services/telemedicineTypes";
-import {
-  RefreshCcw,
-  Calendar,
-  Bell,
-  CreditCard,
-  Video,
-  Folder,
-  User,
-  Stethoscope,
-  CheckCircle2,
-  XCircle,
-  ArrowRight,
-} from "lucide-react";
-import { Skeleton } from "@/components/ui/skeleton";
-
-const PROFILE_PROMPT_SNOOZE_MS = 7 * 24 * 60 * 60 * 1000;
-const TELEMEDICINE_VISIBLE_STATUSES = new Set([
-  "PENDING",
-  "ACCEPTED",
-  "RESCHEDULED",
-]);
-
-function isProfileIncomplete(p) {
-  const nameOk = Boolean(p?.name && String(p.name).trim());
-  const dobOk = Boolean(p?.dob);
-  const phoneOk = Boolean(p?.contact?.phone && String(p.contact.phone).trim());
-
-  const addr = p?.address || {};
-  const addrOk = Boolean(
-    addr?.line1 &&
-    String(addr.line1).trim() &&
-    addr?.city &&
-    String(addr.city).trim() &&
-    addr?.state &&
-    String(addr.state).trim() &&
-    addr?.postalCode &&
-    String(addr.postalCode).trim() &&
-    addr?.country &&
-    String(addr.country).trim(),
-  );
-
-  return !(nameOk && dobOk && phoneOk && addrOk);
-}
-
-function normalizeFirstName(value) {
-  if (!value) return "";
-  let s = String(value).trim();
-  if (!s) return "";
-
-  // If we ever get an email-like string, discard the domain.
-  s = s.split("@")[0];
-
-  // Prefer true first token (space separated), otherwise split common separators.
-  const token = s.split(/\s+/)[0].split(/[._-]+/)[0];
-  const cleaned = String(token || "").trim();
-  if (!cleaned) return "";
-
-  // Title-case the first character for nicer display.
-  return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
-}
-
-function profileChecklist(p) {
-  const items = [
-    {
-      key: "name",
-      label: "Name",
-      ok: Boolean(p?.name && String(p.name).trim()),
-    },
-    {
-      key: "dob",
-      label: "Date of birth",
-      ok: Boolean(p?.dob),
-    },
-    {
-      key: "phone",
-      label: "Phone number",
-      ok: Boolean(p?.contact?.phone && String(p.contact.phone).trim()),
-    },
-    {
-      key: "address",
-      label: "Address",
-      ok: Boolean(
-        p?.address?.line1 &&
-        String(p.address.line1).trim() &&
-        p?.address?.city &&
-        String(p.address.city).trim() &&
-        p?.address?.state &&
-        String(p.address.state).trim() &&
-        p?.address?.postalCode &&
-        String(p.address.postalCode).trim() &&
-        p?.address?.country &&
-        String(p.address.country).trim(),
-      ),
-    },
-  ];
-
-  const completed = items.filter((i) => i.ok).length;
-  const total = items.length;
-  const percent = total ? Math.round((completed / total) * 100) : 0;
-  const missingLabels = items.filter((i) => !i.ok).map((i) => i.label);
-
-  return { items, completed, total, percent, missingLabels };
-}
-
-function QuickActionCard({ title, icon, value, hint, to }) {
-  const card = (
-    <div
-      className="rounded-xl border p-5 h-full transition-colors"
-      style={{
-        backgroundColor: "hsl(var(--card))",
-        borderColor: "hsl(var(--border))",
-      }}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <span style={{ color: "hsl(var(--muted-foreground))" }}>
-              {icon}
-            </span>
-            <div
-              className="text-sm font-semibold truncate"
-              style={{ color: "hsl(var(--foreground))" }}
-            >
-              {title}
-            </div>
-          </div>
-          <div
-            className="mt-3 text-2xl font-semibold"
-            style={{ color: "hsl(var(--foreground))" }}
-          >
-            {value}
-          </div>
-          {hint ? (
-            <div
-              className="mt-2 text-sm"
-              style={{ color: "hsl(var(--muted-foreground))" }}
-            >
-              {hint}
-            </div>
-          ) : null}
-        </div>
-        {to ? (
-          <div
-            className="shrink-0"
-            style={{ color: "hsl(var(--muted-foreground))" }}
-          >
-            <ArrowRight size={18} />
-          </div>
-        ) : null}
-      </div>
-    </div>
-  );
-
-  if (!to) return card;
-
-  return (
-    <Link
-      to={to}
-      className="block rounded-xl focus:outline-none focus-visible:ring-2"
-      style={{ outlineColor: "hsl(var(--ring))" }}
-    >
-      {card}
-    </Link>
-  );
-}
-
-function WidgetCard({ title, icon, children }) {
-  return (
-    <section
-      className="rounded-xl border p-5 h-full"
-      style={{
-        backgroundColor: "hsl(var(--card))",
-        borderColor: "hsl(var(--border))",
-      }}
-    >
-      <div className="flex items-center gap-2">
-        <span style={{ color: "hsl(var(--muted-foreground))" }}>{icon}</span>
-        <h3
-          className="text-sm font-semibold"
-          style={{ color: "hsl(var(--foreground))" }}
-        >
-          {title}
-        </h3>
-      </div>
-      <div className="mt-3">{children}</div>
-    </section>
-  );
-}
-
-function StatusPill({ tone = "neutral", children }) {
-  const styles =
-    tone === "success"
-      ? {
-          backgroundColor: "hsl(var(--primary) / 0.12)",
-          color: "hsl(var(--primary))",
-        }
-      : tone === "danger"
-        ? {
-            backgroundColor: "hsl(var(--destructive) / 0.10)",
-            color: "hsl(var(--destructive))",
-          }
-        : {
-            backgroundColor: "hsl(var(--accent))",
-            color: "hsl(var(--accent-foreground))",
-          };
-
-  return (
-    <span
-      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium"
-      style={styles}
-    >
-      {children}
-    </span>
-  );
-}
-
-function telemedicineTone(status) {
-  return status === "ACCEPTED" ? "success" : "neutral";
-}
+import React, { useEffect, useMemo, useState } from 'react'
+import { Link as RouterLink } from 'react-router-dom'
+import { useDispatch, useSelector } from 'react-redux'
+import { useAuth } from '@/context/AuthContext'
+import { getPatientProfile } from '@/features/patients/services/patientApi'
+import AiSymptomHero from '@/features/ai-symptom/components/AiSymptomHero'
+import AppointmentsList from '@/features/appointments/components/AppointmentsList'
+import { fetchAppointments, selectAppointmentsQuery, cancelAppointmentById } from '@/store/slices/appointmentsSlice'
+import { Button } from '@/components/ui/button'
+import { CalendarIcon, ChevronRight } from 'lucide-react'
 
 export default function PatientDashboard() {
-  const { user } = useAuth();
-  const navigate = useNavigate();
-  const userId = user?.id;
+  const { user } = useAuth()
+  const dispatch = useDispatch()
+  const [profile, setProfile] = useState(null)
+  const userId = user?.id || ''
+  const [cancelingId, setCancelingId] = useState(null)
 
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-
-  const [profile, setProfile] = useState(null);
-  const [reportsCount, setReportsCount] = useState(null);
-  const [historyStatus, setHistoryStatus] = useState("unknown");
-  const [prescriptionsStatus, setPrescriptionsStatus] = useState("unknown");
-  const [telemedicineAppointments, setTelemedicineAppointments] = useState([]);
-  const [profilePromptSnoozedUntil, setProfilePromptSnoozedUntil] = useState(0);
-
-  const canUse = useMemo(() => Boolean(userId), [userId]);
-
-  const load = async () => {
-    if (!userId) return;
-
-    setLoading(true);
-    setError("");
-
-    try {
-      const [p, reports] = await Promise.all([
-        getPatientProfile(userId),
-        listPatientReports(userId),
-      ]);
-
-      setProfile(p);
-      setReportsCount(Array.isArray(reports) ? reports.length : 0);
-
-      // These endpoints exist but may be placeholders (503). We probe them
-      // to drive a clear “available/unavailable” status on the dashboard.
-      try {
-        await getPatientHistory(userId);
-        setHistoryStatus("ok");
-      } catch (e) {
-        setHistoryStatus(e?.response?.status === 503 ? "unavailable" : "error");
-      }
-
-      try {
-        await getPatientPrescriptions(userId);
-        setPrescriptionsStatus("ok");
-      } catch (e) {
-        setPrescriptionsStatus(
-          e?.response?.status === 503 ? "unavailable" : "error",
-        );
-      }
-
-      try {
-        const appointments = await listAppointments({ patientId: userId });
-        const nextTelemedicineAppointments = (
-          Array.isArray(appointments) ? appointments : []
-        )
-          .filter((appointment) =>
-            TELEMEDICINE_VISIBLE_STATUSES.has(appointment?.status),
-          )
-          .sort(
-            (left, right) =>
-              new Date(left?.scheduledAt || 0).getTime() -
-              new Date(right?.scheduledAt || 0).getTime(),
-          );
-
-        setTelemedicineAppointments(nextTelemedicineAppointments);
-      } catch {
-        setTelemedicineAppointments([]);
-      }
-    } catch (e) {
-      setError(
-        e?.response?.data?.message || e?.message || "Failed to load dashboard",
-      );
-    } finally {
-      setLoading(false);
+  useEffect(() => {
+    if (userId) {
+      getPatientProfile(userId).then(setProfile).catch(() => null)
     }
-  };
+  }, [userId])
+
+  const upcomingParams = useMemo(() => ({ patientId: userId, filter: 'UPCOMING', limit: 4 }), [userId])
+  const upcomingQuery = useSelector((state) => selectAppointmentsQuery(state, upcomingParams))
 
   useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, userId]);
+    if (userId && upcomingQuery.status === 'idle') {
+      dispatch(fetchAppointments({ params: upcomingParams }))
+    }
+  }, [dispatch, userId, upcomingParams, upcomingQuery.status])
 
-  useEffect(() => {
-    if (!userId) return;
-    const key = `patient.profileUpdateSnoozeUntil:${userId}`;
-    const raw = localStorage.getItem(key);
-    const parsed = raw ? Number(raw) : 0;
-    setProfilePromptSnoozedUntil(Number.isFinite(parsed) ? parsed : 0);
-  }, [userId]);
-
-  if (!canUse) {
-    return (
-      <div
-        className="rounded-xl border p-6"
-        style={{
-          backgroundColor: "hsl(var(--card))",
-          borderColor: "hsl(var(--border))",
-        }}
-      >
-        <h1
-          className="text-lg font-semibold"
-          style={{ color: "hsl(var(--foreground))" }}
-        >
-          Patient Dashboard
-        </h1>
-        <p
-          className="text-sm mt-1"
-          style={{ color: "hsl(var(--muted-foreground))" }}
-        >
-          Please log in to view your dashboard.
-        </p>
-      </div>
-    );
+  const handleStatusUpdate = async (id, status) => {
+    try {
+      if (status === 'CANCELLED') {
+        setCancelingId(id)
+        await dispatch(cancelAppointmentById(id)).unwrap()
+      }
+    } catch (error) {
+      console.error('Failed to cancel:', error)
+    } finally {
+      if (status === 'CANCELLED') setCancelingId(null)
+    }
   }
 
-  const historyHint =
-    historyStatus === "unavailable"
-      ? "Not available yet"
-      : historyStatus === "error"
-        ? "Error loading"
-        : "";
-  const prescriptionsHint =
-    prescriptionsStatus === "unavailable"
-      ? "Not available yet"
-      : prescriptionsStatus === "error"
-        ? "Error loading"
-        : "";
-
-  const showProfilePrompt =
-    !loading &&
-    !error &&
-    isProfileIncomplete(profile) &&
-    Date.now() > (profilePromptSnoozedUntil || 0);
-
-  const displayName =
-    normalizeFirstName(profile?.name) ||
-    normalizeFirstName(user?.name) ||
-    "Patient";
-  let todayLabel = "";
-  try {
-    todayLabel = new Date().toLocaleDateString(undefined, {
-      weekday: "long",
-      month: "short",
-      day: "numeric",
-    });
-  } catch {
-    todayLabel = "";
-  }
-
-  const checklist = profileChecklist(profile);
-  const profileOk =
-    checklist.completed === checklist.total && checklist.total > 0;
-
-  const historyTone =
-    historyStatus === "ok"
-      ? "success"
-      : historyStatus === "error"
-        ? "danger"
-        : "neutral";
-  const prescriptionsTone =
-    prescriptionsStatus === "ok"
-      ? "success"
-      : prescriptionsStatus === "error"
-        ? "danger"
-        : "neutral";
-  const hasTelemedicineAppointments = telemedicineAppointments.length > 0;
-  const nextTelemedicineAppointments = telemedicineAppointments.slice(0, 3);
+  const displayName = profile?.name || user?.name || 'there'
+  const isInitialLoading = upcomingQuery.status === 'loading' && !upcomingQuery.items.length
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          {todayLabel ? (
-            <div
-              className="text-xs font-medium"
-              style={{ color: "hsl(var(--muted-foreground))" }}
-            >
-              {todayLabel}
+    <div className="max-w-6xl mx-auto pb-24 animate-in fade-in duration-500 space-y-12">
+      <AiSymptomHero userName={displayName} />
+
+      {/* Quick Actions Section */}
+      <section className="px-6 md:px-0 mt-8 mb-10">
+        <h2 className="text-sm font-bold text-muted-foreground uppercase tracking-widest mb-4 ml-1">Quick Links</h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <RouterLink to="/patient/book" className="group rounded-2xl p-5 border bg-card hover:bg-primary/5 hover:border-primary/30 hover:shadow-md transition-all duration-300">
+            <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
+              <CalendarIcon size={20} />
             </div>
-          ) : null}
-          <h1
-            className="text-2xl font-semibold tracking-tight"
-            style={{ color: "hsl(var(--foreground))" }}
-          >
-            Welcome{displayName ? `, ${displayName}` : ""}
-          </h1>
-          <p
-            className="text-sm mt-1"
-            style={{ color: "hsl(var(--muted-foreground))" }}
-          >
-            Manage your profile, documents, and care tools in one place.
-          </p>
-        </div>
+            <h3 className="mt-4 font-semibold text-foreground text-sm">Book Doctor</h3>
+            <p className="text-xs text-muted-foreground mt-1 line-clamp-1">Schedule a consultation</p>
+          </RouterLink>
 
-        <div className="flex items-center gap-2">
-          <Link
-            to="/patient/profile"
-            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-colors"
-            style={{
-              backgroundColor: "transparent",
-              borderColor: "hsl(var(--border))",
-              color: "hsl(var(--foreground))",
-            }}
-          >
-            <User size={16} />
-            Profile
-          </Link>
-          <button
-            onClick={load}
-            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-colors"
-            style={{
-              backgroundColor: "transparent",
-              borderColor: "hsl(var(--border))",
-              color: "hsl(var(--foreground))",
-            }}
-            disabled={loading}
-          >
-            <RefreshCcw size={16} className={loading ? "animate-spin" : ""} />
-            Refresh
-          </button>
-        </div>
-      </div>
-
-      {error ? (
-        <div
-          className="rounded-xl border p-4"
-          style={{
-            backgroundColor: "hsl(var(--card))",
-            borderColor: "hsl(var(--border))",
-          }}
-        >
-          <div
-            className="text-sm font-semibold"
-            style={{ color: "hsl(var(--destructive))" }}
-          >
-            Couldn’t load your dashboard
-          </div>
-          <div
-            className="text-sm mt-1"
-            style={{ color: "hsl(var(--muted-foreground))" }}
-          >
-            {error}
-          </div>
-        </div>
-      ) : null}
-
-      {showProfilePrompt ? (
-        <div
-          className="rounded-xl border p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
-          style={{
-            backgroundColor: "hsl(var(--card))",
-            borderColor: "hsl(var(--border))",
-          }}
-        >
-          <div className="min-w-0">
-            <div
-              className="text-sm font-semibold"
-              style={{ color: "hsl(var(--foreground))" }}
-            >
-              Finish setting up your profile
+          <RouterLink to="/patient/symptom-checker" className="group rounded-2xl p-5 border bg-card hover:bg-blue-500/5 hover:border-blue-500/30 hover:shadow-md transition-all duration-300">
+            <div className="h-10 w-10 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-600 group-hover:scale-110 transition-transform">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 8V4H8" /><rect width="16" height="12" x="4" y="8" rx="2" /><path d="M2 14h2" /><path d="M20 14h2" /><path d="M15 13v2" /><path d="M9 13v2" /></svg>
             </div>
-            <div
-              className="text-sm mt-1"
-              style={{ color: "hsl(var(--muted-foreground))" }}
-            >
-              Completing your details helps your care team serve you better.
+            <h3 className="mt-4 font-semibold text-foreground text-sm">AI Checker</h3>
+            <p className="text-xs text-muted-foreground mt-1 line-clamp-1">Self-diagnose symptoms</p>
+          </RouterLink>
+
+          <RouterLink to="/patient/profile" className="group rounded-2xl p-5 border bg-card hover:bg-emerald-500/5 hover:border-emerald-500/30 hover:shadow-md transition-all duration-300">
+            <div className="h-10 w-10 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-600 group-hover:scale-110 transition-transform">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
             </div>
-          </div>
+            <h3 className="mt-4 font-semibold text-foreground text-sm">My Profile</h3>
+            <p className="text-xs text-muted-foreground mt-1 line-clamp-1">Manage medical records</p>
+          </RouterLink>
 
-          <div className="flex items-center gap-2">
-            <Link
-              to="/patient/profile"
-              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors"
-              style={{
-                backgroundColor: "hsl(var(--primary))",
-                color: "hsl(var(--primary-foreground))",
-              }}
-            >
-              Complete profile
-            </Link>
-            <button
-              onClick={() => {
-                const until = Date.now() + PROFILE_PROMPT_SNOOZE_MS;
-                const key = `patient.profileUpdateSnoozeUntil:${userId}`;
-                localStorage.setItem(key, String(until));
-                setProfilePromptSnoozedUntil(until);
-              }}
-              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-colors"
-              style={{
-                backgroundColor: "transparent",
-                borderColor: "hsl(var(--border))",
-                color: "hsl(var(--foreground))",
-              }}
-            >
-              Remind me later
-            </button>
-          </div>
-        </div>
-      ) : null}
-
-      <section className="space-y-3">
-        <div>
-          <h2
-            className="text-base font-semibold"
-            style={{ color: "hsl(var(--foreground))" }}
-          >
-            Quick actions
-          </h2>
-          <p
-            className="text-sm mt-1"
-            style={{ color: "hsl(var(--muted-foreground))" }}
-          >
-            Jump back into the areas you use most.
-          </p>
-        </div>
-
-        <div
-          className={`grid grid-cols-1 gap-4 md:grid-cols-2 ${hasTelemedicineAppointments ? "xl:grid-cols-6" : "xl:grid-cols-5"}`}
-        >
-          <QuickActionCard
-            title="Book appointment"
-            icon={<Calendar size={16} />}
-            value="New"
-            hint="Choose a doctor and reserve a slot"
-            to="/patient/appointments/new"
-          />
-          <QuickActionCard
-            title="Medical reports"
-            icon={<Folder size={16} />}
-            value={
-              loading && reportsCount === null ? (
-                <Skeleton className="h-7 w-14" />
-              ) : (
-                String(reportsCount ?? 0)
-              )
-            }
-            hint="Upload and organize your documents"
-            to="/patient/reports"
-          />
-          <QuickActionCard
-            title="History"
-            icon={<Calendar size={16} />}
-            value={
-              loading && historyStatus === "unknown" ? (
-                <Skeleton className="h-7 w-24" />
-              ) : historyStatus === "ok" ? (
-                "Available"
-              ) : (
-                "—"
-              )
-            }
-            hint={historyHint || "Review your medical history"}
-            to="/patient/history"
-          />
-          <QuickActionCard
-            title="Prescriptions"
-            icon={<Stethoscope size={16} />}
-            value={
-              loading && prescriptionsStatus === "unknown" ? (
-                <Skeleton className="h-7 w-24" />
-              ) : prescriptionsStatus === "ok" ? (
-                "Available"
-              ) : (
-                "—"
-              )
-            }
-            hint={prescriptionsHint || "Check your prescriptions"}
-            to="/patient/prescriptions"
-          />
-          {hasTelemedicineAppointments ? (
-            <QuickActionCard
-              title="Telemedicine"
-              icon={<Video size={16} />}
-              value={String(telemedicineAppointments.length)}
-              hint="Join your scheduled online consultations"
-              to="/patient/telemedicine"
-            />
-          ) : null}
-          <QuickActionCard
-            title="Profile"
-            icon={<User size={16} />}
-            value={
-              loading && !profile ? (
-                <Skeleton className="h-7 w-32" />
-              ) : profileOk ? (
-                "Complete"
-              ) : (
-                `${checklist.percent}%`
-              )
-            }
-            hint={
-              profileOk ? "Your details are up to date" : "Finish your details"
-            }
-            to="/patient/profile"
-          />
+          <RouterLink to="/appointments" className="group rounded-2xl p-5 border bg-card hover:bg-amber-500/5 hover:border-amber-500/30 hover:shadow-md transition-all duration-300">
+            <div className="h-10 w-10 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-600 group-hover:scale-110 transition-transform">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 2v4" /><path d="M16 2v4" /><rect width="18" height="18" x="3" y="4" rx="2" /><path d="M3 10h18" /><path d="M8 14h.01" /><path d="M12 14h.01" /><path d="M16 14h.01" /><path d="M8 18h.01" /><path d="M12 18h.01" /><path d="M16 18h.01" /></svg>
+            </div>
+            <h3 className="mt-4 font-semibold text-foreground text-sm">History</h3>
+            <p className="text-xs text-muted-foreground mt-1 line-clamp-1">View past visits</p>
+          </RouterLink>
         </div>
       </section>
 
-      <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div
-          className="rounded-xl border p-5"
-          style={{
-            backgroundColor: "hsl(var(--card))",
-            borderColor: "hsl(var(--border))",
-          }}
-        >
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <h2
-                className="text-sm font-semibold"
-                style={{ color: "hsl(var(--foreground))" }}
-              >
-                Profile checklist
-              </h2>
-              <p
-                className="text-sm mt-1"
-                style={{ color: "hsl(var(--muted-foreground))" }}
-              >
-                Keep your details accurate for smoother care.
-              </p>
-            </div>
-            {loading && !profile ? (
-              <Skeleton className="h-6 w-24 rounded-full" />
-            ) : profileOk ? (
-              <StatusPill tone="success">
-                <CheckCircle2 size={14} /> Complete
-              </StatusPill>
-            ) : (
-              <StatusPill tone="neutral">
-                <XCircle size={14} /> Needs updates
-              </StatusPill>
-            )}
+      {/* Upcoming Appointments Section */}
+      <section className="px-6 md:px-0 mt-8">
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-2 text-primary">
+            <CalendarIcon className="h-6 w-6" />
+            <h2 className="text-2xl font-bold text-foreground">Upcoming Appointments</h2>
           </div>
-
-          <div className="mt-4 space-y-2">
-            {loading && !profile ? (
-              <>
-                <Skeleton className="h-4 w-64" />
-                <Skeleton className="h-4 w-56" />
-                <Skeleton className="h-4 w-60" />
-                <Skeleton className="h-4 w-52" />
-              </>
-            ) : (
-              checklist.items.map((item) => (
-                <div key={item.key} className="flex items-center gap-2 text-sm">
-                  <span
-                    style={{
-                      color: item.ok
-                        ? "hsl(var(--primary))"
-                        : "hsl(var(--muted-foreground))",
-                    }}
-                  >
-                    {item.ok ? (
-                      <CheckCircle2 size={16} />
-                    ) : (
-                      <XCircle size={16} />
-                    )}
-                  </span>
-                  <span style={{ color: "hsl(var(--foreground))" }}>
-                    {item.label}
-                  </span>
-                </div>
-              ))
-            )}
-          </div>
-
-          {!loading && !profileOk && checklist.missingLabels.length > 0 ? (
-            <div
-              className="mt-4 rounded-lg border p-3"
-              style={{
-                backgroundColor: "hsl(var(--secondary))",
-                borderColor: "hsl(var(--border))",
-              }}
-            >
-              <div
-                className="text-sm font-medium"
-                style={{ color: "hsl(var(--foreground))" }}
-              >
-                Next to complete
-              </div>
-              <div
-                className="text-sm mt-1"
-                style={{ color: "hsl(var(--muted-foreground))" }}
-              >
-                {checklist.missingLabels.join(" · ")}
-              </div>
-              <div className="mt-3">
-                <Link
-                  to="/patient/profile"
-                  className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors"
-                  style={{
-                    backgroundColor: "hsl(var(--primary))",
-                    color: "hsl(var(--primary-foreground))",
-                  }}
-                >
-                  Update profile
-                  <ArrowRight size={16} />
-                </Link>
-              </div>
-            </div>
-          ) : null}
+          <Button variant="ghost" asChild className="hidden sm:flex group">
+            <RouterLink to="/appointments">
+              View All
+              <ChevronRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
+            </RouterLink>
+          </Button>
         </div>
 
-        <div
-          className="rounded-xl border p-5"
-          style={{
-            backgroundColor: "hsl(var(--card))",
-            borderColor: "hsl(var(--border))",
-          }}
-        >
-          <div>
-            <h2
-              className="text-sm font-semibold"
-              style={{ color: "hsl(var(--foreground))" }}
-            >
-              Services
-            </h2>
-            <p
-              className="text-sm mt-1"
-              style={{ color: "hsl(var(--muted-foreground))" }}
-            >
-              What’s currently available for your account.
-            </p>
-          </div>
-
-          <div className="mt-4 space-y-3">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <Calendar
-                  size={16}
-                  style={{ color: "hsl(var(--muted-foreground))" }}
-                />
-                <div
-                  className="text-sm"
-                  style={{ color: "hsl(var(--foreground))" }}
-                >
-                  History
-                </div>
-              </div>
-              <StatusPill tone={historyTone}>
-                {historyStatus === "ok" ? (
-                  <CheckCircle2 size={14} />
-                ) : historyStatus === "error" ? (
-                  <XCircle size={14} />
-                ) : null}
-                {historyStatus === "ok"
-                  ? "Available"
-                  : historyStatus === "unavailable"
-                    ? "Not available"
-                    : historyStatus === "error"
-                      ? "Error"
-                      : "Checking"}
-              </StatusPill>
-            </div>
-
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <Stethoscope
-                  size={16}
-                  style={{ color: "hsl(var(--muted-foreground))" }}
-                />
-                <div
-                  className="text-sm"
-                  style={{ color: "hsl(var(--foreground))" }}
-                >
-                  Prescriptions
-                </div>
-              </div>
-              <StatusPill tone={prescriptionsTone}>
-                {prescriptionsStatus === "ok" ? (
-                  <CheckCircle2 size={14} />
-                ) : prescriptionsStatus === "error" ? (
-                  <XCircle size={14} />
-                ) : null}
-                {prescriptionsStatus === "ok"
-                  ? "Available"
-                  : prescriptionsStatus === "unavailable"
-                    ? "Not available"
-                    : prescriptionsStatus === "error"
-                      ? "Error"
-                      : "Checking"}
-              </StatusPill>
-            </div>
-          </div>
-
-          <div
-            className="mt-5 rounded-lg border p-4"
-            style={{
-              backgroundColor: "hsl(var(--secondary))",
-              borderColor: "hsl(var(--border))",
-            }}
-          >
-            <div
-              className="text-sm font-medium"
-              style={{ color: "hsl(var(--foreground))" }}
-            >
-              {hasTelemedicineAppointments
-                ? "Connected care tools"
-                : "Care tools (coming soon)"}
-            </div>
-            <div
-              className="text-sm mt-1"
-              style={{ color: "hsl(var(--muted-foreground))" }}
-            >
-              {hasTelemedicineAppointments
-                ? "Telemedicine is available for this account. Other tools can appear here once their services are connected."
-                : "Telemedicine, appointments, payments, and notifications can appear here once connected."}
-            </div>
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              {hasTelemedicineAppointments ? (
-                <Link
-                  to="/patient/telemedicine"
-                  className="flex items-center gap-2 text-sm font-medium"
-                  style={{ color: "hsl(var(--primary))" }}
-                >
-                  <Video size={16} /> Telemedicine ready
-                </Link>
-              ) : (
-                <div
-                  className="flex items-center gap-2 text-sm"
-                  style={{ color: "hsl(var(--muted-foreground))" }}
-                >
-                  <Video size={16} /> Telemedicine
-                </div>
-              )}
-              <div
-                className="flex items-center gap-2 text-sm"
-                style={{ color: "hsl(var(--muted-foreground))" }}
-              >
-                <Bell size={16} /> Notifications
-              </div>
-              <div
-                className="flex items-center gap-2 text-sm"
-                style={{ color: "hsl(var(--muted-foreground))" }}
-              >
-                <CreditCard size={16} /> Payments
-              </div>
-              <div
-                className="flex items-center gap-2 text-sm"
-                style={{ color: "hsl(var(--muted-foreground))" }}
-              >
-                <Calendar size={16} /> Appointments
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section
-        className="rounded-xl border p-5"
-        style={{
-          backgroundColor: "hsl(var(--card))",
-          borderColor: "hsl(var(--border))",
-        }}
-      >
-        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-          <div>
-            <h2
-              className="text-base font-semibold"
-              style={{ color: "hsl(var(--foreground))" }}
-            >
-              Upcoming appointments
-            </h2>
-            <p
-              className="text-sm mt-1"
-              style={{ color: "hsl(var(--muted-foreground))" }}
-            >
-              Your next scheduled visits will appear here.
-            </p>
-          </div>
-          <button
-            type="button"
-            disabled={!hasTelemedicineAppointments}
-            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-colors"
-            style={{
-              backgroundColor: "transparent",
-              borderColor: "hsl(var(--border))",
-              color: hasTelemedicineAppointments
-                ? "hsl(var(--foreground))"
-                : "hsl(var(--muted-foreground))",
-              cursor: hasTelemedicineAppointments ? "pointer" : "not-allowed",
-            }}
-            title={
-              hasTelemedicineAppointments
-                ? "Open your telemedicine appointments"
-                : "Appointments are not connected yet"
-            }
-            onClick={() => {
-              if (hasTelemedicineAppointments) {
-                navigate("/patient/telemedicine");
-              }
-            }}
-          >
-            {hasTelemedicineAppointments ? "Open telemedicine" : "View all"}
-            <ArrowRight size={16} />
-          </button>
-        </div>
-
-        <div className="mt-4">
-          {loading ? (
-            <div className="space-y-3">
-              <div
-                className="rounded-lg border p-4"
-                style={{ borderColor: "hsl(var(--border))" }}
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <Skeleton className="h-4 w-56" />
-                  <Skeleton className="h-6 w-20 rounded-full" />
-                </div>
-                <div className="mt-2 flex items-center justify-between gap-3">
-                  <Skeleton className="h-4 w-40" />
-                  <Skeleton className="h-4 w-24" />
-                </div>
-              </div>
-              <div
-                className="rounded-lg border p-4"
-                style={{ borderColor: "hsl(var(--border))" }}
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <Skeleton className="h-4 w-52" />
-                  <Skeleton className="h-6 w-24 rounded-full" />
-                </div>
-                <div className="mt-2 flex items-center justify-between gap-3">
-                  <Skeleton className="h-4 w-44" />
-                  <Skeleton className="h-4 w-28" />
-                </div>
-              </div>
-            </div>
-          ) : hasTelemedicineAppointments ? (
-            <div className="space-y-3">
-              {nextTelemedicineAppointments.map((appointment) => (
-                <Link
-                  key={appointment.id}
-                  to="/patient/telemedicine"
-                  className="block rounded-lg border p-4 transition-colors hover:bg-black/[0.02] dark:hover:bg-white/[0.02]"
-                  style={{ borderColor: "hsl(var(--border))" }}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div
-                        className="text-sm font-medium"
-                        style={{ color: "hsl(var(--foreground))" }}
-                      >
-                        {appointment.reasonForVisit ||
-                          "Telemedicine consultation"}
-                      </div>
-                      <div
-                        className="text-sm mt-1"
-                        style={{ color: "hsl(var(--muted-foreground))" }}
-                      >
-                        {formatDateTime(appointment.scheduledAt)}
-                      </div>
-                    </div>
-                    <StatusPill tone={telemedicineTone(appointment.status)}>
-                      {humanizeStatus(appointment.status)}
-                    </StatusPill>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          ) : (
-            <div
-              className="rounded-lg border p-4"
-              style={{
-                backgroundColor: "hsl(var(--secondary))",
-                borderColor: "hsl(var(--border))",
-              }}
-            >
-              <div className="flex items-start gap-3">
-                <div
-                  className="mt-0.5"
-                  style={{ color: "hsl(var(--muted-foreground))" }}
-                >
-                  <Calendar size={18} />
-                </div>
-                <div className="min-w-0">
-                  <div
-                    className="text-sm font-medium"
-                    style={{ color: "hsl(var(--foreground))" }}
-                  >
-                    No upcoming appointments
-                  </div>
-                  <div
-                    className="text-sm mt-1"
-                    style={{ color: "hsl(var(--muted-foreground))" }}
-                  >
-                    When appointment scheduling is connected, you’ll see your
-                    date, time, doctor, and visit type here.
-                  </div>
-                  <div className="mt-3">
-                    <Link
-                      to="/patient/appointments/new"
-                      className="inline-flex items-center gap-2 text-sm font-medium"
-                      style={{ color: "hsl(var(--primary))" }}
-                    >
-                      Book an appointment
-                      <ArrowRight size={16} />
-                    </Link>
-                  </div>
-                </div>
-              </div>
-            </div>
+        <div className="bg-card border rounded-3xl p-6 shadow-sm">
+          {upcomingQuery.error && (
+            <div className="p-3 mb-4 bg-red-100 text-red-600 rounded">Error: {upcomingQuery.error}</div>
           )}
-        </div>
-      </section>
 
-      <section className="space-y-3">
-        <div>
-          <h2
-            className="text-base font-semibold"
-            style={{ color: "hsl(var(--foreground))" }}
-          >
-            Care tools
-          </h2>
-          <p
-            className="text-sm mt-1"
-            style={{ color: "hsl(var(--muted-foreground))" }}
-          >
-            Quick snapshots that can appear once services are connected.
-          </p>
-        </div>
+          <AppointmentsList
+            appointments={upcomingQuery.items?.slice(0, 4) || []}
+            handleStatusUpdate={handleStatusUpdate}
+            isDoctor={false}
+            cancelingId={cancelingId}
+            hasMore={false} /* Don't allow load more on dashboard, let them go to the main page */
+            isLoadingMore={false}
+            isInitialLoading={isInitialLoading}
+          />
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <WidgetCard
-            title="Upcoming Appointments"
-            icon={<Calendar size={16} />}
-          >
-            <div
-              className="text-sm"
-              style={{ color: "hsl(var(--muted-foreground))" }}
-            >
-              Your upcoming visits will appear here.
-            </div>
-            <div
-              className="mt-2 text-xs"
-              style={{ color: "hsl(var(--muted-foreground))" }}
-            >
-              Once enabled, you’ll see date, doctor, and visit type.
-            </div>
-          </WidgetCard>
-
-          <WidgetCard title="Telemedicine" icon={<Video size={16} />}>
-            <div
-              className="text-sm"
-              style={{ color: "hsl(var(--muted-foreground))" }}
-            >
-              {hasTelemedicineAppointments
-                ? "Your online consultations are available now."
-                : "Join virtual consultations from one place."}
-            </div>
-            <div
-              className="mt-2 text-xs"
-              style={{ color: "hsl(var(--muted-foreground))" }}
-            >
-              {hasTelemedicineAppointments
-                ? `${telemedicineAppointments.length} appointment${telemedicineAppointments.length === 1 ? "" : "s"} ready to review in telemedicine.`
-                : "Future sessions can show a join link and readiness checks."}
-            </div>
-            {hasTelemedicineAppointments ? (
-              <div className="mt-3">
-                <Link
-                  to="/patient/telemedicine"
-                  className="inline-flex items-center gap-2 text-sm font-medium"
-                  style={{ color: "hsl(var(--primary))" }}
-                >
-                  Open telemedicine
-                  <ArrowRight size={16} />
-                </Link>
-              </div>
-            ) : null}
-          </WidgetCard>
-
-          <WidgetCard title="Notifications" icon={<Bell size={16} />}>
-            <div
-              className="text-sm"
-              style={{ color: "hsl(var(--muted-foreground))" }}
-            >
-              Important updates and reminders.
-            </div>
-            <div
-              className="mt-2 text-xs"
-              style={{ color: "hsl(var(--muted-foreground))" }}
-            >
-              You’ll see provider messages and system alerts here.
-            </div>
-          </WidgetCard>
-
-          <WidgetCard title="Payments" icon={<CreditCard size={16} />}>
-            <div
-              className="text-sm"
-              style={{ color: "hsl(var(--muted-foreground))" }}
-            >
-              Track recent charges and receipts.
-            </div>
-            <div
-              className="mt-2 text-xs"
-              style={{ color: "hsl(var(--muted-foreground))" }}
-            >
-              Connected payments can show invoice status and totals.
-            </div>
-          </WidgetCard>
+          <div className="mt-6 sm:hidden border-t pt-4">
+            <Button variant="outline" className="w-full" asChild>
+              <RouterLink to="/appointments">
+                See All Appointments
+              </RouterLink>
+            </Button>
+          </div>
         </div>
       </section>
     </div>
-  );
+  )
 }

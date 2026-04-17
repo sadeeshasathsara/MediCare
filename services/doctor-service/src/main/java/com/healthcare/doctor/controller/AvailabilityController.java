@@ -50,4 +50,14 @@ public class AvailabilityController {
             @RequestBody UpdateSlotRequest request) {
         return ResponseEntity.ok(availabilityService.updateSlot(doctorId, slotId, request));
     }
+
+    /**
+     * POST /doctors/:id/availability/:slotId/book – increment booking count for a slot
+     */
+    @PostMapping("/{slotId}/book")
+    public ResponseEntity<AvailabilitySlotResponse> bookSlot(
+            @PathVariable String doctorId,
+            @PathVariable String slotId) {
+        return ResponseEntity.ok(availabilityService.incrementBookings(slotId));
+    }
 }

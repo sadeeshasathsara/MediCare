@@ -48,8 +48,19 @@ foreach ($c in $Creds) {
 
 # 2. Test Doctor Service
 Write-Host "`n--- DOCTOR SERVICE ---" -Cyan
-$DocRes = Invoke-Api "/doctors"
-if ($DocRes.Count -ge 0) { Log-Test "List Doctors" "PASS" } else { Log-Test "List Doctors" "FAIL" }
+$DocRes = Invoke-Api "/doctors?page=0&limit=8&search=" "GET" $null $Tokens.Patient
+if ($null -ne $DocRes.content) { 
+    Log-Test "List Doctors (Paginated)" "PASS" ("(Found: " + $DocRes.totalElements + ")")
+} else { 
+    Log-Test "List Doctors (Paginated)" "FAIL" ($DocRes | Out-String)
+}
+
+$SearchRes = Invoke-Api "/doctors?search=nipun" "GET" $null $Tokens.Patient
+if ($null -ne $SearchRes.content) { 
+    Log-Test "Search Doctors ('nipun')" "PASS" ("(Found: " + $SearchRes.totalElements + ")")
+} else { 
+    Log-Test "Search Doctors" "FAIL" ($SearchRes | Out-String)
+}
 
 $SpecRes = Invoke-Api "/doctors/specialties"
 if ($SpecRes.Count -ge 0) { Log-Test "List Specialties" "PASS" } else { Log-Test "List Specialties" "FAIL" }

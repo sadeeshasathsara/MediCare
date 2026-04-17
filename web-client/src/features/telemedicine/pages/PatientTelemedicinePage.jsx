@@ -7,7 +7,7 @@ import {
   useRef,
   useState,
 } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft,
   CalendarClock,
@@ -31,6 +31,7 @@ import FeatureNotice from '@/features/telemedicine/components/FeatureNotice'
 import LiveConsultationPanel from '@/features/telemedicine/components/LiveConsultationPanel'
 import StatusBadge from '@/features/telemedicine/components/StatusBadge'
 import {
+  createSession,
   getJoinToken,
   getSessionReady,
   listAppointments,
@@ -53,7 +54,7 @@ import {
 /* ─── Constants ──────────────────────────────────────────────────────────── */
 
 const SCHEDULED_APPOINTMENT_STATUSES = new Set(['PENDING', 'RESCHEDULED'])
-const ACTIVE_PATIENT_STATUSES        = new Set(['PENDING', 'ACCEPTED', 'RESCHEDULED'])
+const ACTIVE_PATIENT_STATUSES = new Set(['PENDING', 'ACCEPTED', 'RESCHEDULED'])
 const EMPTY_ACTION_STATE = { kind: '', loading: false, error: '', success: '' }
 
 /* ─── Helpers ────────────────────────────────────────────────────────────── */
@@ -77,9 +78,22 @@ function safeJsonParse(v) {
 
 function normalizeId(v) { return v === undefined || v === null ? '' : String(v).trim() }
 
-function actionLoading(kind)           { return { kind, loading: true,  error: '',    success: '' } }
-function actionSuccess(kind, success)  { return { kind, loading: false, error: '',    success      } }
-function actionError(kind, error)      { return { kind, loading: false, error,        success: '' } }
+function pickLatestSessionForAppointment(sessions, appointmentId) {
+  const normalizedAppointmentId = normalizeId(appointmentId)
+  if (!normalizedAppointmentId) return null
+  const matches = (sessions || []).filter((session) => normalizeId(session?.appointmentId) === normalizedAppointmentId)
+  if (!matches.length) return null
+  matches.sort((left, right) => {
+    const l = new Date(left?.createdAt || 0).getTime()
+    const r = new Date(right?.createdAt || 0).getTime()
+    return r - l
+  })
+  return matches[0] || null
+}
+
+function actionLoading(kind) { return { kind, loading: true, error: '', success: '' } }
+function actionSuccess(kind, success) { return { kind, loading: false, error: '', success } }
+function actionError(kind, error) { return { kind, loading: false, error, success: '' } }
 
 /* ─── Status colour helpers ──────────────────────────────────────────────── */
 
@@ -98,10 +112,10 @@ function countdown(scheduledAt) {
 /* ─── Appointment card (list mode) ──────────────────────────────────────── */
 
 function AppointmentCard({ appointment, session, onSelect }) {
-  const isLive      = session?.sessionStatus === 'LIVE'
-  const isWaiting   = session?.sessionStatus === 'WAITING'
-  const hasRoom     = Boolean(session)
-  const cd          = countdown(appointment.scheduledAt)
+  const isLive = session?.sessionStatus === 'LIVE'
+  const isWaiting = session?.sessionStatus === 'WAITING'
+  const hasRoom = Boolean(session)
+  const cd = countdown(appointment.scheduledAt)
   const needsReview = SCHEDULED_APPOINTMENT_STATUSES.has(appointment.status)
 
   const borderClass = isLive
@@ -153,13 +167,12 @@ function AppointmentCard({ appointment, session, onSelect }) {
           </p>
           {cd && (
             <span
-              className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${
-                cd.overdue
-                  ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300'
-                  : cd.urgent
-                    ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300'
-                    : 'bg-slate-100 text-slate-600 dark:bg-white/10 dark:text-slate-300'
-              }`}
+              className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${cd.overdue
+                ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300'
+                : cd.urgent
+                  ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300'
+                  : 'bg-slate-100 text-slate-600 dark:bg-white/10 dark:text-slate-300'
+                }`}
             >
               <Clock className="h-3 w-3" />
               {cd.label}
@@ -178,9 +191,7 @@ function AppointmentCard({ appointment, session, onSelect }) {
               ? 'Doctor is in the waiting room'
               : hasRoom
                 ? 'Room ready — Waiting for doctor to start'
-                : appointment.status === 'ACCEPTED'
-                  ? 'Waiting for doctor to create the room'
-                  : 'Waiting for doctor confirmation'}
+                : 'Tap to open the consultation room'}
         </div>
         <span className="flex items-center gap-1 text-xs font-semibold group-hover:gap-2 transition-all" style={{ color: 'hsl(var(--primary))' }}>
           {isLive ? 'Join now' : 'Open'}
@@ -208,7 +219,14 @@ function ReadinessRow({ label, joined }) {
 /* ─── Main component ─────────────────────────────────────────────────────── */
 
 export default function PatientTelemedicinePage() {
+  const navigate = useNavigate()
+  const { appointmentId: routeAppointmentId } = useParams()
+  const [searchParams] = useSearchParams()
   const { user, accessToken } = useAuth()
+
+  const authSubject = useMemo(() => (
+    normalizeId(decodeJwtSubject(accessToken || localStorage.getItem('accessToken')))
+  ), [accessToken])
 
   const patientIdentifiers = useMemo(() => {
     const storedUser = safeJsonParse(localStorage.getItem('user'))
@@ -216,25 +234,33 @@ export default function PatientTelemedicinePage() {
       ...getTelemedicinePatientIdentifiers(user),
       ...getTelemedicinePatientIdentifiers(storedUser),
     ])
-    const tokenSubject = normalizeId(decodeJwtSubject(accessToken || localStorage.getItem('accessToken')))
-    if (tokenSubject) identifiers.add(tokenSubject)
+
+    if (authSubject) identifiers.add(authSubject)
     return Array.from(identifiers)
-  }, [accessToken, user])
+  }, [authSubject, user])
 
-  const patientId = patientIdentifiers[0] || ''
+  const patientId =
+    authSubject ||
+    normalizeId(user?.id || user?.userId || user?._id || user?.patientId || user?.profileId) ||
+    patientIdentifiers[0] ||
+    ''
   const selectedAppointmentIdRef = useRef(null)
+  const autoJoinTriggeredRef = useRef(false)
 
-  const [appointments,        setAppointments]        = useState([])
+  const autoJoinRequested = searchParams.get('autojoin') === '1'
+  const popupMode = searchParams.get('popup') === '1'
+
+  const [appointments, setAppointments] = useState([])
   const [appointmentsLoading, setAppointmentsLoading] = useState(true)
-  const [appointmentsError,   setAppointmentsError]   = useState('')
+  const [appointmentsError, setAppointmentsError] = useState('')
   const [selectedAppointmentId, setSelectedAppointmentId] = useState(null)
 
   const [sessionsByAppointmentId, setSessionsByAppointmentId] = useState({})
-  const [sessionLookupLoading,    setSessionLookupLoading]    = useState(false)
-  const [sessionError,            setSessionError]            = useState('')
-  const [readinessBySessionId,    setReadinessBySessionId]    = useState({})
-  const [patientJoinInfo,         setPatientJoinInfo]         = useState(null)
-  const [sessionActionState,      setSessionActionState]      = useState(EMPTY_ACTION_STATE)
+  const [sessionLookupLoading, setSessionLookupLoading] = useState(false)
+  const [sessionError, setSessionError] = useState('')
+  const [readinessBySessionId, setReadinessBySessionId] = useState({})
+  const [patientJoinInfo, setPatientJoinInfo] = useState(null)
+  const [sessionActionState, setSessionActionState] = useState(EMPTY_ACTION_STATE)
   const [consultationsBySessionId, setConsultationsBySessionId] = useState({})
   const [prescriptionsByConsultationId, setPrescriptionsByConsultationId] = useState({})
   const [clinicalLoading, setClinicalLoading] = useState(false)
@@ -252,45 +278,55 @@ export default function PatientTelemedicinePage() {
   const deferredAppointments = useDeferredValue(enrichedAppointments)
 
   const scheduledAppointments = deferredAppointments.filter((a) => SCHEDULED_APPOINTMENT_STATUSES.has(a.status))
-  const acceptedAppointments  = deferredAppointments.filter((a) => a.status === 'ACCEPTED')
+  const acceptedAppointments = deferredAppointments.filter((a) => a.status === 'ACCEPTED')
 
   const selectedAppointment = enrichedAppointments.find((a) => a.id === selectedAppointmentId) || null
-  const selectedSession     = selectedAppointment ? sessionsByAppointmentId[selectedAppointment.id] || null : null
-  const selectedReadiness   = selectedSession ? readinessBySessionId[selectedSession.id] || null : null
+  const selectedAppointmentKey = useMemo(() => {
+    const routeKey = normalizeId(routeAppointmentId)
+    if (popupMode && routeKey) return routeKey
+    return normalizeId(selectedAppointment?.id || selectedAppointmentId)
+  }, [popupMode, routeAppointmentId, selectedAppointment?.id, selectedAppointmentId])
+
+  const selectedSession = selectedAppointmentKey ? sessionsByAppointmentId[selectedAppointmentKey] || null : null
+  const selectedReadiness = selectedSession ? readinessBySessionId[selectedSession.id] || null : null
   const selectedConsultation = selectedSession ? consultationsBySessionId[selectedSession.id] || null : null
   const selectedPrescriptions = selectedConsultation ? prescriptionsByConsultationId[selectedConsultation.id] || [] : []
 
-  const selectedSessionId              = selectedSession?.id || null
-  const selectedSessionAppointmentId   = selectedSession?.appointmentId || null
-  const selectedSessionStatus          = selectedSession?.sessionStatus || null
+  const selectedSessionId = selectedSession?.id || null
+  const selectedSessionAppointmentId = selectedSession?.appointmentId || null
+  const selectedSessionStatus = selectedSession?.sessionStatus || null
+
+  const allowMeetingEmbed = useMemo(() => {
+    if (!patientJoinInfo || !selectedSession) return false
+    // For public rooms (no JWT) there is no explicit “approval” step.
+    // Let the patient enter as soon as join access is prepared.
+    return true
+  }, [patientJoinInfo, selectedSession])
 
   const activeAppointmentCount = scheduledAppointments.length + acceptedAppointments.length
-  const joinableCount          = acceptedAppointments.filter((a) => Boolean(sessionsByAppointmentId[a.id])).length
-  const liveCount              = acceptedAppointments.filter((a) => sessionsByAppointmentId[a.id]?.sessionStatus === 'LIVE').length
+  const joinableCount = acceptedAppointments.filter((a) => Boolean(sessionsByAppointmentId[a.id])).length
+  const liveCount = acceptedAppointments.filter((a) => sessionsByAppointmentId[a.id]?.sessionStatus === 'LIVE').length
 
   useEffect(() => { selectedAppointmentIdRef.current = selectedAppointmentId }, [selectedAppointmentId])
+
+  useEffect(() => {
+    if (!routeAppointmentId) return
+    // Keep route selection aligned so non-popup views still behave normally.
+    setSelectedAppointmentId(routeAppointmentId)
+  }, [routeAppointmentId])
 
   /* ── Data fetching ── */
 
   const refreshAppointments = useCallback(async ({ preferredAppointmentId = null, preserveSelection = true } = {}) => {
-    if (!patientIdentifiers.length) {
-      startTransition(() => { setAppointments([]); setSelectedAppointmentId(null) })
-      setAppointmentsLoading(false)
-      setAppointmentsError('Unable to resolve your patient account. Please sign out and sign in again.')
-      return
-    }
     setAppointmentsLoading(true)
     setAppointmentsError('')
     try {
-      const settled = await Promise.allSettled(
-        patientIdentifiers.map((id) => listAppointments({ patientId: id }))
-      )
-      const ok = settled.filter((r) => r.status === 'fulfilled').flatMap((r) => r.value || [])
-      if (!ok.length && settled.every((r) => r.status === 'rejected')) {
-        throw settled.find((r) => r.status === 'rejected')?.reason || new Error('Unable to load appointments.')
-      }
+      // IMPORTANT: For PATIENT role the backend enforces `patientId` (if provided) must equal the JWT subject.
+      // So we omit the `patientId` query param and let the telemedicine-service resolve it from the token.
+      const ok = await listAppointments()
+
       const idSet = new Set(patientIdentifiers)
-      const byId  = new Map()
+      const byId = new Map()
       ok.forEach((a) => {
         if (!a?.id) return
         if (!ACTIVE_PATIENT_STATUSES.has(a.status)) return
@@ -321,7 +357,23 @@ export default function PatientTelemedicinePage() {
       const ids = new Set((list || []).map((a) => a.id))
       if (!ids.size) { startTransition(() => setSessionsByAppointmentId({})); return }
       const sessions = await listSessions()
-      const map = sessions.reduce((m, s) => { if (ids.has(s.appointmentId)) m[s.appointmentId] = s; return m }, {})
+      const map = sessions.reduce((m, s) => {
+        const appointmentId = normalizeId(s?.appointmentId)
+        if (!appointmentId || !ids.has(appointmentId)) return m
+
+        const current = m[appointmentId]
+        if (!current) {
+          m[appointmentId] = s
+          return m
+        }
+
+        const currentCreatedAt = new Date(current?.createdAt || 0).getTime()
+        const candidateCreatedAt = new Date(s?.createdAt || 0).getTime()
+        if (candidateCreatedAt >= currentCreatedAt) {
+          m[appointmentId] = s
+        }
+        return m
+      }, {})
       startTransition(() => setSessionsByAppointmentId(map))
     } catch (err) {
       setSessionError(getErrorMessage(err, 'Unable to load consultation session details.'))
@@ -400,7 +452,9 @@ export default function PatientTelemedicinePage() {
     setClinicalLoading(false)
   }, [refreshConsultationForSession, refreshPrescriptionsForConsultation])
 
-  useEffect(() => { refreshAppointments({ preserveSelection: false }) }, [refreshAppointments])
+  useEffect(() => {
+    refreshAppointments({ preferredAppointmentId: routeAppointmentId || null, preserveSelection: false })
+  }, [refreshAppointments, routeAppointmentId])
   useEffect(() => { refreshSessionsForAppointments(appointments, { showLoading: false }) }, [appointments, refreshSessionsForAppointments])
 
   useEffect(() => {
@@ -426,29 +480,157 @@ export default function PatientTelemedicinePage() {
 
   /* ── Handlers ── */
 
+  const prepareJoinAccessForAppointmentId = useCallback(async (appointmentId) => {
+    const normalizedAppointmentId = normalizeId(appointmentId)
+    if (!normalizedAppointmentId) {
+      setSessionActionState(actionError('join', 'Appointment id is missing.'))
+      return null
+    }
+
+    setSessionActionState(actionLoading('join'))
+
+    try {
+      let session = sessionsByAppointmentId[normalizedAppointmentId] || null
+
+      if (!session) {
+        const sessions = await listSessions()
+        session = pickLatestSessionForAppointment(sessions, normalizedAppointmentId)
+      }
+
+      if (!session) {
+        session = await createSession(normalizedAppointmentId)
+      }
+
+      startTransition(() => {
+        setSessionsByAppointmentId((current) => ({
+          ...current,
+          [normalizedAppointmentId]: session,
+        }))
+      })
+
+      const info = await getJoinToken(session.id, 'patient', true)
+      setPatientJoinInfo(info)
+      await refreshReadinessForSession(session)
+      setSessionActionState(actionSuccess('join', 'Consultation access is ready.'))
+      return { session, joinInfo: info }
+    } catch (err) {
+      setSessionActionState(actionError('join', getErrorMessage(err, 'Unable to prepare your consultation access.')))
+      return null
+    }
+  }, [refreshReadinessForSession, sessionsByAppointmentId])
+
   const handleOpenAppointment = useCallback((id) => {
     setSelectedAppointmentId(id)
+    if (id) {
+      navigate(`/telemedicine/${id}`)
+    }
     window.scrollTo({ top: 0, behavior: 'smooth' })
-  }, [])
+  }, [navigate])
 
   const handleBack = useCallback(() => {
+    if (routeAppointmentId) {
+      navigate('/telemedicine')
+      return
+    }
+
     setSelectedAppointmentId(null)
     setPatientJoinInfo(null)
     setSessionActionState(EMPTY_ACTION_STATE)
-  }, [])
+  }, [navigate, routeAppointmentId])
 
-  const handleJoinConsultation = async () => {
-    if (!selectedSession || !selectedAppointment) return
-    setSessionActionState(actionLoading('join'))
-    try {
-      const info = await getJoinToken(selectedSession.id, 'patient', true)
-      setPatientJoinInfo(info)
-      await refreshSessionsForAppointments(enrichedAppointments, { showLoading: false })
-      await refreshReadinessForSession(selectedSession)
-      setSessionActionState(actionSuccess('join', 'Consultation access is ready. You can join below.'))
-    } catch (err) {
-      setSessionActionState(actionError('join', getErrorMessage(err, 'Unable to prepare your consultation access.')))
+  const handleJoinConsultation = useCallback(async () => {
+    if (!selectedAppointment?.id) return
+    await prepareJoinAccessForAppointmentId(selectedAppointment.id)
+    await refreshSessionsForAppointments(enrichedAppointments, { showLoading: false })
+  }, [enrichedAppointments, prepareJoinAccessForAppointmentId, refreshSessionsForAppointments, selectedAppointment?.id])
+
+  useEffect(() => {
+    const appointmentId = normalizeId(routeAppointmentId || selectedAppointment?.id)
+    if (!autoJoinRequested || !appointmentId) return
+    if (autoJoinTriggeredRef.current) return
+    autoJoinTriggeredRef.current = true
+
+    if (popupMode) {
+      prepareJoinAccessForAppointmentId(appointmentId)
+      navigate(`/telemedicine/${appointmentId}?popup=1`, { replace: true })
+      return
     }
+
+    handleJoinConsultation()
+    navigate(`/telemedicine/${appointmentId}`, { replace: true })
+  }, [autoJoinRequested, handleJoinConsultation, navigate, popupMode, prepareJoinAccessForAppointmentId, routeAppointmentId, selectedAppointment?.id])
+
+  useEffect(() => {
+    if (!popupMode) return
+    const appointmentId = normalizeId(routeAppointmentId)
+    if (!appointmentId) return
+
+    // If we already have join info for the selected session, nothing to do.
+    if (patientJoinInfo && patientJoinInfo.sessionId === selectedSession?.id) return
+
+    prepareJoinAccessForAppointmentId(appointmentId)
+  }, [popupMode, prepareJoinAccessForAppointmentId, patientJoinInfo, routeAppointmentId, selectedSession?.id])
+
+  if (popupMode) {
+    const doctorJoined = Boolean(selectedReadiness?.doctorJoined || selectedSession?.doctorJoinedAt)
+
+    return (
+      <div className="flex h-screen min-h-0 flex-col bg-[hsl(var(--background))]">
+        <div
+          className="flex items-center justify-between border-b px-4 py-3 lg:px-6"
+          style={{ borderColor: 'hsl(var(--border))' }}
+        >
+          <div className="min-w-0">
+            <p className="text-xs uppercase tracking-[0.18em]" style={{ color: 'hsl(var(--muted-foreground))' }}>
+              Patient video consultation
+            </p>
+            <p className="mt-1 truncate text-base font-semibold" style={{ color: 'hsl(var(--foreground))' }}>
+              {selectedSession?.jitsiRoomId || selectedSession?.id || routeAppointmentId || 'Consultation'}
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {selectedSession?.sessionStatus ? <StatusBadge status={selectedSession.sessionStatus} /> : null}
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="inline-flex items-center justify-center gap-2 rounded-2xl border px-4 py-2 text-sm font-semibold transition hover:bg-black/4 dark:hover:bg-white/6"
+              style={{ borderColor: 'hsl(var(--border))', color: 'hsl(var(--foreground))' }}
+            >
+              <RefreshCcw className="h-4 w-4" />
+              Refresh
+            </button>
+          </div>
+        </div>
+
+        {sessionActionState.error ? (
+          <div className="p-4">
+            <FeatureNotice tone="error" title="Unable to join" message={sessionActionState.error} />
+          </div>
+        ) : null}
+
+        {selectedSession && !doctorJoined && !(patientJoinInfo?.token) ? (
+          <div className="p-4">
+            <FeatureNotice
+              tone="info"
+              title="Waiting for doctor"
+              message="Your doctor has not joined yet. You can enter the room now; the call will start when the doctor joins."
+            />
+          </div>
+        ) : null}
+
+        <div className="flex-1 min-h-0">
+          <LiveConsultationPanel
+            currentUser={user}
+            session={selectedSession}
+            joinInfo={patientJoinInfo}
+            participantLabel="patient"
+            fullscreen
+            allowEmbed
+          />
+        </div>
+      </div>
+    )
   }
 
   /* ─────────────────────────────────────────────────────────────────────── */
@@ -483,7 +665,7 @@ export default function PatientTelemedicinePage() {
                 Hello, {patientDisplay.name || 'there'} 👋
               </h1>
               <p className="text-sm leading-7" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                Your telemedicine visits are listed below. When your doctor accepts a request and opens the session room, you&apos;ll be able to join directly from here.
+                Your telemedicine visits are listed below. Open any visit to prepare your join access — if your doctor hasn&apos;t joined yet, you&apos;ll wait until they admit you.
               </p>
             </div>
 
@@ -491,9 +673,9 @@ export default function PatientTelemedicinePage() {
             <div className="flex flex-wrap gap-3 lg:flex-col lg:items-end">
               {[
                 { label: 'Awaiting Confirmation', value: scheduledAppointments.length, color: 'bg-amber-500' },
-                { label: 'Confirmed Visits',       value: acceptedAppointments.length,  color: 'bg-emerald-600' },
-                { label: 'Rooms Ready to Join',   value: joinableCount,                color: 'bg-indigo-500' },
-                { label: 'Live Right Now',         value: liveCount,                   color: 'bg-red-500' },
+                { label: 'Confirmed Visits', value: acceptedAppointments.length, color: 'bg-emerald-600' },
+                { label: 'Rooms Ready to Join', value: joinableCount, color: 'bg-indigo-500' },
+                { label: 'Live Right Now', value: liveCount, color: 'bg-red-500' },
               ].map((s) => (
                 <div key={s.label} className="flex items-center gap-3 rounded-2xl border px-4 py-3 min-w-45"
                   style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--card) / 0.85)' }}>
@@ -569,7 +751,7 @@ export default function PatientTelemedicinePage() {
                   Appointments will appear here once scheduled. You can also book a visit through your appointments page.
                 </p>
               </div>
-              <Link to="/patient/appointments"
+              <Link to="/appointments"
                 className="inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-semibold transition hover:bg-black/3 dark:hover:bg-white/5"
                 style={{ borderColor: 'hsl(var(--border))', color: 'hsl(var(--foreground))' }}>
                 <CalendarClock className="h-4 w-4" />
@@ -643,13 +825,13 @@ export default function PatientTelemedicinePage() {
   /* ── RENDER: APPOINTMENT WORKSPACE (appointment selected) ────────────── */
   /* ─────────────────────────────────────────────────────────────────────── */
 
-  const isLive       = selectedSession?.sessionStatus === 'LIVE'
-  const isWaiting    = selectedSession?.sessionStatus === 'WAITING'
-  const isCompleted  = selectedSession?.sessionStatus === 'COMPLETED'
-  const hasRoom      = Boolean(selectedSession)
-  const canJoin      = hasRoom && !isCompleted
-  const doctorName   = selectedAppointment.doctorDisplay?.name || 'Your Doctor'
-  const patientName  = selectedAppointment.patientDisplay?.name || patientDisplay.name
+  const isLive = selectedSession?.sessionStatus === 'LIVE'
+  const isWaiting = selectedSession?.sessionStatus === 'WAITING'
+  const isCompleted = selectedSession?.sessionStatus === 'COMPLETED'
+  const hasRoom = Boolean(selectedSession)
+  const canJoin = !isCompleted
+  const doctorName = selectedAppointment.doctorDisplay?.name || 'Your Doctor'
+  const patientName = selectedAppointment.patientDisplay?.name || patientDisplay.name
 
   return (
     <div className="space-y-5">
@@ -710,21 +892,19 @@ export default function PatientTelemedicinePage() {
 
             {/* Status summary chip */}
             <div
-              className={`shrink-0 rounded-2xl border px-5 py-3 text-center ${
-                isLive ? 'border-red-300 bg-red-50 dark:border-red-700/50 dark:bg-red-950/30'
+              className={`shrink-0 rounded-2xl border px-5 py-3 text-center ${isLive ? 'border-red-300 bg-red-50 dark:border-red-700/50 dark:bg-red-950/30'
                 : isWaiting ? 'border-orange-300 bg-orange-50 dark:border-orange-700/50 dark:bg-orange-950/30'
-                : hasRoom ? 'border-emerald-300 bg-emerald-50 dark:border-emerald-700/50 dark:bg-emerald-950/30'
-                : 'border-border'
-              }`}
+                  : hasRoom ? 'border-emerald-300 bg-emerald-50 dark:border-emerald-700/50 dark:bg-emerald-950/30'
+                    : 'border-border'
+                }`}
               style={!isLive && !isWaiting && !hasRoom ? { backgroundColor: 'hsl(var(--card) / 0.7)' } : {}}
             >
               <p className="text-xs font-medium uppercase tracking-[0.14em]" style={{ color: 'hsl(var(--muted-foreground))' }}>Status</p>
-              <p className={`mt-1 text-sm font-bold ${
-                isLive ? 'text-red-600 dark:text-red-400'
+              <p className={`mt-1 text-sm font-bold ${isLive ? 'text-red-600 dark:text-red-400'
                 : isWaiting ? 'text-orange-600 dark:text-orange-400'
-                : hasRoom ? 'text-emerald-600 dark:text-emerald-400'
-                : 'text-foreground'
-              }`}
+                  : hasRoom ? 'text-emerald-600 dark:text-emerald-400'
+                    : 'text-foreground'
+                }`}
                 style={!isLive && !isWaiting && !hasRoom && !isCompleted ? { color: 'hsl(var(--foreground))' } : {}}>
                 {isLive ? '🔴 Session is Live' : isWaiting ? '⏳ Doctor in waiting room' : hasRoom ? '✅ Room is Ready' : '⏳ Waiting for Doctor'}
               </p>
@@ -771,10 +951,11 @@ export default function PatientTelemedicinePage() {
             <p className="mb-4 text-xs font-semibold uppercase tracking-[0.16em]" style={{ color: 'hsl(var(--muted-foreground))' }}>Appointment Info</p>
             <div className="grid gap-3 sm:grid-cols-2">
               {[
-                { label: 'Reason',    value: selectedAppointment.reasonForVisit || 'Consultation' },
+                { label: 'Reason', value: selectedAppointment.reasonForVisit || 'Consultation' },
                 { label: 'Scheduled', value: formatDateTime(selectedAppointment.scheduledAt) },
                 { label: 'Appointment Status', value: <StatusBadge status={selectedAppointment.status} /> },
-                { label: 'Session Room',
+                {
+                  label: 'Session Room',
                   value: selectedSession
                     ? <span className="font-mono text-xs">{selectedSession.jitsiRoomId}</span>
                     : <span style={{ color: 'hsl(var(--muted-foreground))' }}>Not created yet</span>
@@ -816,9 +997,7 @@ export default function PatientTelemedicinePage() {
 
             <p className="mb-4 text-sm leading-6" style={{ color: 'hsl(var(--muted-foreground))' }}>
               {!hasRoom
-                ? selectedAppointment.status === 'ACCEPTED'
-                  ? 'Your appointment is confirmed. Waiting for the doctor to open the session room.'
-                  : 'This visit is pending doctor confirmation. We\'ll update this page automatically.'
+                ? 'Tap Prepare & Join to open the consultation room. If your doctor hasn\'t joined yet, you\'ll stay in the waiting room until admitted.'
                 : isCompleted
                   ? 'This consultation has been completed. Thank you for your visit.'
                   : isLive
@@ -859,22 +1038,24 @@ export default function PatientTelemedicinePage() {
 
             {!hasRoom && (
               <p className="mb-4 text-sm" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                {selectedAppointment.status === 'ACCEPTED'
-                  ? 'The consultation room hasn\'t been created yet. The button will activate once your doctor opens it.'
-                  : 'This visit needs doctor confirmation first.'}
+                We\'ll create the consultation room for this appointment when you tap Prepare & Join.
               </p>
             )}
 
             <button
               type="button"
-              onClick={handleJoinConsultation}
+              onClick={() => {
+                const appointmentId = normalizeId(selectedAppointment?.id || routeAppointmentId)
+                if (!appointmentId) return
+                window.open(`/telemedicine/${appointmentId}?autojoin=1&popup=1`, '_blank')
+              }}
               disabled={!canJoin || sessionActionState.loading}
               className="w-full inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
               style={{ backgroundColor: 'hsl(var(--primary))' }}
             >
               {sessionActionState.loading && sessionActionState.kind === 'join'
                 ? <><Loader2 className="h-4 w-4 animate-spin" /> Preparing access...</>
-                : <><Video className="h-4 w-4" /> {isLive ? 'Join Live Session' : 'Prepare & Join'}</>}
+                : <><Video className="h-4 w-4" /> {isLive ? 'Join Live Session' : hasRoom ? 'Join Consultation' : 'Prepare & Join'}</>}
             </button>
 
             {patientJoinInfo && (
@@ -1024,6 +1205,8 @@ export default function PatientTelemedicinePage() {
         session={selectedSession}
         joinInfo={patientJoinInfo}
         participantLabel="patient"
+        allowEmbed={allowMeetingEmbed}
+        blockedEmbedMessage="Your doctor has not joined yet. You can enter the room now; the call will start when the doctor joins."
       />
     </div>
   )

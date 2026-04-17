@@ -22,6 +22,7 @@ import com.healthcare.telemedicine.integration.appointment.AppointmentGateway;
 import com.healthcare.telemedicine.integration.appointment.ExternalAppointment;
 import com.healthcare.telemedicine.integration.appointment.ExternalAppointmentStatus;
 import com.healthcare.telemedicine.integration.appointment.TelemedicineAppointmentAdapter;
+import com.healthcare.telemedicine.integration.notification.TelemedicineNotificationClient;
 import com.healthcare.telemedicine.model.ConsultationSession;
 import com.healthcare.telemedicine.model.enums.SessionStatus;
 import com.healthcare.telemedicine.repository.ConsultationSessionRepository;
@@ -39,18 +40,21 @@ public class AppointmentServiceImpl implements AppointmentService {
     private final ConsultationSessionRepository sessionRepository;
     private final TelemedicineEventPublisher eventPublisher;
     private final AuditLogService auditLogService;
+    private final TelemedicineNotificationClient notificationClient;
 
     public AppointmentServiceImpl(
             AppointmentGateway appointmentGateway,
             TelemedicineAppointmentAdapter appointmentAdapter,
             ConsultationSessionRepository sessionRepository,
             TelemedicineEventPublisher eventPublisher,
-            AuditLogService auditLogService) {
+            AuditLogService auditLogService,
+            TelemedicineNotificationClient notificationClient) {
         this.appointmentGateway = appointmentGateway;
         this.appointmentAdapter = appointmentAdapter;
         this.sessionRepository = sessionRepository;
         this.eventPublisher = eventPublisher;
         this.auditLogService = auditLogService;
+        this.notificationClient = notificationClient;
     }
 
     @Override
@@ -103,7 +107,8 @@ public class AppointmentServiceImpl implements AppointmentService {
     public TelemedicineAppointmentResponse acceptAppointment(String appointmentId, String actorId) {
         ExternalAppointment current = getDoctorOwnedTelemedicineAppointment(appointmentId, actorId);
         TelemedicineAppointmentStatus previousStatus = appointmentAdapter.toTelemedicineStatus(current);
-        if (!(previousStatus == TelemedicineAppointmentStatus.PENDING || previousStatus == TelemedicineAppointmentStatus.RESCHEDULED)) {
+        if (!(previousStatus == TelemedicineAppointmentStatus.PENDING
+                || previousStatus == TelemedicineAppointmentStatus.RESCHEDULED)) {
             throw new ConflictException("Only pending or rescheduled appointments can be accepted");
         }
 
@@ -116,6 +121,7 @@ public class AppointmentServiceImpl implements AppointmentService {
         TelemedicineAppointmentResponse mapped = appointmentAdapter.toTelemedicineAppointment(updated);
         auditStatusChange(mapped, previousStatus, mapped.getStatus(), actorId, "appointment.accepted");
         eventPublisher.publishAppointmentStatusUpdated(mapped);
+        notificationClient.notifyAppointmentStatus(mapped);
         return mapped;
     }
 
@@ -144,6 +150,7 @@ public class AppointmentServiceImpl implements AppointmentService {
         cancelLinkedSession(mapped, actorId, "appointment.rejected");
         auditStatusChange(mapped, previousStatus, mapped.getStatus(), actorId, "appointment.rejected");
         eventPublisher.publishAppointmentStatusUpdated(mapped);
+        notificationClient.notifyAppointmentStatus(mapped);
         return mapped;
     }
 
@@ -183,6 +190,7 @@ public class AppointmentServiceImpl implements AppointmentService {
         cancelLinkedSession(mapped, actorId, "appointment.rescheduled");
         auditStatusChange(mapped, previousStatus, mapped.getStatus(), actorId, "appointment.rescheduled");
         eventPublisher.publishAppointmentStatusUpdated(mapped);
+        notificationClient.notifyAppointmentStatus(mapped);
         return mapped;
     }
 
@@ -193,7 +201,8 @@ public class AppointmentServiceImpl implements AppointmentService {
             throw new ForbiddenException("Doctors can only access their own upcoming appointments");
         }
         Instant now = Instant.now();
-        List<ExternalAppointment> appointments = appointmentGateway.listByDoctorId(resolvedDoctorId, actorId, DOCTOR_ROLE);
+        List<ExternalAppointment> appointments = appointmentGateway.listByDoctorId(resolvedDoctorId, actorId,
+                DOCTOR_ROLE);
 
         return appointments.stream()
                 .filter(appointmentAdapter::isTelemedicineAppointment)
@@ -224,12 +233,13 @@ public class AppointmentServiceImpl implements AppointmentService {
     }
 
     private void cancelLinkedSession(TelemedicineAppointmentResponse appointment, String actorId, String reason) {
-        sessionRepository.findByAppointmentIdAndDeletedAtIsNull(appointment.getId())
+        sessionRepository.findFirstByAppointmentIdAndDeletedAtIsNullOrderByCreatedAtDesc(appointment.getId())
                 .ifPresent(session -> cancelSession(session, actorId, reason));
     }
 
     private void cancelSession(ConsultationSession session, String actorId, String reason) {
-        if (session.getSessionStatus() == SessionStatus.COMPLETED || session.getSessionStatus() == SessionStatus.MISSED) {
+        if (session.getSessionStatus() == SessionStatus.COMPLETED
+                || session.getSessionStatus() == SessionStatus.MISSED) {
             return;
         }
         SessionStatus previous = session.getSessionStatus();

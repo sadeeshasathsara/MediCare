@@ -35,10 +35,29 @@ public final class AccessGuard {
         return false;
     }
 
+    public static boolean isDoctor() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null)
+            return false;
+        for (GrantedAuthority a : auth.getAuthorities()) {
+            if (a != null && "ROLE_DOCTOR".equalsIgnoreCase(a.getAuthority())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public static void requireSelfOrAdmin(String targetUserId) {
         String actor = requireAuthenticatedUserId();
         if (!isAdmin() && !actor.equals(targetUserId)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "forbidden");
+        }
+    }
+
+    public static void requireSelfOrAdminOrDoctor(String targetUserId) {
+        String actor = requireAuthenticatedUserId();
+        if (!isAdmin() && !isDoctor() && !actor.equals(targetUserId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "forbidden: requires patient self-access, doctor, or admin");
         }
     }
 

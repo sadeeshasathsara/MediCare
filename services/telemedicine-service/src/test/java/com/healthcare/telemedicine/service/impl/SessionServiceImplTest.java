@@ -22,6 +22,7 @@ import com.healthcare.telemedicine.integration.appointment.AppointmentGateway;
 import com.healthcare.telemedicine.integration.appointment.ExternalAppointment;
 import com.healthcare.telemedicine.integration.appointment.ExternalAppointmentStatus;
 import com.healthcare.telemedicine.integration.appointment.TelemedicineAppointmentAdapter;
+import com.healthcare.telemedicine.integration.notification.TelemedicineNotificationClient;
 import com.healthcare.telemedicine.model.ConsultationSession;
 import com.healthcare.telemedicine.model.enums.SessionStatus;
 import com.healthcare.telemedicine.repository.ConsultationSessionRepository;
@@ -45,6 +46,9 @@ class SessionServiceImplTest {
     @Mock
     private TelemedicineEventPublisher eventPublisher;
 
+    @Mock
+    private TelemedicineNotificationClient notificationClient;
+
     private TelemedicineAppointmentAdapter appointmentAdapter;
     private SessionServiceImpl sessionService;
 
@@ -59,6 +63,7 @@ class SessionServiceImplTest {
                 jitsiService,
                 auditLogService,
                 eventPublisher,
+                notificationClient,
                 15);
     }
 
@@ -79,11 +84,13 @@ class SessionServiceImplTest {
                 Instant.now());
 
         when(appointmentGateway.getById("apt-1", "doctor-1", "DOCTOR")).thenReturn(appointment);
-        when(sessionRepository.findByAppointmentIdAndDeletedAtIsNull("apt-1")).thenReturn(Optional.empty());
+        when(sessionRepository.findFirstByAppointmentIdAndDeletedAtIsNullOrderByCreatedAtDesc("apt-1"))
+                .thenReturn(Optional.empty());
         when(jitsiService.roomNameForAppointment("apt-1")).thenReturn("consult-apt-1");
-        when(sessionRepository.save(any(ConsultationSession.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(sessionRepository.save(any(ConsultationSession.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
 
-        ConsultationSession created = sessionService.createSession("apt-1", "doctor-1");
+        ConsultationSession created = sessionService.createSession("apt-1", "doctor-1", "DOCTOR");
 
         assertEquals("consult-apt-1", created.getJitsiRoomId());
         assertNull(created.getJitsiRoomToken());
@@ -105,8 +112,10 @@ class SessionServiceImplTest {
 
         when(sessionRepository.findByIdAndDeletedAtIsNull("session-1")).thenReturn(Optional.of(session));
         when(jitsiService.getDomain()).thenReturn("meet.jit.si");
+        when(jitsiService.isJwtConfigured()).thenReturn(false);
 
-        JoinTokenResponse response = sessionService.generateJoinToken("session-1", "doctor", false, "doctor-1", "DOCTOR");
+        JoinTokenResponse response = sessionService.generateJoinToken("session-1", "doctor", false, "doctor-1",
+                "DOCTOR");
 
         assertEquals("session-1", response.getSessionId());
         assertEquals("consult-apt-1", response.getRoomId());

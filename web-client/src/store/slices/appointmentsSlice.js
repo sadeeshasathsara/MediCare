@@ -2,14 +2,17 @@ import { createAsyncThunk, createSlice } from '@reduxjs/toolkit'
 import {
     createAppointment,
     getAppointments,
+    getAppointmentById,
     updateAppointmentStatus,
+    updateAppointmentNotes,
+    cancelAppointment,
 } from '@/features/appointments/services/appointmentApi'
 
 const EMPTY_QUERY = { items: [], status: 'idle', error: null, lastFetched: 0 }
 
 function serializeParams(params = {}) {
     const entries = Object.entries(params || {})
-        .filter(([, value]) => value !== undefined && value !== null && value !== '')
+        .filter(([key, value]) => value !== undefined && value !== null && value !== '' && key !== 'page' && key !== 'limit' && key !== 'isLoadMore')
         .sort(([left], [right]) => String(left).localeCompare(String(right)))
 
     return entries.map(([key, value]) => `${key}:${String(value)}`).join('|') || 'all'
@@ -31,12 +34,16 @@ function parseQueryKey(queryKey = '') {
 
 export const fetchAppointments = createAsyncThunk(
     'appointments/fetchAppointments',
-    async ({ params = {}, force = false } = {}) => {
-        const items = await getAppointments(params)
+    async ({ params = {}, force = false, isLoadMore = false } = {}) => {
+        const responseData = await getAppointments(params)
         return {
             params,
             queryKey: serializeParams(params),
-            items: Array.isArray(items) ? items : [],
+            items: responseData?.content ? responseData.content : (Array.isArray(responseData) ? responseData : []),
+            totalPages: responseData?.totalPages || 0,
+            hasMore: typeof responseData?.last === 'boolean' ? !responseData.last : false,
+            page: params.page || 0,
+            isLoadMore,
             force,
             fetchedAt: Date.now(),
         }
@@ -72,6 +79,39 @@ export const updateAppointmentStatusById = createAsyncThunk(
     }
 )
 
+export const updateAppointmentNotesById = createAsyncThunk(
+    'appointments/updateAppointmentNotesById',
+    async ({ appointmentId, status, notes }) => {
+        const updated = await updateAppointmentNotes(appointmentId, status, notes)
+        return {
+            appointmentId,
+            status,
+            notes,
+            updated,
+        }
+    }
+)
+
+
+export const cancelAppointmentById = createAsyncThunk(
+    'appointments/cancelAppointmentById',
+    async (appointmentId) => {
+        await cancelAppointment(appointmentId)
+        return {
+            appointmentId,
+            status: 'CANCELLED',
+        }
+    }
+)
+
+export const fetchAppointmentById = createAsyncThunk(
+    'appointments/fetchAppointmentById',
+    async (id) => {
+        const data = await getAppointmentById(id)
+        return data
+    }
+)
+
 const initialState = {
     queries: {},
     createState: {
@@ -101,12 +141,16 @@ const appointmentsSlice = createSlice({
                 }
             })
             .addCase(fetchAppointments.fulfilled, (state, action) => {
-                const { queryKey, items, fetchedAt } = action.payload
+                const { queryKey, items, fetchedAt, isLoadMore, hasMore, totalPages, page } = action.payload
+                const existing = state.queries[queryKey] || EMPTY_QUERY
                 state.queries[queryKey] = {
-                    items,
+                    items: isLoadMore && existing.items ? [...existing.items, ...items] : items,
                     status: 'succeeded',
                     error: null,
                     lastFetched: fetchedAt,
+                    hasMore,
+                    totalPages,
+                    page,
                 }
             })
             .addCase(fetchAppointments.rejected, (state, action) => {
@@ -188,6 +232,81 @@ const appointmentsSlice = createSlice({
                     error: action.error?.message || 'Failed to update appointment status.',
                 }
             })
+            // Update Notes
+            .addCase(updateAppointmentNotesById.pending, (state, action) => {
+                const appointmentId = action.meta.arg?.appointmentId
+                if (!appointmentId) return
+                state.updateStateById[appointmentId] = {
+                    status: 'loading',
+                    error: null,
+                }
+            })
+            .addCase(updateAppointmentNotesById.fulfilled, (state, action) => {
+                const appointmentId = action.payload?.appointmentId
+                const updated = action.payload?.updated || {}
+
+                if (appointmentId) {
+                    state.updateStateById[appointmentId] = {
+                        status: 'succeeded',
+                        error: null,
+                    }
+                }
+
+                if (state.byId?.id === appointmentId) {
+                    state.byId = { ...state.byId, ...updated }
+                }
+
+                for (const queryState of Object.values(state.queries)) {
+                    if (!Array.isArray(queryState?.items)) continue
+                    queryState.items = queryState.items.map((item) => {
+                        if (item?.id !== appointmentId) return item
+                        return {
+                            ...item,
+                            ...updated,
+                            status: updated?.status || item.status,
+                            notes: updated?.notes || item.notes,
+                        }
+                    })
+                }
+            })
+            .addCase(updateAppointmentNotesById.rejected, (state, action) => {
+                const appointmentId = action.meta.arg?.appointmentId
+                if (!appointmentId) return
+                state.updateStateById[appointmentId] = {
+                    status: 'failed',
+                    error: action.error?.message || 'Failed to update appointment notes.',
+                }
+            })
+            .addCase(cancelAppointmentById.fulfilled, (state, action) => {
+                const appointmentId = action.payload?.appointmentId
+                const status = action.payload?.status
+
+                for (const queryState of Object.values(state.queries)) {
+                    if (!Array.isArray(queryState?.items)) continue
+                    queryState.items = queryState.items.map((item) => {
+                        if (item?.id !== appointmentId) return item
+                        return {
+                            ...item,
+                            status: status,
+                        }
+                    })
+                }
+            })
+            .addCase(fetchAppointmentById.fulfilled, (state, action) => {
+                const item = action.payload
+                if (!item?.id) return
+                // Upsert into every existing query that matches this patient/doctor
+                for (const queryState of Object.values(state.queries)) {
+                    if (!Array.isArray(queryState?.items)) continue
+                    const idx = queryState.items.findIndex((a) => a?.id === item.id)
+                    if (idx >= 0) {
+                        queryState.items[idx] = item
+                    }
+                }
+                // Store in a dedicated single-item lookup
+                state.byId = state.byId || {}
+                state.byId[item.id] = item
+            })
     },
 })
 
@@ -196,6 +315,16 @@ export const { resetCreateAppointmentState } = appointmentsSlice.actions
 export const selectAppointmentsQuery = (state, params = {}) => {
     const queryKey = serializeParams(params)
     return state.appointments?.queries?.[queryKey] || EMPTY_QUERY
+}
+
+// Scans ALL cached query buckets then falls back to byId lookup
+export const selectAppointmentById = (state, id) => {
+    if (!id) return null
+    for (const queryState of Object.values(state.appointments?.queries || {})) {
+        const found = queryState?.items?.find((a) => a?.id === id)
+        if (found) return found
+    }
+    return state.appointments?.byId?.[id] || null
 }
 
 export const selectAppointmentsByParams = (state, params = {}) =>

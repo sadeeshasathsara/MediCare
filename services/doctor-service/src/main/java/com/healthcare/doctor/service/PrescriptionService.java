@@ -59,6 +59,19 @@ public class PrescriptionService {
         return prescriptions.stream().map(this::toResponse).toList();
     }
 
+    public List<PrescriptionResponse> getAppointmentPrescriptions(String appointmentId, String userId, String userRole) {
+        List<Prescription> prescriptions = prescriptionRepository.findByAppointmentId(appointmentId);
+        
+        return prescriptions.stream()
+            .filter(p -> {
+                if ("ADMIN".equals(userRole)) return true;
+                if ("DOCTOR".equals(userRole)) return p.getDoctorId().equals(userId);
+                return p.getPatientId().equals(userId); // Patient access
+            })
+            .map(this::toResponse)
+            .toList();
+    }
+
     private Medication toMedication(MedicationDto dto) {
         Medication medication = new Medication();
         medication.setName(dto.getName().trim());

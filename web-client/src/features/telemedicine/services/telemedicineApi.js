@@ -1,12 +1,9 @@
 import api from '@/services/api'
 
-const TELEMEDICINE_BASE = '/telemedicine/api/v1'
-const APPOINTMENT_GATEWAY_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api'
-const APPOINTMENT_ABSOLUTE_BASE = import.meta.env.VITE_APPOINTMENT_API_BASE_URL || `${APPOINTMENT_GATEWAY_BASE}/appointments/appointments`
-const APPOINTMENT_ABSOLUTE_BASE_FALLBACK = import.meta.env.VITE_APPOINTMENT_API_BASE_URL_FALLBACK || `${APPOINTMENT_GATEWAY_BASE}/appointments`
-const RETRYABLE_APPOINTMENT_STATUSES = new Set([500, 502, 503, 504])
-const APPOINTMENT_RETRY_DELAY_MS = 1200
-const APPOINTMENT_MAX_ATTEMPTS = 2
+// NOTE: The API gateway exposes telemedicine as `/api/telemedicine/*` and rewrites it to
+// the telemedicine-service native `/api/v1/*`. Therefore the frontend must NOT include
+// `/api/v1` here, otherwise it becomes `/api/v1/api/v1/*` upstream.
+const TELEMEDICINE_BASE = '/telemedicine'
 const RESCHEDULE_PREFIX = '[telemedicine-rescheduled]'
 
 function unwrapEnvelope(response, fallbackValue = null) {
@@ -28,65 +25,6 @@ function withQuery(path, params = {}) {
 
   const queryString = searchParams.toString()
   return queryString ? `${path}?${queryString}` : path
-}
-
-function isNotFound(error) {
-  return Number(error?.response?.status) === 404
-}
-
-function trimTrailingSlash(value) {
-  return String(value || '').replace(/\/+$/, '')
-}
-
-function isRetryableAppointmentError(error) {
-  const status = Number(error?.response?.status)
-  if (RETRYABLE_APPOINTMENT_STATUSES.has(status)) return true
-  return !error?.response
-}
-
-function delay(ms) {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms)
-  })
-}
-
-async function requestAppointmentService(method, path, configOrBody) {
-  const candidates = [
-    `${trimTrailingSlash(APPOINTMENT_ABSOLUTE_BASE)}${path}`,
-    `${trimTrailingSlash(APPOINTMENT_ABSOLUTE_BASE_FALLBACK)}${path}`,
-  ].filter(Boolean)
-
-  const uniqueCandidates = Array.from(new Set(candidates))
-  let lastError = null
-
-  for (const candidate of uniqueCandidates) {
-    for (let attempt = 1; attempt <= APPOINTMENT_MAX_ATTEMPTS; attempt += 1) {
-      try {
-        if (method === 'get') {
-          return await api.get(candidate, configOrBody)
-        }
-        if (method === 'put') {
-          return await api.put(candidate, configOrBody)
-        }
-        if (method === 'patch') {
-          return await api.patch(candidate, configOrBody)
-        }
-        throw new Error(`Unsupported method: ${method}`)
-      } catch (error) {
-        lastError = error
-        if (isNotFound(error)) {
-          break
-        }
-        if (isRetryableAppointmentError(error) && attempt < APPOINTMENT_MAX_ATTEMPTS) {
-          await delay(APPOINTMENT_RETRY_DELAY_MS)
-          continue
-        }
-        throw error
-      }
-    }
-  }
-
-  throw lastError || new Error('Appointment service request failed.')
 }
 
 function normalizeText(value) {
@@ -116,7 +54,12 @@ function extractRescheduleReason(notes) {
 }
 
 function mapAppointment(appointment) {
-  const mappedStatus = mapAppointmentStatus(appointment?.status, appointment?.notes)
+  const rawStatus = String(appointment?.status || '').toUpperCase()
+  const hasNativeTelemedicineStatus = ['PENDING', 'ACCEPTED', 'REJECTED', 'RESCHEDULED', 'COMPLETED'].includes(rawStatus)
+  const mappedStatus = hasNativeTelemedicineStatus
+    ? rawStatus
+    : mapAppointmentStatus(appointment?.status, appointment?.notes)
+
   return {
     id: appointment?.id,
     patientId: appointment?.patientId,
@@ -126,11 +69,11 @@ function mapAppointment(appointment) {
     doctorSpecialty: appointment?.doctorSpecialty || '',
     scheduledAt: appointment?.scheduledAt,
     status: mappedStatus,
-    reasonForVisit: appointment?.reason || '',
+    reasonForVisit: appointment?.reasonForVisit || appointment?.reason || '',
     notes: appointment?.notes || '',
-    rejectionReason: mappedStatus === 'REJECTED' ? (appointment?.notes || '') : null,
-    rescheduleReason: extractRescheduleReason(appointment?.notes),
-    proposedScheduledAt: mappedStatus === 'RESCHEDULED' ? (appointment?.scheduledAt || null) : null,
+    rejectionReason: appointment?.rejectionReason || (mappedStatus === 'REJECTED' ? (appointment?.notes || '') : null),
+    rescheduleReason: appointment?.rescheduleReason || extractRescheduleReason(appointment?.notes),
+    proposedScheduledAt: appointment?.proposedScheduledAt || (mappedStatus === 'RESCHEDULED' ? (appointment?.scheduledAt || null) : null),
     createdAt: appointment?.createdAt || null,
     updatedAt: appointment?.updatedAt || null,
   }
@@ -141,27 +84,24 @@ function mapTelemedicineAppointments(appointments) {
 }
 
 export async function listAppointments(params = {}) {
-  const response = await requestAppointmentService('get', withQuery('', params))
+  const response = await api.get(withQuery(`${TELEMEDICINE_BASE}/appointments`, params))
   return mapTelemedicineAppointments(unwrapEnvelope(response, []))
 }
 
 export async function getAppointment(appointmentId) {
-  const response = await requestAppointmentService('get', `/${appointmentId}`)
+  const response = await api.get(`${TELEMEDICINE_BASE}/appointments/${appointmentId}`)
   const appointment = unwrapEnvelope(response)
   return appointment ? mapAppointment(appointment) : null
 }
 
 export async function acceptAppointment(appointmentId) {
-  const response = await requestAppointmentService('patch', `/${appointmentId}/status`, {
-    status: 'CONFIRMED',
-  })
+  const response = await api.patch(`${TELEMEDICINE_BASE}/appointments/${appointmentId}/accept`)
   return mapAppointment(unwrapEnvelope(response))
 }
 
 export async function rejectAppointment(appointmentId, reason) {
-  const response = await requestAppointmentService('patch', `/${appointmentId}/status`, {
-    status: 'CANCELLED',
-    notes: reason,
+  const response = await api.patch(`${TELEMEDICINE_BASE}/appointments/${appointmentId}/reject`, {
+    reason,
   })
   return mapAppointment(unwrapEnvelope(response))
 }
@@ -170,22 +110,16 @@ export async function rescheduleAppointment(appointmentId, payload) {
   const scheduledAt = payload?.newScheduledAt || payload?.scheduledAt || ''
   const reason = String(payload?.reason || '').trim()
 
-  await requestAppointmentService('put', `/${appointmentId}`, { scheduledAt })
-  const response = await requestAppointmentService('patch', `/${appointmentId}/status`, {
-    status: 'PENDING',
-    notes: reason ? `${RESCHEDULE_PREFIX} ${reason}` : RESCHEDULE_PREFIX,
+  const response = await api.patch(`${TELEMEDICINE_BASE}/appointments/${appointmentId}/reschedule`, {
+    newScheduledAt: scheduledAt,
+    reason: reason || 'Rescheduled by doctor',
   })
   return mapAppointment(unwrapEnvelope(response))
 }
 
 export async function listUpcomingAppointments(params = {}) {
-  const appointments = await listAppointments(params)
-  const now = Date.now()
-  return appointments.filter((appointment) => {
-    if (appointment.status !== 'ACCEPTED') return false
-    const scheduledTime = new Date(appointment.scheduledAt || '').getTime()
-    return Number.isFinite(scheduledTime) && scheduledTime > now
-  })
+  const response = await api.get(withQuery(`${TELEMEDICINE_BASE}/appointments/upcoming`, params))
+  return mapTelemedicineAppointments(unwrapEnvelope(response, []))
 }
 
 export async function listSessions(params = {}) {

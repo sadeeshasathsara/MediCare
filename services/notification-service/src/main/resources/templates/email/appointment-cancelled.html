@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Appointment Cancelled</title>
+</head>
+<body style="font-family: Arial, sans-serif; color: #1f2937; line-height: 1.5;">
+<h2 style="margin-bottom: 8px;">Appointment Cancelled</h2>
+<p>Hi {{recipientName}},</p>
+<p>Your appointment has been cancelled.</p>
+<ul>
+    <li><strong>Appointment ID:</strong> {{appointmentId}}</li>
+    <li><strong>Reason:</strong> {{cancellationReason}}</li>
+    <li><strong>Refund status:</strong> {{refundStatus}}</li>
+    <li><strong>Refund amount:</strong> {{refundAmount}} {{refundCurrency}}</li>
+    <li><strong>Refund reference:</strong> {{refundReference}}</li>
+    <li><strong>Refund expected by:</strong> {{refundExpectedAt}}</li>
+</ul>
+<p>If you need support, please contact MediCare support.</p>
+<p>Thank you,<br>MediCare Team</p>
+</body>
+</html>

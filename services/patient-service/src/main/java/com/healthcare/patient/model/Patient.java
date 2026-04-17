@@ -21,6 +21,8 @@ public class Patient {
 
     private String dob;
 
+    private String gender; // MALE, FEMALE, OTHER
+
     private Contact contact;
 
     private Address address;
@@ -79,6 +81,14 @@ public class Patient {
 
     public void setDob(String dob) {
         this.dob = dob;
+    }
+
+    public String getGender() {
+        return gender;
+    }
+
+    public void setGender(String gender) {
+        this.gender = gender;
     }
 
     public Contact getContact() {

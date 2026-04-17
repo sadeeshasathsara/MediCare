@@ -1,0 +1,1 @@
+MediCare: Your appointment {{appointmentId}} is confirmed for {{appointmentDateTime}} via {{channel}} with {{counterpartRole}} {{counterpartName}}.

@@ -59,6 +59,8 @@ public class AvailabilityService {
             slot.setDayOfWeek(day);
             slot.setStartTime(start);
             slot.setEndTime(end);
+            slot.setMaxCapacity(slotReq.getMaxCapacity());
+            slot.setCurrentBookings(0);
             slot.setStatus(SlotStatus.AVAILABLE);
             slot.setCreatedAt(now);
             slot.setUpdatedAt(now);
@@ -73,6 +75,23 @@ public class AvailabilityService {
         doctorService.ensureDoctorExists(doctorId);
         List<AvailabilitySlot> slots = slotRepository.findByDoctorId(doctorId);
         return slots.stream().map(this::toResponse).toList();
+    }
+
+    public AvailabilitySlotResponse incrementBookings(String slotId) {
+        AvailabilitySlot slot = slotRepository.findById(slotId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Slot not found"));
+
+        if (slot.getCurrentBookings() >= slot.getMaxCapacity()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Slot is already at maximum capacity");
+        }
+
+        slot.setCurrentBookings(slot.getCurrentBookings() + 1);
+        if (slot.getCurrentBookings() >= slot.getMaxCapacity()) {
+            slot.setStatus(SlotStatus.BOOKED);
+        }
+        
+        slot.setUpdatedAt(Instant.now());
+        return toResponse(slotRepository.save(slot));
     }
 
     public AvailabilitySlotResponse updateSlot(String doctorId, String slotId, UpdateSlotRequest request) {
@@ -138,6 +157,8 @@ public class AvailabilityService {
         response.setStartTime(slot.getStartTime() != null ? slot.getStartTime().toString() : null);
         response.setEndTime(slot.getEndTime() != null ? slot.getEndTime().toString() : null);
         response.setStatus(slot.getStatus() != null ? slot.getStatus().name() : null);
+        response.setMaxCapacity(slot.getMaxCapacity());
+        response.setCurrentBookings(slot.getCurrentBookings());
         response.setCreatedAt(slot.getCreatedAt());
         response.setUpdatedAt(slot.getUpdatedAt());
         return response;
