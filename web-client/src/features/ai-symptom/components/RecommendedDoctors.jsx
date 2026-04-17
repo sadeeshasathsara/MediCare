@@ -108,7 +108,7 @@ function DoctorCard({ doctor }) {
         {/* Booking Action */}
         <Button
           onClick={handleBook}
-          className="w-full mt-auto rounded-2xl bg-primary h-12 gap-3 text-sm font-bold shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 relative overflow-hidden group/btn"
+          className="w-full mt-auto rounded-2xl bg-primary h-12 gap-3 text-sm font-bold shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 relative overflow-hidden group/btn cursor-pointer"
         >
           {/* Shine effect on button */}
           <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover/btn:animate-[shimmer_2s_infinite]" />
