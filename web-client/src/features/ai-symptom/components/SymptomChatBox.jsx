@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { Send, Bot, User, Loader2, AlertTriangle, ShieldCheck, Zap, AlertOctagon, RotateCcw, Stethoscope, MessageCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -212,7 +212,7 @@ export default function SymptomChatBox({ profile, initialPrompt, isLocked }) {
   const bottomRef = useRef(null)
   const initializedRef = useRef(false)
 
-  const performSubmit = async (text, currentHistory) => {
+  const performSubmit = useCallback(async (text, currentHistory) => {
     const trimmed = text.trim()
     if (!trimmed) return
 
@@ -241,7 +241,7 @@ export default function SymptomChatBox({ profile, initialPrompt, isLocked }) {
     } catch (err) {
       console.error('Symptom check failed:', err)
     }
-  }
+  }, [profile?.dob, profile?.gender, setMessages, submitCheck])
 
   // Initialize with welcome message if empty
   useEffect(() => {
@@ -262,7 +262,7 @@ export default function SymptomChatBox({ profile, initialPrompt, isLocked }) {
         }, 0)
       }
     }
-  }, [profile, messages.length, setMessages, initialPrompt])
+  }, [profile, messages.length, setMessages, initialPrompt, performSubmit])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })

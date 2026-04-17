@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
 import { useAuth } from '@/context/AuthContext'
@@ -22,14 +22,14 @@ export default function PatientDashboard() {
     }
   }, [userId])
 
-  const upcomingParams = { patientId: userId, filter: 'UPCOMING', limit: 4 }
+  const upcomingParams = useMemo(() => ({ patientId: userId, filter: 'UPCOMING', limit: 4 }), [userId])
   const upcomingQuery = useSelector((state) => selectAppointmentsQuery(state, upcomingParams))
 
   useEffect(() => {
     if (userId && upcomingQuery.status === 'idle') {
       dispatch(fetchAppointments({ params: upcomingParams }))
     }
-  }, [dispatch, userId, upcomingQuery.status])
+  }, [dispatch, userId, upcomingParams, upcomingQuery.status])
 
   const handleStatusUpdate = async (id, status) => {
     try {

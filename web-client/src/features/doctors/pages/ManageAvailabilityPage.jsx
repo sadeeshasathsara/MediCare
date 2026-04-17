@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   Calendar,
   Clock,
@@ -36,7 +36,7 @@ export default function ManageAvailabilityPage() {
     maxCapacity: 5
   });
 
-  const fetchSlots = async () => {
+  const fetchSlots = useCallback(async () => {
     if (!doctorId) return;
     setLoading(true);
     try {
@@ -47,11 +47,11 @@ export default function ManageAvailabilityPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [doctorId]);
 
   useEffect(() => {
     fetchSlots();
-  }, [doctorId]);
+  }, [fetchSlots]);
 
   const handleCreate = async (e) => {
     e.preventDefault();

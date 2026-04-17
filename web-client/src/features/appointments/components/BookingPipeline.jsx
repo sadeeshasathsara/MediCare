@@ -189,7 +189,7 @@ export default function BookingPipeline() {
     }));
   }, [dispatch, debouncedSearch, form.specialty, currentPage]);
 
-  const filteredDoctors = Array.isArray(doctors) ? doctors : [];
+  const filteredDoctors = useMemo(() => (Array.isArray(doctors) ? doctors : []), [doctors]);
   const currentDoctor = useSelector(selectCurrentDoctor);
 
   const selectedDoctor = useMemo(() => {

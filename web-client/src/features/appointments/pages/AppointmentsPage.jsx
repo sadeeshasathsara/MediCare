@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useAuth } from "@/context/AuthContext";
 import AppointmentsList from "../components/AppointmentsList";
@@ -18,9 +18,13 @@ export default function AppointmentsPage() {
 
   const [cancelingId, setCancelingId] = useState(null);
 
-  const baseParams = userId ? (isDoctor ? { doctorId: userId } : { patientId: userId }) : {};
-  const upcomingParams = { ...baseParams, filter: "UPCOMING", limit: 8 };
-  const pastParams = { ...baseParams, filter: "PAST", limit: 8 };
+  const baseParams = useMemo(() => {
+    if (!userId) return {};
+    return isDoctor ? { doctorId: userId } : { patientId: userId };
+  }, [userId, isDoctor]);
+
+  const upcomingParams = useMemo(() => ({ ...baseParams, filter: "UPCOMING", limit: 8 }), [baseParams]);
+  const pastParams = useMemo(() => ({ ...baseParams, filter: "PAST", limit: 8 }), [baseParams]);
 
   const upcomingQuery = useSelector((state) => selectAppointmentsQuery(state, upcomingParams));
   const pastQuery = useSelector((state) => selectAppointmentsQuery(state, pastParams));
@@ -31,7 +35,7 @@ export default function AppointmentsPage() {
     if (!userId) return;
     if (upcomingQuery.status === 'idle') dispatch(fetchAppointments({ params: upcomingParams }));
     if (pastQuery.status === 'idle') dispatch(fetchAppointments({ params: pastParams }));
-  }, [dispatch, userId, isDoctor, upcomingQuery.status, pastQuery.status]);
+  }, [dispatch, userId, upcomingParams, pastParams, upcomingQuery.status, pastQuery.status]);
 
   const handleLoadMoreUpcoming = () => {
     dispatch(fetchAppointments({ 
