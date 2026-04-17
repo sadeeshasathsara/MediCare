@@ -38,23 +38,23 @@ export default function AppointmentsPage() {
   }, [dispatch, userId, upcomingParams, pastParams, upcomingQuery.status, pastQuery.status]);
 
   const handleLoadMoreUpcoming = () => {
-    dispatch(fetchAppointments({ 
-      params: { ...upcomingParams, page: (upcomingQuery.page || 0) + 1 }, 
-      isLoadMore: true 
+    dispatch(fetchAppointments({
+      params: { ...upcomingParams, page: (upcomingQuery.page || 0) + 1 },
+      isLoadMore: true
     }));
   };
 
   const handleLoadMorePast = () => {
-    dispatch(fetchAppointments({ 
-      params: { ...pastParams, page: (pastQuery.page || 0) + 1 }, 
-      isLoadMore: true 
+    dispatch(fetchAppointments({
+      params: { ...pastParams, page: (pastQuery.page || 0) + 1 },
+      isLoadMore: true
     }));
   };
 
   const handleStatusUpdate = async (id, status) => {
     try {
       if (status === "CANCELLED") setCancelingId(id);
-      
+
       if (!isDoctor && status === "CANCELLED") {
         await dispatch(cancelAppointmentById(id)).unwrap();
       } else {

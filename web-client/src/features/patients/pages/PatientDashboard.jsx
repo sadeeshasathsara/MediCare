@@ -65,7 +65,7 @@ export default function PatientDashboard() {
 
           <RouterLink to="/patient/symptom-checker" className="group rounded-2xl p-5 border bg-card hover:bg-blue-500/5 hover:border-blue-500/30 hover:shadow-md transition-all duration-300">
             <div className="h-10 w-10 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-600 group-hover:scale-110 transition-transform">
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 8V4H8" /><rect width="16" height="12" x="4" y="8" rx="2" /><path d="M2 14h2" /><path d="M20 14h2" /><path d="M15 13v2" /><path d="M9 13v2" /></svg>
             </div>
             <h3 className="mt-4 font-semibold text-foreground text-sm">AI Checker</h3>
             <p className="text-xs text-muted-foreground mt-1 line-clamp-1">Self-diagnose symptoms</p>
@@ -73,7 +73,7 @@ export default function PatientDashboard() {
 
           <RouterLink to="/patient/profile" className="group rounded-2xl p-5 border bg-card hover:bg-emerald-500/5 hover:border-emerald-500/30 hover:shadow-md transition-all duration-300">
             <div className="h-10 w-10 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-600 group-hover:scale-110 transition-transform">
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
             </div>
             <h3 className="mt-4 font-semibold text-foreground text-sm">My Profile</h3>
             <p className="text-xs text-muted-foreground mt-1 line-clamp-1">Manage medical records</p>
@@ -81,7 +81,7 @@ export default function PatientDashboard() {
 
           <RouterLink to="/appointments" className="group rounded-2xl p-5 border bg-card hover:bg-amber-500/5 hover:border-amber-500/30 hover:shadow-md transition-all duration-300">
             <div className="h-10 w-10 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-600 group-hover:scale-110 transition-transform">
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="M8 14h.01"/><path d="M12 14h.01"/><path d="M16 14h.01"/><path d="M8 18h.01"/><path d="M12 18h.01"/><path d="M16 18h.01"/></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 2v4" /><path d="M16 2v4" /><rect width="18" height="18" x="3" y="4" rx="2" /><path d="M3 10h18" /><path d="M8 14h.01" /><path d="M12 14h.01" /><path d="M16 14h.01" /><path d="M8 18h.01" /><path d="M12 18h.01" /><path d="M16 18h.01" /></svg>
             </div>
             <h3 className="mt-4 font-semibold text-foreground text-sm">History</h3>
             <p className="text-xs text-muted-foreground mt-1 line-clamp-1">View past visits</p>

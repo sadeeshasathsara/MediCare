@@ -241,7 +241,7 @@ export default function SymptomChatBox({ profile, initialPrompt, isLocked }) {
     } catch (err) {
       console.error('Symptom check failed:', err)
     }
-  }, [profile?.dob, profile?.gender, setMessages, submitCheck])
+  }, [profile, setMessages, submitCheck])
 
   // Initialize with welcome message if empty
   useEffect(() => {
