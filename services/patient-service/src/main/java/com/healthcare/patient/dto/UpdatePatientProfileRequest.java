@@ -10,6 +10,16 @@ public class UpdatePatientProfileRequest {
 
     private String dob;
 
+    private String gender;
+
+    public String getGender() {
+        return gender;
+    }
+
+    public void setGender(String gender) {
+        this.gender = gender;
+    }
+
     @Valid
     private ContactDto contact;
 

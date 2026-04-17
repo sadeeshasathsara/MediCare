@@ -107,7 +107,8 @@ public class AppointmentServiceImpl implements AppointmentService {
     public TelemedicineAppointmentResponse acceptAppointment(String appointmentId, String actorId) {
         ExternalAppointment current = getDoctorOwnedTelemedicineAppointment(appointmentId, actorId);
         TelemedicineAppointmentStatus previousStatus = appointmentAdapter.toTelemedicineStatus(current);
-        if (!(previousStatus == TelemedicineAppointmentStatus.PENDING || previousStatus == TelemedicineAppointmentStatus.RESCHEDULED)) {
+        if (!(previousStatus == TelemedicineAppointmentStatus.PENDING
+                || previousStatus == TelemedicineAppointmentStatus.RESCHEDULED)) {
             throw new ConflictException("Only pending or rescheduled appointments can be accepted");
         }
 
@@ -200,7 +201,8 @@ public class AppointmentServiceImpl implements AppointmentService {
             throw new ForbiddenException("Doctors can only access their own upcoming appointments");
         }
         Instant now = Instant.now();
-        List<ExternalAppointment> appointments = appointmentGateway.listByDoctorId(resolvedDoctorId, actorId, DOCTOR_ROLE);
+        List<ExternalAppointment> appointments = appointmentGateway.listByDoctorId(resolvedDoctorId, actorId,
+                DOCTOR_ROLE);
 
         return appointments.stream()
                 .filter(appointmentAdapter::isTelemedicineAppointment)
@@ -231,12 +233,13 @@ public class AppointmentServiceImpl implements AppointmentService {
     }
 
     private void cancelLinkedSession(TelemedicineAppointmentResponse appointment, String actorId, String reason) {
-        sessionRepository.findByAppointmentIdAndDeletedAtIsNull(appointment.getId())
+        sessionRepository.findFirstByAppointmentIdAndDeletedAtIsNullOrderByCreatedAtDesc(appointment.getId())
                 .ifPresent(session -> cancelSession(session, actorId, reason));
     }
 
     private void cancelSession(ConsultationSession session, String actorId, String reason) {
-        if (session.getSessionStatus() == SessionStatus.COMPLETED || session.getSessionStatus() == SessionStatus.MISSED) {
+        if (session.getSessionStatus() == SessionStatus.COMPLETED
+                || session.getSessionStatus() == SessionStatus.MISSED) {
             return;
         }
         SessionStatus previous = session.getSessionStatus();

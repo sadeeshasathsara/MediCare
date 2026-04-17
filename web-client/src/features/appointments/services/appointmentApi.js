@@ -1,5 +1,10 @@
 import api from '@/services/api'
 
+export const getAppointmentById = async (id) => {
+  const { data } = await api.get(`/appointments/${id}`)
+  return data
+}
+
 export const getAppointments = async (params) => {
   const query = new URLSearchParams(params).toString()
   const { data } = await api.get(`/appointments?${query}`)
@@ -16,7 +21,17 @@ export const updateAppointmentStatus = async (appointmentId, status) => {
   return data
 }
 
+export const updateAppointmentNotes = async (appointmentId, status, notes) => {
+  const { data } = await api.patch(`/appointments/${appointmentId}/status`, { status, notes })
+  return data
+}
+
 export const cancelAppointment = async (appointmentId) => {
   const { data } = await api.delete(`/appointments/${appointmentId}`)
+  return data
+}
+
+export const confirmAppointmentAfterPayment = async (appointmentId) => {
+  const { data } = await api.post(`/appointments/${appointmentId}/confirm`)
   return data
 }

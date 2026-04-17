@@ -53,9 +53,10 @@
   --ring: 192 91% 36%;
   --sidebar: 0 0% 100%;
   --sidebar-foreground: 220 20% 10%;
-  --sidebar-border: 220 13% 91%;
   --sidebar-accent: 192 60% 94%;
   --sidebar-accent-foreground: 192 91% 28%;
+
+  --primary-rgb: 8, 145, 178;
 
   /* Telemedicine semantic buttons + alerts (light) */
   --tm-focus-ring: 204 84% 40%;
@@ -155,9 +156,9 @@
   --ring: 192 80% 45%;
   --sidebar: 0 0% 0%;
   --sidebar-foreground: 210 20% 90%;
-  --sidebar-border: 0 0% 16%;
-  --sidebar-accent: 0 0% 10%;
   --sidebar-accent-foreground: 192 80% 60%;
+
+  --primary-rgb: 23, 170, 207;
 
   /* Telemedicine semantic buttons + alerts (dark) */
   --tm-focus-ring: 192 80% 45%;
@@ -432,6 +433,15 @@
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@keyframes shimmer {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(100%);
   }
 }
 

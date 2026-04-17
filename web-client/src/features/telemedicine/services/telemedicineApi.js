@@ -1,6 +1,9 @@
 import api from '@/services/api'
 
-const TELEMEDICINE_BASE = '/telemedicine/api/v1'
+// NOTE: The API gateway exposes telemedicine as `/api/telemedicine/*` and rewrites it to
+// the telemedicine-service native `/api/v1/*`. Therefore the frontend must NOT include
+// `/api/v1` here, otherwise it becomes `/api/v1/api/v1/*` upstream.
+const TELEMEDICINE_BASE = '/telemedicine'
 const RESCHEDULE_PREFIX = '[telemedicine-rescheduled]'
 
 function unwrapEnvelope(response, fallbackValue = null) {

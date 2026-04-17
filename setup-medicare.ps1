@@ -124,6 +124,24 @@ function Read-DotEnvFile([string]$path) {
     return $vars
 }
 
+function Get-K8sSecretKeys([string]$k8sDir) {
+    if (-not (Test-Path -LiteralPath $k8sDir)) {
+        return @()
+    }
+
+    $keys = @()
+    $yamlFiles = Get-ChildItem -LiteralPath $k8sDir -Filter "*.yaml" -ErrorAction SilentlyContinue
+    foreach ($f in $yamlFiles) {
+        foreach ($line in (Get-Content -LiteralPath $f.FullName)) {
+            if ($line -match '^\s*key:\s*([A-Za-z0-9_]+)\s*$') {
+                $keys += $Matches[1]
+            }
+        }
+    }
+
+    return @($keys | Sort-Object -Unique)
+}
+
 function Assert-RequiredEnv([hashtable]$vars, [string[]]$requiredKeys) {
     $missing = @()
     foreach ($k in $requiredKeys) {
@@ -408,6 +426,7 @@ Ensure-Namespace $Namespace
 $EnvVars = Read-DotEnvFile $EnvFile
 $Required = @(
     "JWT_SECRET",
+    "CORS_ALLOWED_ORIGINS",
     "MONGO_URI_AUTH",
     "MONGO_URI_PATIENT",
     "MONGO_URI_DOCTOR",
@@ -420,12 +439,29 @@ $Required = @(
 Assert-RequiredEnv $EnvVars $Required
 Assert-JwtSecretStrength $EnvVars
 
+$K8sSecretKeys = Get-K8sSecretKeys (Join-Path $ProjectRoot "k8s")
+
 $SecretArgs = @(
     "create", "secret", "generic", "medicare-secrets",
     "-n", $Namespace,
     "--dry-run=client", "-o", "yaml"
 )
+
+# Always include every key referenced by k8s manifests so pods don't fail on missing Secret keys.
+$added = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+foreach ($k in $K8sSecretKeys) {
+    if ([string]::IsNullOrWhiteSpace($k)) { continue }
+    $val = ""
+    if ($EnvVars.ContainsKey($k)) {
+        $val = [string]$EnvVars[$k]
+    }
+    $SecretArgs += "--from-literal=$k=$val"
+    [void]$added.Add($k)
+}
+
+# Include any additional non-empty env vars from the .env file for convenience.
 foreach ($kv in $EnvVars.GetEnumerator()) {
+    if ($added.Contains($kv.Key)) { continue }
     if ([string]::IsNullOrWhiteSpace([string]$kv.Value)) { continue }
     $SecretArgs += "--from-literal=$($kv.Key)=$($kv.Value)"
 }

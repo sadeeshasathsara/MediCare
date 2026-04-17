@@ -37,10 +37,12 @@ public class SessionController {
     }
 
     @PostMapping
-    @PreAuthorize("hasRole('DOCTOR')")
-    public ResponseEntity<ApiResponse<ConsultationSession>> createSession(@Valid @RequestBody CreateSessionRequest request) {
+    @PreAuthorize("hasAnyRole('DOCTOR', 'PATIENT')")
+    public ResponseEntity<ApiResponse<ConsultationSession>> createSession(
+            @Valid @RequestBody CreateSessionRequest request) {
         String actorId = SecurityUtils.currentUserId();
-        ConsultationSession session = sessionService.createSession(request.getAppointmentId(), actorId);
+        String actorRole = SecurityUtils.currentRole();
+        ConsultationSession session = sessionService.createSession(request.getAppointmentId(), actorId, actorRole);
         return ResponseEntity.ok(ApiResponse.success(session, "Session created"));
     }
 
@@ -89,7 +91,8 @@ public class SessionController {
             @RequestParam(required = false) SessionStatus status) {
         String actorId = SecurityUtils.currentUserId();
         String actorRole = SecurityUtils.currentRole();
-        List<ConsultationSession> sessions = sessionService.listSessions(doctorId, patientId, status, actorId, actorRole);
+        List<ConsultationSession> sessions = sessionService.listSessions(doctorId, patientId, status, actorId,
+                actorRole);
         return ResponseEntity.ok(ApiResponse.success(sessions, "Sessions fetched"));
     }
 

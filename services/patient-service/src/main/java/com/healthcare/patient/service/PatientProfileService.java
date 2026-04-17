@@ -64,6 +64,9 @@ public class PatientProfileService {
         if (request.getDob() != null) {
             patient.setDob(request.getDob().trim());
         }
+        if (request.getGender() != null) {
+            patient.setGender(request.getGender().trim().toUpperCase());
+        }
 
         if (request.getContact() != null) {
             Patient.Contact c = patient.getContact();
@@ -262,6 +265,7 @@ public class PatientProfileService {
         dto.setEmail(p.getEmail());
         dto.setName(p.getName());
         dto.setDob(p.getDob());
+        dto.setGender(p.getGender());
         dto.setStatus(p.getStatus());
         dto.setDeletedAt(p.getDeletedAt());
         dto.setCreatedAt(p.getCreatedAt());

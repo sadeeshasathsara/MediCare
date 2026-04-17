@@ -48,9 +48,8 @@ public class SendGridEmailSender implements EmailSender {
         Request request = new Request();
         request.setMethod(Method.POST);
         request.setEndpoint("mail/send");
-        request.setBody(mail.build());
-
         try {
+            request.setBody(mail.build());
             SendGrid client = new SendGrid(apiKey);
             Response response = client.api(request);
             if (response.getStatusCode() < 200 || response.getStatusCode() >= 300) {

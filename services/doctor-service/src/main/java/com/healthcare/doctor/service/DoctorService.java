@@ -4,26 +4,46 @@ import com.healthcare.doctor.dto.DoctorResponse;
 import com.healthcare.doctor.dto.UpdateDoctorRequest;
 import com.healthcare.doctor.model.Doctor;
 import com.healthcare.doctor.repository.DoctorRepository;
+import com.healthcare.doctor.storage.StorageService;
+import com.healthcare.doctor.storage.StoredObject;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 
 @Service
 public class DoctorService {
 
     private final DoctorRepository doctorRepository;
+    private final StorageService storageService;
 
-    public DoctorService(DoctorRepository doctorRepository) {
+    private static final List<String> ALLOWED_PROFILE_PHOTO_TYPES = List.of("image/png", "image/jpeg");
+
+    public DoctorService(DoctorRepository doctorRepository, StorageService storageService) {
         this.doctorRepository = doctorRepository;
+        this.storageService = storageService;
     }
 
     public DoctorResponse getDoctorById(String id) {
         Doctor doctor = doctorRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Doctor not found"));
         return toResponse(doctor);
+    }
+
+    public void ensureDoctorExists(String doctorId) {
+        if (!doctorRepository.existsById(doctorId)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Doctor not found");
+        }
     }
 
     public DoctorResponse updateDoctor(String id, UpdateDoctorRequest request) {
@@ -88,6 +108,16 @@ public class DoctorService {
         return doctors.stream().map(this::toResponse).toList();
     }
 
+    public Page<DoctorResponse> searchVerifiedDoctors(String search, String specialty, int page, int limit) {
+        Pageable pageable = PageRequest.of(page, limit, Sort.by("fullName").ascending());
+        
+        String searchRegex = (search != null && !search.trim().isEmpty()) ? ".*" + search.trim() + ".*" : ".*";
+        String specialtyRegex = (specialty != null && !specialty.trim().isEmpty()) ? "^" + specialty.trim() + "$" : ".*";
+
+        Page<Doctor> doctorPage = doctorRepository.searchDoctors(searchRegex, specialtyRegex, pageable);
+        return doctorPage.map(this::toResponse);
+    }
+
     public List<String> listSpecialties() {
         List<Doctor> verifiedDoctors = doctorRepository.findByVerifiedTrue();
         return verifiedDoctors.stream()
@@ -98,20 +128,83 @@ public class DoctorService {
                 .toList();
     }
 
-    /**
-     * Called internally to ensure a doctor document exists for a given userId.
-     * If not found, creates a stub doctor record.
-     */
-    public Doctor ensureDoctorExists(String doctorId) {
-        return doctorRepository.findById(doctorId).orElseGet(() -> {
-            Doctor newDoctor = new Doctor();
-            newDoctor.setId(doctorId);
-            newDoctor.setUserId(doctorId);
-            newDoctor.setVerified(true);
-            newDoctor.setCreatedAt(Instant.now());
-            newDoctor.setUpdatedAt(Instant.now());
-            return doctorRepository.save(newDoctor);
-        });
+    public DoctorResponse uploadProfilePhoto(String userId, MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "file is required");
+        }
+
+        String contentType = file.getContentType();
+        if (contentType == null || !ALLOWED_PROFILE_PHOTO_TYPES.contains(contentType)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "unsupported file type");
+        }
+
+        Doctor doctor = doctorRepository.findById(userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "doctor not found"));
+
+        String originalName = StringUtils.hasText(file.getOriginalFilename()) ? file.getOriginalFilename()
+                : "profile-photo";
+        String safeName = originalName.replaceAll("[^a-zA-Z0-9._-]", "_");
+        String objectKey = "doctors/" + userId + "/profile-photo/" + UUID.randomUUID() + "-" + safeName;
+
+        try {
+            storageService.put(objectKey, file.getInputStream(), file.getSize(), contentType);
+        } catch (IOException e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "failed to upload profile photo");
+        }
+
+        String oldKey = doctor.getProfilePhotoKey();
+        doctor.setProfilePhotoKey(objectKey);
+        doctor.setProfilePhotoContentType(contentType);
+        doctor.setProfilePhotoSize(file.getSize());
+        doctor.setProfilePhotoUpdatedAt(Instant.now());
+        doctor.setUpdatedAt(Instant.now());
+
+        Doctor saved = doctorRepository.save(doctor);
+
+        if (oldKey != null && !oldKey.isBlank()) {
+            try {
+                storageService.delete(oldKey);
+            } catch (RuntimeException ignored) {
+                // Best-effort cleanup.
+            }
+        }
+
+        return toResponse(saved);
+    }
+
+    public void removeProfilePhoto(String userId) {
+        Doctor doctor = doctorRepository.findById(userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "doctor not found"));
+
+        String key = doctor.getProfilePhotoKey();
+        if (key == null || key.isBlank()) {
+            return;
+        }
+
+        doctor.setProfilePhotoKey(null);
+        doctor.setProfilePhotoContentType(null);
+        doctor.setProfilePhotoSize(null);
+        doctor.setProfilePhotoUpdatedAt(null);
+        doctor.setUpdatedAt(Instant.now());
+        doctorRepository.save(doctor);
+
+        storageService.delete(key);
+    }
+
+    public DownloadedProfilePhoto downloadProfilePhoto(String userId) {
+        Doctor doctor = doctorRepository.findById(userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "doctor not found"));
+
+        String key = doctor.getProfilePhotoKey();
+        if (key == null || key.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "profile photo not found");
+        }
+
+        StoredObject obj = storageService.get(key);
+        String contentType = doctor.getProfilePhotoContentType();
+        long contentLength = doctor.getProfilePhotoSize() != null ? doctor.getProfilePhotoSize()
+                : obj.getContentLength();
+        return new DownloadedProfilePhoto(obj, contentLength, contentType);
     }
 
     private DoctorResponse toResponse(Doctor doctor) {
@@ -127,8 +220,36 @@ public class DoctorService {
         response.setLicenseNumber(doctor.getLicenseNumber());
         response.setConsultationFee(doctor.getConsultationFee());
         response.setVerified(doctor.isVerified());
+        
+        response.setHasProfilePhoto(doctor.getProfilePhotoKey() != null && !doctor.getProfilePhotoKey().isBlank());
+        response.setProfilePhotoUpdatedAt(doctor.getProfilePhotoUpdatedAt());
+        
         response.setCreatedAt(doctor.getCreatedAt());
         response.setUpdatedAt(doctor.getUpdatedAt());
         return response;
+    }
+
+    public static class DownloadedProfilePhoto {
+        private final StoredObject object;
+        private final long contentLength;
+        private final String contentType;
+
+        public DownloadedProfilePhoto(StoredObject object, long contentLength, String contentType) {
+            this.object = object;
+            this.contentLength = contentLength;
+            this.contentType = contentType;
+        }
+
+        public StoredObject getObject() {
+            return object;
+        }
+
+        public long getContentLength() {
+            return contentLength;
+        }
+
+        public String getContentType() {
+            return contentType;
+        }
     }
 }
