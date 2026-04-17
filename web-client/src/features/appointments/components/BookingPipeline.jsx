@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import {
   Calendar,
   CalendarPlus,
@@ -11,7 +11,8 @@ import {
   ClipboardList,
   CreditCard,
   AlertCircle,
-  Search
+  Search,
+  UserRound
 } from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
 import { useAuth } from "@/context/AuthContext";
@@ -19,11 +20,13 @@ import { getPatientProfile } from "@/features/patients/services/patientApi";
 import {
   fetchDoctors,
   fetchDoctorSpecialties,
+  fetchDoctorById,
   selectDoctors,
   selectDoctorsStatus,
   selectDoctorsPagination,
   selectDoctorSpecialties,
   selectDoctorSpecialtiesStatus,
+  selectCurrentDoctor,
 } from "@/store/slices/doctorsSlice";
 import {
   createPatientAppointment,
@@ -57,11 +60,15 @@ export default function BookingPipeline() {
   const navigate = useNavigate();
   const userId = user?.id || "";
   
-  const prefill = location.state?.prefill;
-  const prefillSpecialty = String(prefill?.specialty || "").trim();
-  const prefillDoctorId = String(prefill?.doctorId || "").trim();
+  const [searchParams] = useSearchParams();
+  const queryDoctorId = searchParams.get('doctorId') || "";
+  const querySpecialty = searchParams.get('specialty') || "";
   
-  const [currentStep, setCurrentStep] = useState(1);
+  const prefill = location.state?.prefill;
+  const prefillSpecialty = String(prefill?.specialty || querySpecialty || "").trim();
+  const prefillDoctorId = String(prefill?.doctorId || queryDoctorId || "").trim();
+  
+  const [currentStep, setCurrentStep] = useState(prefillDoctorId ? 2 : 1);
   const [profile, setProfile] = useState(null);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -131,10 +138,21 @@ export default function BookingPipeline() {
   }, [dispatch, debouncedSearch, form.specialty, currentPage]);
 
   const filteredDoctors = Array.isArray(doctors) ? doctors : [];
+  const currentDoctor = useSelector(selectCurrentDoctor);
 
   const selectedDoctor = useMemo(() => {
-    return filteredDoctors.find(d => (d.userId || d.id) === form.doctorId) || null;
-  }, [filteredDoctors, form.doctorId]);
+    const listDoctor = filteredDoctors.find(d => (d.userId || d.id) === form.doctorId);
+    if (listDoctor) return listDoctor;
+    if (currentDoctor && (currentDoctor.userId || currentDoctor.id) === form.doctorId) return currentDoctor;
+    return null;
+  }, [filteredDoctors, currentDoctor, form.doctorId]);
+
+  // If we have a doctorId but the doctor isn't in our paged list, fetch them explicitly
+  useEffect(() => {
+    if (form.doctorId && !selectedDoctor && doctorsStatus !== 'loading' && doctorsStatus !== 'idle') {
+      dispatch(fetchDoctorById(form.doctorId));
+    }
+  }, [form.doctorId, selectedDoctor, doctorsStatus, dispatch]);
 
   // FETCH AVAILABILITY WHEN DOCTOR IS SELECTED
   useEffect(() => {

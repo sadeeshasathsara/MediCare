@@ -1,11 +1,14 @@
 package com.healthcare.aisymptom.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.List;
 
 public class SymptomResponse {
 
     private List<String> possibleConditions;
     private String aiMessage;
+    
+    @JsonProperty("isDiagnostic")
     private boolean isDiagnostic;
     private String recommendedSpecialty;
     private String recommendedDoctor;

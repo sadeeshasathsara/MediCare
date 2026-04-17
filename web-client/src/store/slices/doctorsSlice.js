@@ -1,11 +1,20 @@
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit'
 import {
     getDoctorAvailability,
+    getDoctorByUserId,
     listDoctorSpecialties,
     listDoctors,
 } from '@/features/doctors/services/doctorApi'
 
 const EMPTY_RESOURCE = { items: [], status: 'idle', error: null, lastFetched: 0 }
+
+export const fetchDoctorById = createAsyncThunk(
+    'doctors/fetchDoctorById',
+    async (id) => {
+        const data = await getDoctorByUserId(id)
+        return data
+    }
+)
 
 export const fetchDoctors = createAsyncThunk(
     'doctors/fetchDoctors',
@@ -76,6 +85,7 @@ const initialState = {
     doctors: { ...EMPTY_RESOURCE },
     specialties: { ...EMPTY_RESOURCE },
     availabilityByDoctorId: {},
+    currentDoctor: { data: null, status: 'idle', error: null },
 }
 
 const doctorsSlice = createSlice({
@@ -148,6 +158,21 @@ const doctorsSlice = createSlice({
                     error: action.error?.message || 'Failed to load availability.',
                 }
             })
+            .addCase(fetchDoctorById.pending, (state) => {
+                state.currentDoctor.status = 'loading'
+                state.currentDoctor.error = null
+            })
+            .addCase(fetchDoctorById.fulfilled, (state, action) => {
+                state.currentDoctor = {
+                    data: action.payload,
+                    status: 'succeeded',
+                    error: null,
+                }
+            })
+            .addCase(fetchDoctorById.rejected, (state, action) => {
+                state.currentDoctor.status = 'failed'
+                state.currentDoctor.error = action.error?.message || 'Failed to load doctor.'
+            })
     },
 })
 
@@ -171,5 +196,8 @@ export const selectDoctorAvailability = (state, doctorId) =>
 
 export const selectDoctorAvailabilityStatus = (state, doctorId) =>
     selectDoctorAvailabilityResource(state, doctorId).status
+
+export const selectCurrentDoctor = (state) => state.doctors?.currentDoctor?.data
+export const selectCurrentDoctorStatus = (state) => state.doctors?.currentDoctor?.status
 
 export default doctorsSlice.reducer

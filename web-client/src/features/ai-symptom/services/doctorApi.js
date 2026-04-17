@@ -40,12 +40,14 @@ export function resolveDoctorSpecialty(value) {
 export async function fetchDoctorsBySpecialty(specialty) {
   const params = specialty ? { specialty } : undefined
   const response = await api.get('/doctors', { params })
-  return Array.isArray(response.data) ? response.data : []
+  const data = response.data
+  return Array.isArray(data?.content) ? data.content : (Array.isArray(data) ? data : [])
 }
 
 export async function fetchAllDoctors() {
-  const response = await api.get('/doctors')
-  return Array.isArray(response.data) ? response.data : []
+  const response = await api.get('/doctors?limit=50')
+  const data = response.data
+  return Array.isArray(data?.content) ? data.content : (Array.isArray(data) ? data : [])
 }
 
 export function mapDoctorsForAi(doctors = []) {

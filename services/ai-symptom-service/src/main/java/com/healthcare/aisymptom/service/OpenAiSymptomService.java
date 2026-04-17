@@ -160,6 +160,12 @@ public class OpenAiSymptomService {
 
                 List<String> docIds = readRecommendedDoctorIds(structuredResponse.path("recommendedDoctorIds"), request.availableDoctors());
                 if (docIds.isEmpty()) docIds = fallbackRecommendationIds(request.availableDoctors(), spec);
+                
+                if (docIds.isEmpty()) {
+                    String currentMsg = res.getAiMessage() == null ? "" : res.getAiMessage();
+                    res.setAiMessage(currentMsg + " Currently, there are no doctors for this related topic available.");
+                }
+                
                 res.setRecommendedDoctorIds(docIds);
 
                 res.setUrgencyLevel(asTextOrDefault(structuredResponse.path("urgencyLevel"), "MODERATE"));

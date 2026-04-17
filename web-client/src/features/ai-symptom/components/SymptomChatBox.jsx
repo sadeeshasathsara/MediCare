@@ -185,7 +185,7 @@ function OptionChips({ options, onSelect, disabled }) {
   )
 }
 
-export default function SymptomChatBox({ profile, onBookAppointment, initialPrompt }) {
+export default function SymptomChatBox({ profile, onBookAppointment, initialPrompt, isLocked }) {
   const { 
     loading, 
     error, 
@@ -301,14 +301,20 @@ export default function SymptomChatBox({ profile, onBookAppointment, initialProm
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className={`flex flex-col gap-6 transition-all duration-700 ${isLocked ? 'h-full' : ''}`}>
       {/* Chat window container */}
-      <div className="relative rounded-[2.5rem] border border-primary/10 bg-card/60 backdrop-blur-xl shadow-2xl overflow-hidden min-h-[500px] flex flex-col">
+      <div className={`
+        relative border border-primary/10 bg-card/60 backdrop-blur-xl shadow-2xl overflow-hidden flex flex-col transition-all duration-700
+        ${isLocked ? 'rounded-[3rem] h-full shadow-[0_40px_120px_rgba(var(--primary-rgb),0.2)]' : 'rounded-[2.5rem] min-h-[500px]'}
+      `}>
         {/* Header decoration */}
         <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-transparent via-primary/20 to-transparent" />
         
         {/* Messages area */}
-        <div className="flex-1 overflow-y-auto p-6 md:p-8 space-y-8 scrollbar-thin scrollbar-thumb-primary/10 scrollbar-track-transparent">
+        <div className={`
+          flex-1 overflow-y-auto p-6 md:p-10 space-y-8 scrollbar-thin scrollbar-thumb-primary/10 scrollbar-track-transparent transition-all duration-700
+          ${isLocked ? 'md:p-12' : ''}
+        `}>
           {messages.map((msg, i) => (
             msg.role === 'assistant'
               ? <AiMessage 
@@ -331,7 +337,7 @@ export default function SymptomChatBox({ profile, onBookAppointment, initialProm
           )}
 
           {loading && <TypingIndicator />}
-          <div ref={bottomRef} className="h-2" />
+          <div ref={bottomRef} className="h-4" />
         </div>
 
         {/* Floating Error Bar */}
@@ -343,7 +349,10 @@ export default function SymptomChatBox({ profile, onBookAppointment, initialProm
         )}
 
         {/* Input Bar Section */}
-        <div className="p-6 md:p-8 bg-gradient-to-t from-background via-background/80 to-transparent pt-12">
+        <div className={`
+           p-6 md:p-8 bg-gradient-to-t from-background via-background/80 to-transparent pt-12 transition-all duration-700
+           ${isLocked ? 'pb-10 pt-16' : ''}
+        `}>
           <div className="relative max-w-3xl mx-auto group">
             <div className="absolute -inset-1 bg-gradient-to-r from-primary/20 to-primary/5 rounded-[2rem] blur opacity-25 group-hover:opacity-40 transition duration-1000 group-hover:duration-200" />
             
@@ -372,14 +381,14 @@ export default function SymptomChatBox({ profile, onBookAppointment, initialProm
                     onClick={handleSend}
                     disabled={!input.trim() || loading}
                     size="icon"
-                    className="h-12 w-12 rounded-full shrink-0 shadow-lg shadow-primary/20 transition-all hover:scale-105 active:scale-95"
+                    className="h-12 w-12 rounded-full shrink-0 shadow-lg shadow-primary/20 transition-all hover:scale-105 active:scale-95 bg-primary hover:bg-primary/90"
                 >
                     {loading ? <Loader2 className="animate-spin h-5 w-5" /> : <Send size={20} />}
                 </Button>
             </div>
           </div>
-          <p className="mt-4 text-[10px] text-center text-muted-foreground/40 font-medium tracking-tight">
-            PROMPT: Describe pain, duration, and any accompanying symptoms for better results.
+          <p className="mt-4 text-[10px] text-center text-muted-foreground/40 font-medium tracking-tight uppercase tracking-widest">
+            AI Triage Guidance • Not a Medical Diagnosis
           </p>
         </div>
       </div>
