@@ -38,6 +38,7 @@ import DoctorSelectionCard from "./DoctorSelectionCard";
 import HealthDatePicker from "./HealthDatePicker";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import PatientPaymentTab from "@/features/payments/components/PatientPaymentTab";
 
 function formatApiError(error) {
   const status = error?.response?.status;
@@ -72,6 +73,7 @@ export default function BookingPipeline() {
   const [profile, setProfile] = useState(null);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [createdAppointmentId, setCreatedAppointmentId] = useState("");
 
   const [form, setForm] = useState({
     specialty: prefillSpecialty,
@@ -183,7 +185,12 @@ export default function BookingPipeline() {
     const date = new Date(form.scheduledAtDate);
     const dayOfWeek = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'][date.getDay()];
     
-    return availability.filter(slot => slot.dayOfWeek === dayOfWeek && slot.status === 'AVAILABLE');
+    // Filter to available slots that are NOT full
+    return availability.filter(slot => 
+      slot.dayOfWeek === dayOfWeek && 
+      slot.status === 'AVAILABLE' && 
+      (slot.currentBookings ?? 0) < slot.maxCapacity
+    );
   }, [form.scheduledAtDate, availability]);
 
   const patientName = profile?.name || user?.name || user?.email?.split("@")[0] || "";
@@ -233,13 +240,8 @@ export default function BookingPipeline() {
 
     try {
       const response = await dispatch(createPatientAppointment(payload)).unwrap();
-      navigate("/patient/payments", {
-        state: {
-          appointmentId: response?.id || "",
-          description: `Appointment with Dr. ${payload.doctorName}`,
-          returnTo: "/patient/dashboard",
-        },
-      });
+      setCreatedAppointmentId(response?.id || "");
+      setCurrentStep(5); // advance to payment step
     } catch (e) {
       setError(formatApiError(e));
     }
@@ -380,14 +382,14 @@ export default function BookingPipeline() {
           </div>
         )}
 
-        {/* STEP 4: REVIEW & PAY */}
+        {/* STEP 4: REVIEW & CONFIRM */}
         {currentStep === 4 && (
           <div className="max-w-2xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <Card className="overflow-hidden border-2 border-primary/20">
               <div className="bg-primary/5 p-6 border-b border-primary/10">
                 <CardTitle className="flex items-center gap-2">
                   <CreditCard className="h-5 w-5 text-primary" />
-                  Confirm & Payment
+                  Review & Confirm
                 </CardTitle>
               </div>
               <CardContent className="p-6 space-y-6">
@@ -410,13 +412,43 @@ export default function BookingPipeline() {
                       <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Time</p>
                       <p className="font-medium">{form.scheduledAtTime}</p>
                     </div>
+                    <div className="space-y-1 col-span-2">
+                      <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Reason</p>
+                      <p className="font-medium text-sm italic">"{form.reason}"</p>
+                    </div>
                   </div>
               </CardContent>
               <div className="p-6 bg-muted/30 border-t flex items-center justify-between">
-                <p className="text-2xl font-bold">${selectedDoctor?.consultationFee?.toFixed(2)}</p>
-                <p className="text-xs text-muted-foreground italic tracking-wide">Secured via Stripe</p>
+                <div>
+                  <p className="text-xs text-muted-foreground">Consultation Fee</p>
+                  <p className="text-2xl font-bold">{selectedDoctor?.consultationFee ? `$${selectedDoctor.consultationFee.toFixed(2)}` : 'TBD'}</p>
+                </div>
+                <p className="text-xs text-muted-foreground italic tracking-wide">Payment collected at next step</p>
               </div>
             </Card>
+          </div>
+        )}
+
+        {/* STEP 5: PAYMENT */}
+        {currentStep === 5 && (
+          <div className="max-w-2xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center gap-3">
+              <CalendarPlus className="h-5 w-5 text-emerald-600 shrink-0" />
+              <div>
+                <p className="text-sm font-semibold text-emerald-700">Appointment Booked Successfully!</p>
+                <p className="text-xs text-emerald-600">Complete your payment below to confirm the session with Dr. {selectedDoctor?.fullName}.</p>
+              </div>
+            </div>
+            <PatientPaymentTab
+              user={user}
+              userId={userId}
+              initialAmount={selectedDoctor?.consultationFee || ''}
+              initialCurrency="usd"
+              initialDescription={`Appointment with Dr. ${selectedDoctor?.fullName || ''} on ${new Date(form.scheduledAtDate).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}`}
+              onPaymentSuccess={async () => {
+                navigate('/appointments', { replace: true });
+              }}
+            />
           </div>
         )}
       </div>
@@ -434,7 +466,7 @@ export default function BookingPipeline() {
         <Button
           variant="ghost"
           onClick={handleBack}
-          disabled={currentStep === 1 || submitting}
+          disabled={currentStep === 1 || currentStep === 5 || submitting}
           className="flex items-center gap-2"
         >
           <ChevronLeft size={16} /> Previous
@@ -448,16 +480,16 @@ export default function BookingPipeline() {
           >
             Next Step <ChevronRight size={16} />
           </Button>
-        ) : (
+        ) : currentStep === 4 ? (
           <Button
             onClick={handleSubmit}
             disabled={submitting}
             className="flex items-center gap-2 px-10 bg-primary hover:bg-primary/90"
           >
             {submitting ? <Loader2 className="animate-spin" size={16} /> : <CalendarPlus size={16} />}
-            Confirm & Book Appointment
+            Confirm Booking
           </Button>
-        )}
+        ) : null}
       </div>
     </div>
   );

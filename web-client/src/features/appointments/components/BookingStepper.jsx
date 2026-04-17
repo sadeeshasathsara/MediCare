@@ -6,7 +6,8 @@ const steps = [
   { id: 1, name: 'Select Doctor', description: 'Choose your specialist' },
   { id: 2, name: 'Pick a Slot', description: 'Choose date and time' },
   { id: 3, name: 'Details', description: 'Reason for consultation' },
-  { id: 4, name: 'Review', description: 'Confirm and pay' },
+  { id: 4, name: 'Review', description: 'Confirm your booking' },
+  { id: 5, name: 'Payment', description: 'Complete payment' },
 ];
 
 export default function BookingStepper({ currentStep }) {

@@ -24,7 +24,6 @@ import {
 } from "lucide-react";
 
 const STAGES = [
-  { id: 'PENDING', label: 'Requested' },
   { id: 'CONFIRMED', label: 'Confirmed' },
   { id: 'COMPLETED', label: 'Completed' }
 ];
@@ -192,38 +191,17 @@ export default function AppointmentsList({
             <StatusPipeline currentStatus={app.status} />
 
             <div className="pt-4 border-t flex items-center justify-between gap-2">
-              {app.status === "PENDING" ? (
+              {!isDoctor && (app.status === "PENDING" || app.status === "CONFIRMED") ? (
                 <div className="flex gap-2 w-full">
-                  {isDoctor ? (
-                    <>
-                      <Button
-                        size="sm"
-                        onClick={(e) => { e.stopPropagation(); handleStatusUpdate(app.id, "CONFIRMED"); }}
-                        className="flex-1 text-xs shadow-sm"
-                      >
-                        Approve
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={cancelingId === app.id}
-                        onClick={(e) => { e.stopPropagation(); handleStatusUpdate(app.id, "CANCELLED"); }}
-                        className="cursor-pointer flex-1 text-xs border-destructive text-destructive hover:bg-destructive/5"
-                      >
-                        {cancelingId === app.id ? "Declining..." : "Decline"}
-                      </Button>
-                    </>
-                  ) : (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={cancelingId === app.id}
-                      onClick={(e) => { e.stopPropagation(); handleStatusUpdate(app.id, "CANCELLED"); }}
-                      className="cursor-pointer w-full text-xs border-destructive text-destructive hover:bg-destructive/5"
-                    >
-                      {cancelingId === app.id ? "canceling pending..." : "Cancel Appointment"}
-                    </Button>
-                  )}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={cancelingId === app.id}
+                    onClick={(e) => { e.stopPropagation(); handleStatusUpdate(app.id, "CANCELLED"); }}
+                    className="cursor-pointer w-full text-xs border-destructive text-destructive hover:bg-destructive/5"
+                  >
+                    {cancelingId === app.id ? "Cancelling..." : "Cancel Appointment"}
+                  </Button>
                 </div>
               ) : (
                 <div className="flex items-center justify-between w-full">

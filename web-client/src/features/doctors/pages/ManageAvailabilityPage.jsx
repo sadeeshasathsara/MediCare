@@ -11,7 +11,7 @@ import {
   CalendarDays
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-import { getDoctorAvailability, createDoctorAvailability } from '../services/doctorApi';
+import { getDoctorAvailability, createDoctorAvailability, deleteDoctorAvailabilitySlot } from '../services/doctorApi';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -25,6 +25,7 @@ export default function ManageAvailabilityPage() {
   const [slots, setSlots] = useState([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
@@ -74,6 +75,19 @@ export default function ManageAvailabilityPage() {
       setError('Failed to add slot. Ensure end time is after start time.');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleDelete = async (slotId) => {
+    if (!window.confirm('Remove this availability slot?')) return;
+    setDeletingId(slotId);
+    try {
+      await deleteDoctorAvailabilitySlot(doctorId, slotId);
+      setSlots(prev => prev.filter(s => s.id !== slotId));
+    } catch (err) {
+      setError('Failed to delete slot. Please try again.');
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -184,7 +198,10 @@ export default function ManageAvailabilityPage() {
             </div>
           ) : (
             <div className="grid gap-4">
-              {slots.slice().sort((a,b) => DAYS.indexOf(a.dayOfWeek) - DAYS.indexOf(b.dayOfWeek)).map(slot => (
+              {slots.slice().sort((a,b) => DAYS.indexOf(a.dayOfWeek) - DAYS.indexOf(b.dayOfWeek)).map(slot => {
+                const isFull = slot.currentBookings >= slot.maxCapacity;
+                const fillPct = slot.maxCapacity > 0 ? Math.min(100, Math.round((slot.currentBookings / slot.maxCapacity) * 100)) : 0;
+                return (
                 <Card key={slot.id} className="overflow-hidden border group transition-all hover:bg-muted/30">
                   <div className="flex flex-col sm:flex-row items-center">
                     <div className="w-full sm:w-32 bg-primary/5 p-4 flex flex-col items-center justify-center border-b sm:border-b-0 sm:border-r">
@@ -192,45 +209,69 @@ export default function ManageAvailabilityPage() {
                       <span className="text-lg font-bold text-foreground">{slot.dayOfWeek.charAt(0) + slot.dayOfWeek.substring(1).toLowerCase()}</span>
                     </div>
                     
-                    <div className="flex-1 p-4 grid grid-cols-2 sm:grid-cols-3 gap-4 items-center">
-                      <div className="flex items-center gap-3">
-                        <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">
-                          <Clock className="h-4 w-4 text-muted-foreground" />
+                    <div className="flex-1 p-4 space-y-3">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 items-center">
+                        <div className="flex items-center gap-3">
+                          <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">
+                            <Clock className="h-4 w-4 text-muted-foreground" />
+                          </div>
+                          <div>
+                            <p className="text-[10px] uppercase font-bold text-muted-foreground">Time Window</p>
+                            <p className="text-sm font-bold">{slot.startTime} - {slot.endTime}</p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="text-[10px] uppercase font-bold text-muted-foreground">Time Window</p>
-                          <p className="text-sm font-bold">{slot.startTime} - {slot.endTime}</p>
+
+                        <div className="flex items-center gap-3">
+                          <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">
+                            <Users className="h-4 w-4 text-muted-foreground" />
+                          </div>
+                          <div>
+                            <p className="text-[10px] uppercase font-bold text-muted-foreground">Occupancy</p>
+                            <p className="text-sm font-bold">
+                              {slot.currentBookings ?? 0} / {slot.maxCapacity}
+                              <span className="ml-2 text-[10px] font-normal text-muted-foreground">Filled</span>
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="text-right sm:text-center">
+                          {isFull ? (
+                            <Badge variant="destructive">FULL</Badge>
+                          ) : (
+                            <Badge variant={slot.status === 'AVAILABLE' ? 'default' : 'secondary'}>
+                              {slot.status}
+                            </Badge>
+                          )}
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-3">
-                        <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">
-                          <Users className="h-4 w-4 text-muted-foreground" />
+                      {/* Capacity progress bar */}
+                      <div className="space-y-1">
+                        <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
+                          <div 
+                            className={`h-full rounded-full transition-all duration-500 ${isFull ? 'bg-destructive' : fillPct > 75 ? 'bg-amber-500' : 'bg-primary'}`}
+                            style={{ width: `${fillPct}%` }}
+                          />
                         </div>
-                        <div>
-                          <p className="text-[10px] uppercase font-bold text-muted-foreground">Occupancy</p>
-                          <p className="text-sm font-bold">
-                            {slot.currentBookings} / {slot.maxCapacity}
-                            <span className="ml-2 text-[10px] font-normal text-muted-foreground">Filled</span>
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="text-right sm:text-center">
-                        <Badge variant={slot.status === 'AVAILABLE' ? 'default' : 'secondary'}>
-                          {slot.status}
-                        </Badge>
+                        <p className="text-[9px] text-muted-foreground font-medium">{fillPct}% capacity used</p>
                       </div>
                     </div>
 
                     <div className="p-4 border-t sm:border-t-0 sm:border-l flex gap-2">
-                       <Button variant="ghost" size="icon" className="text-destructive hover:bg-destructive/10">
-                          <Trash2 className="h-4 w-4" />
+                       <Button 
+                         variant="ghost" 
+                         size="icon" 
+                         className="text-destructive hover:bg-destructive/10"
+                         disabled={deletingId === slot.id}
+                         onClick={() => handleDelete(slot.id)}
+                       >
+                         {deletingId === slot.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
                        </Button>
                     </div>
                   </div>
                 </Card>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
