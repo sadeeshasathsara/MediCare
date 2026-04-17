@@ -65,43 +65,21 @@ export default function SymptomCheckerPage() {
       if (!chatContainerRef.current) return
       
       const rect = chatContainerRef.current.getBoundingClientRect()
+      const threshold = window.innerHeight / 2
       
-      // Auto-lock when the chat box reaches the upper part of the viewport
-      if (!isLocked && rect.top <= 100 && rect.top > -50) {
-        setChatBoxHeight(rect.height)
+      // Lock if top is near or past the middle of the viewport
+      if (!isLocked && rect.top <= threshold) {
         setIsLocked(true)
+      }
+      
+      // Unlock if we scroll back up below the middle of the viewport
+      if (isLocked && rect.top > threshold) {
+        setIsLocked(false)
       }
     }
 
     window.addEventListener('scroll', handleScroll, { passive: true })
     return () => window.removeEventListener('scroll', handleScroll)
-  }, [isLocked])
-
-  // Unlock logic: Listen for wheel events outside the chat box
-  useEffect(() => {
-    if (!isLocked) return
-
-    const handleGlobalWheel = (e) => {
-      // If the scroll happens on the page background (not inside the chat)
-      if (!e.target.closest('[data-chat-box]')) {
-        setIsLocked(false)
-      }
-    }
-
-    // Also unlock if user scrolls back up significantly
-    const handleScrollBack = () => {
-       if (window.scrollY < 200) {
-          setIsLocked(false)
-       }
-    }
-
-    window.addEventListener('wheel', handleGlobalWheel, { passive: true })
-    window.addEventListener('scroll', handleScrollBack, { passive: true })
-    
-    return () => {
-      window.removeEventListener('wheel', handleGlobalWheel)
-      window.removeEventListener('scroll', handleScrollBack)
-    }
   }, [isLocked])
 
   const handleBookAppointment = useCallback(
@@ -179,17 +157,17 @@ export default function SymptomCheckerPage() {
         style={{ minHeight: isLocked ? '150vh' : 'auto' }}
       >
         <div className={`
-          ${isLocked ? 'sticky top-6 md:top-10 z-50' : 'relative z-10'} 
-          w-full mx-auto flex justify-center transition-all duration-700 ease-[cubic-bezier(0.2,0.8,0.2,1)]
-          ${isLocked ? 'max-w-[95vw] md:max-w-6xl px-2 md:px-0' : 'max-w-4xl px-4 md:px-0'}
+          ${isLocked ? 'fixed inset-0 z-50 flex items-center justify-center' : 'relative z-10 mx-auto flex justify-center'} 
+          transition-all duration-700 ease-[cubic-bezier(0.2,0.8,0.2,1)]
+          ${isLocked ? 'w-full' : 'w-full max-w-4xl px-4 md:px-0'}
         `}>
           <div 
             data-chat-box
             className={`
               w-full transition-all duration-700 ease-[cubic-bezier(0.2,0.8,0.2,1)]
               ${isLocked 
-                ? 'h-[85vh] shadow-[0_30px_100px_rgba(0,0,0,0.2)] md:shadow-[0_45px_150px_rgba(0,0,0,0.3)]' 
-                : 'h-[600px] shadow-xl'
+                ? 'w-[95vw] md:w-[80vw] max-w-[80vw] h-[80vh] shadow-[0_30px_100px_rgba(0,0,0,0.2)] md:shadow-[0_45px_150px_rgba(0,0,0,0.3)]' 
+                : 'w-full h-[600px] shadow-xl'
               }
             `}
           >

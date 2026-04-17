@@ -301,11 +301,11 @@ export default function SymptomChatBox({ profile, onBookAppointment, initialProm
   }
 
   return (
-    <div className={`flex flex-col gap-6 transition-all duration-700 ${isLocked ? 'h-full' : ''}`}>
+    <div className="flex flex-col gap-6 transition-all duration-700 h-full w-full">
       {/* Chat window container */}
       <div className={`
-        relative border border-primary/10 bg-card/60 backdrop-blur-xl shadow-2xl overflow-hidden flex flex-col transition-all duration-700
-        ${isLocked ? 'rounded-[3rem] h-full shadow-[0_40px_120px_rgba(var(--primary-rgb),0.2)]' : 'rounded-[2.5rem] min-h-[500px]'}
+        relative border border-primary/10 bg-card/60 backdrop-blur-xl shadow-2xl overflow-hidden flex flex-col transition-all duration-700 h-full
+        ${isLocked ? 'rounded-[3rem] shadow-[0_40px_120px_rgba(var(--primary-rgb),0.2)]' : 'rounded-[2.5rem]'}
       `}>
         {/* Header decoration */}
         <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-transparent via-primary/20 to-transparent" />
@@ -353,7 +353,7 @@ export default function SymptomChatBox({ profile, onBookAppointment, initialProm
            p-6 md:p-8 bg-gradient-to-t from-background via-background/80 to-transparent pt-12 transition-all duration-700
            ${isLocked ? 'pb-10 pt-16' : ''}
         `}>
-          <div className="relative max-w-3xl mx-auto group">
+          <div className={`relative mx-auto group transition-all duration-700 ${isLocked ? 'max-w-5xl' : 'max-w-3xl'}`}>
             <div className="absolute -inset-1 bg-gradient-to-r from-primary/20 to-primary/5 rounded-[2rem] blur opacity-25 group-hover:opacity-40 transition duration-1000 group-hover:duration-200" />
             
             <div className="relative flex gap-3 p-2 rounded-[1.8rem] bg-card border border-border shadow-2xl items-center">
