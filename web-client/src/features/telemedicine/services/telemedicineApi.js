@@ -1,8 +1,8 @@
 import api from '@/services/api'
 
-const TELEMEDICINE_BASE = '/telemedicine/api/v1'
+const TELEMEDICINE_BASE = '/telemedicine'
 const APPOINTMENT_GATEWAY_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api'
-const APPOINTMENT_ABSOLUTE_BASE = import.meta.env.VITE_APPOINTMENT_API_BASE_URL || `${APPOINTMENT_GATEWAY_BASE}/appointments/appointments`
+const APPOINTMENT_ABSOLUTE_BASE = import.meta.env.VITE_APPOINTMENT_API_BASE_URL || `${APPOINTMENT_GATEWAY_BASE}/appointments`
 const APPOINTMENT_ABSOLUTE_BASE_FALLBACK = import.meta.env.VITE_APPOINTMENT_API_BASE_URL_FALLBACK || `${APPOINTMENT_GATEWAY_BASE}/appointments`
 const RETRYABLE_APPOINTMENT_STATUSES = new Set([500, 502, 503, 504])
 const APPOINTMENT_RETRY_DELAY_MS = 1200
