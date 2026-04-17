@@ -4,6 +4,7 @@ import {
     getAppointments,
     getAppointmentById,
     updateAppointmentStatus,
+    updateAppointmentNotes,
     cancelAppointment,
 } from '@/features/appointments/services/appointmentApi'
 
@@ -77,6 +78,20 @@ export const updateAppointmentStatusById = createAsyncThunk(
         }
     }
 )
+
+export const updateAppointmentNotesById = createAsyncThunk(
+    'appointments/updateAppointmentNotesById',
+    async ({ appointmentId, status, notes }) => {
+        const updated = await updateAppointmentNotes(appointmentId, status, notes)
+        return {
+            appointmentId,
+            status,
+            notes,
+            updated,
+        }
+    }
+)
+
 
 export const cancelAppointmentById = createAsyncThunk(
     'appointments/cancelAppointmentById',
@@ -215,6 +230,51 @@ const appointmentsSlice = createSlice({
                 state.updateStateById[appointmentId] = {
                     status: 'failed',
                     error: action.error?.message || 'Failed to update appointment status.',
+                }
+            })
+            // Update Notes
+            .addCase(updateAppointmentNotesById.pending, (state, action) => {
+                const appointmentId = action.meta.arg?.appointmentId
+                if (!appointmentId) return
+                state.updateStateById[appointmentId] = {
+                    status: 'loading',
+                    error: null,
+                }
+            })
+            .addCase(updateAppointmentNotesById.fulfilled, (state, action) => {
+                const appointmentId = action.payload?.appointmentId
+                const updated = action.payload?.updated || {}
+
+                if (appointmentId) {
+                    state.updateStateById[appointmentId] = {
+                        status: 'succeeded',
+                        error: null,
+                    }
+                }
+
+                if (state.byId?.id === appointmentId) {
+                    state.byId = { ...state.byId, ...updated }
+                }
+
+                for (const queryState of Object.values(state.queries)) {
+                    if (!Array.isArray(queryState?.items)) continue
+                    queryState.items = queryState.items.map((item) => {
+                        if (item?.id !== appointmentId) return item
+                        return {
+                            ...item,
+                            ...updated,
+                            status: updated?.status || item.status,
+                            notes: updated?.notes || item.notes,
+                        }
+                    })
+                }
+            })
+            .addCase(updateAppointmentNotesById.rejected, (state, action) => {
+                const appointmentId = action.meta.arg?.appointmentId
+                if (!appointmentId) return
+                state.updateStateById[appointmentId] = {
+                    status: 'failed',
+                    error: action.error?.message || 'Failed to update appointment notes.',
                 }
             })
             .addCase(cancelAppointmentById.fulfilled, (state, action) => {

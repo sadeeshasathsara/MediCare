@@ -12,4 +12,6 @@ public interface PrescriptionRepository extends MongoRepository<Prescription, St
     List<Prescription> findByDoctorIdAndPatientId(String doctorId, String patientId);
 
     List<Prescription> findByPatientId(String patientId);
+
+    List<Prescription> findByAppointmentId(String appointmentId);
 }

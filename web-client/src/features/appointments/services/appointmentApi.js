@@ -21,6 +21,11 @@ export const updateAppointmentStatus = async (appointmentId, status) => {
   return data
 }
 
+export const updateAppointmentNotes = async (appointmentId, status, notes) => {
+  const { data } = await api.patch(`/appointments/${appointmentId}/status`, { status, notes })
+  return data
+}
+
 export const cancelAppointment = async (appointmentId) => {
   const { data } = await api.delete(`/appointments/${appointmentId}`)
   return data

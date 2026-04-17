@@ -2,7 +2,11 @@ import React, { useEffect, useState } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
 import { useAuth } from "@/context/AuthContext";
-import { fetchAppointmentById, selectAppointmentById } from "@/store/slices/appointmentsSlice";
+import { fetchAppointmentById, selectAppointmentById, updateAppointmentNotesById } from "@/store/slices/appointmentsSlice";
+import { fetchPrescriptionsByAppointment, selectPrescriptionsByAppointment, createPrescription } from "@/store/slices/prescriptionsSlice";
+import { fetchPatientReports, selectPatientReports, uploadPatientReport } from "@/store/slices/patientReportsSlice";
+import { getAppointments } from "@/features/appointments/services/appointmentApi";
+import api from "@/services/api";
 import DocumentViewer from "@/components/DocumentViewer";
 import ProfileAvatar from "@/components/ProfileAvatar";
 import { Button } from "@/components/ui/button";
@@ -10,6 +14,8 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import {
   ArrowLeft,
   Calendar,
@@ -192,6 +198,23 @@ export default function AppointmentDetailsPage() {
   const [fetchStatus, setFetchStatus] = useState("idle");
   const [viewerDoc, setViewerDoc] = useState(null);
 
+  // States for dynamic functionality
+  const [isEditingNotes, setIsEditingNotes] = useState(false);
+  const [notesInput, setNotesInput] = useState("");
+  
+  const [isAddingMed, setIsAddingMed] = useState(false);
+  const [medData, setMedData] = useState({ name: "", dose: "", frequency: "", duration: "", type: "General" });
+
+  const patientId = appointment?.patientId;
+
+  // Redux connected data
+  const prescriptionsState = useSelector((s) => selectPrescriptionsByAppointment(s, id));
+  const reportsState = useSelector((s) => selectPatientReports(s, patientId));
+  const fileInputRef = React.useRef(null);
+  
+  const [medicalHistory, setMedicalHistory] = useState([]);
+  const [historyFetched, setHistoryFetched] = useState(false);
+
   useEffect(() => {
     if (!appointment && fetchStatus === "idle") {
       setFetchStatus("loading");
@@ -201,6 +224,64 @@ export default function AppointmentDetailsPage() {
         .catch(() => setFetchStatus("failed"));
     }
   }, [id, appointment, fetchStatus, dispatch]);
+
+  useEffect(() => {
+    if (appointment && currentTab === "prescriptions" && prescriptionsState.status === "idle") {
+      dispatch(fetchPrescriptionsByAppointment(id));
+    }
+  }, [appointment, currentTab, prescriptionsState.status, id, dispatch]);
+
+  useEffect(() => {
+    if (appointment && currentTab === "documents" && reportsState.status === "idle") {
+      dispatch(fetchPatientReports(appointment.patientId));
+    }
+  }, [appointment, currentTab, reportsState.status, dispatch]);
+
+  useEffect(() => {
+    if (appointment && currentTab === "history" && !historyFetched) {
+      getAppointments({ patientId: appointment.patientId, filter: "PAST", limit: 5 })
+        .then((res) => {
+          setMedicalHistory(res.content || []);
+          setHistoryFetched(true);
+        })
+        .catch((err) => console.error("Failed to fetch history:", err));
+    }
+  }, [appointment, currentTab, historyFetched]);
+
+  const handleSaveNotes = () => {
+    if (!notesInput.trim()) return;
+    dispatch(updateAppointmentNotesById({ appointmentId: id, status: appointment.status, notes: notesInput }))
+      .unwrap()
+      .then(() => setIsEditingNotes(false))
+      .catch((err) => console.error("Failed to update notes", err));
+  };
+
+  const handleSaveMedication = () => {
+    if (!medData.name || !medData.dose) return;
+    dispatch(createPrescription({
+      doctorId: appointment.doctorId,
+      payload: {
+        patientId: appointment.patientId,
+        appointmentId: id,
+        diagnosis: "General",
+        notes: "",
+        medications: [medData]
+      }
+    }))
+    .unwrap()
+    .then(() => {
+      setIsAddingMed(false);
+      setMedData({ name: "", dose: "", frequency: "", duration: "", type: "General" });
+    })
+    .catch(console.error);
+  };
+
+  const handleFileUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file || !patientId) return;
+    dispatch(uploadPatientReport({ patientId, file })).unwrap().catch(console.error);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
 
   const isLoading = !appointment && (fetchStatus === "idle" || fetchStatus === "loading");
 
@@ -387,21 +468,40 @@ export default function AppointmentDetailsPage() {
                     <CardTitle className="text-base font-semibold flex items-center gap-2">
                       <ClipboardEdit className="h-4 w-4 text-primary" /> Clinical Notes
                     </CardTitle>
-                    {isDoctor && isActive && (
-                      <Button variant="ghost" size="sm" className="gap-1.5 text-xs cursor-pointer h-7">
-                        <Plus className="h-3.5 w-3.5" /> Add Notes
+                    {isDoctor && isActive && !isEditingNotes && (
+                      <Button onClick={() => { setNotesInput(appointment.notes || ""); setIsEditingNotes(true); }} variant="ghost" size="sm" className="gap-1.5 text-xs cursor-pointer h-7">
+                        <Plus className="h-3.5 w-3.5" /> {appointment.notes ? "Edit Notes" : "Add Notes"}
                       </Button>
                     )}
                   </CardHeader>
                   <CardContent>
-                    <div className="min-h-[100px] rounded-lg border border-dashed bg-muted/20 flex flex-col items-center justify-center gap-2 p-6 text-center">
-                      <ClipboardEdit className="h-7 w-7 text-muted-foreground/40" />
-                      <p className="text-sm text-muted-foreground">
-                        {isDoctor
-                          ? (isActive ? "Click 'Add Notes' to start documenting post-consultation observations." : "No clinical notes were recorded for this appointment.")
-                          : "Your doctor hasn't published any clinical notes for this visit yet."}
-                      </p>
-                    </div>
+                    {isEditingNotes ? (
+                      <div className="space-y-3">
+                        <Textarea 
+                          value={notesInput} 
+                          onChange={(e) => setNotesInput(e.target.value)} 
+                          placeholder="Enter clinical notes, diagnoses, and observations..." 
+                          className="min-h-[120px] text-sm"
+                        />
+                        <div className="flex justify-end gap-2">
+                          <Button variant="ghost" size="sm" onClick={() => setIsEditingNotes(false)}>Cancel</Button>
+                          <Button size="sm" onClick={handleSaveNotes}>Save Notes</Button>
+                        </div>
+                      </div>
+                    ) : appointment?.notes ? (
+                      <div className="text-sm text-foreground whitespace-pre-wrap leading-relaxed p-4 bg-muted/20 rounded-lg border">
+                        {appointment.notes}
+                      </div>
+                    ) : (
+                      <div className="min-h-[100px] rounded-lg border border-dashed bg-muted/20 flex flex-col items-center justify-center gap-2 p-6 text-center">
+                        <ClipboardEdit className="h-7 w-7 text-muted-foreground/40" />
+                        <p className="text-sm text-muted-foreground">
+                          {isDoctor
+                            ? (isActive ? "Click 'Add Notes' to start documenting post-consultation observations." : "No clinical notes were recorded for this appointment.")
+                            : "Your doctor hasn't published any clinical notes for this visit yet."}
+                        </p>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
 
@@ -505,15 +605,34 @@ export default function AppointmentDetailsPage() {
                   </CardTitle>
                   <p className="text-xs text-muted-foreground mt-0.5">Medications issued during this consultation</p>
                 </div>
-                {isDoctor && isActive && (
-                  <Button size="sm" className="gap-2 text-xs cursor-pointer">
+                {isDoctor && isActive && !isAddingMed && (
+                  <Button onClick={() => setIsAddingMed(true)} size="sm" className="gap-2 text-xs cursor-pointer">
                     <Plus className="h-3.5 w-3.5" /> Add Medication
                   </Button>
                 )}
               </CardHeader>
               <CardContent className="space-y-3">
-                {MOCK_PRESCRIPTIONS.length > 0 ? (
-                  MOCK_PRESCRIPTIONS.map((rx) => <PrescriptionRow key={rx.id} rx={rx} />)
+                {isAddingMed && (
+                  <div className="p-4 border rounded-xl bg-muted/10 space-y-3 mb-4">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      <Input placeholder="Medication name" value={medData.name} onChange={(e) => setMedData({...medData, name: e.target.value})} className="col-span-2 md:col-span-1" />
+                      <Input placeholder="Dose (e.g. 500mg)" value={medData.dose} onChange={(e) => setMedData({...medData, dose: e.target.value})} />
+                      <Input placeholder="Frequency" value={medData.frequency} onChange={(e) => setMedData({...medData, frequency: e.target.value})} />
+                      <Input placeholder="Duration" value={medData.duration} onChange={(e) => setMedData({...medData, duration: e.target.value})} />
+                    </div>
+                    <div className="flex justify-end gap-2">
+                      <Button variant="ghost" size="sm" onClick={() => setIsAddingMed(false)}>Cancel</Button>
+                      <Button size="sm" onClick={handleSaveMedication}>Save</Button>
+                    </div>
+                  </div>
+                )}
+                {prescriptionsState.items?.flatMap(p => p.medications).length > 0 ? (
+                  prescriptionsState.items.flatMap(p => p.medications).map((rx, idx) => (
+                    <PrescriptionRow 
+                      key={`${rx.name}-${idx}`} 
+                      rx={{ name: rx.name, dose: rx.dosage, frequency: rx.frequency, duration: rx.duration, type: "Prescribed" }} 
+                    />
+                  ))
                 ) : (
                   <div className="flex flex-col items-center justify-center py-16 gap-3 text-center rounded-xl border border-dashed bg-muted/10">
                     <Pill className="h-10 w-10 text-muted-foreground/30" />
@@ -537,9 +656,20 @@ export default function AppointmentDetailsPage() {
                 <p className="text-xs text-muted-foreground">Chronological record of past medical events</p>
               </CardHeader>
               <CardContent>
-                {MOCK_HISTORY.length > 0 ? (
+                {medicalHistory.length > 0 ? (
                   <div className="mt-2">
-                    {MOCK_HISTORY.map((entry) => <HistoryEntry key={entry.id} entry={entry} />)}
+                    {medicalHistory.map((appt) => (
+                      <HistoryEntry 
+                        key={appt.id} 
+                        entry={{ 
+                          id: appt.id, 
+                          date: new Date(appt.scheduledAt).toLocaleDateString(undefined, {month: "short", year: "numeric"}), 
+                          title: `${appt.doctorSpecialty || 'General'} Consultation`, 
+                          icon: History, 
+                          note: appt.notes || appt.reason || 'No clinical notes available.' 
+                        }} 
+                      />
+                    ))}
                   </div>
                 ) : (
                   <div className="flex flex-col items-center justify-center py-16 gap-3 text-center rounded-xl border border-dashed bg-muted/10">
@@ -561,13 +691,36 @@ export default function AppointmentDetailsPage() {
                   </CardTitle>
                   <p className="text-xs text-muted-foreground mt-0.5">Lab results, X-rays, and medical certificates</p>
                 </div>
-                <Button size="sm" variant="outline" className="gap-2 text-xs cursor-pointer">
+                <input 
+                  type="file" 
+                  ref={fileInputRef} 
+                  className="hidden" 
+                  onChange={handleFileUpload} 
+                  accept=".pdf,image/png,image/jpeg" 
+                />
+                <Button onClick={() => fileInputRef.current?.click()} size="sm" variant="outline" className="gap-2 text-xs cursor-pointer">
                   <Plus className="h-3.5 w-3.5" /> Upload
                 </Button>
               </CardHeader>
               <CardContent className="space-y-3">
-                {MOCK_DOCS.length > 0 ? (
-                  MOCK_DOCS.map((doc) => <DocumentRow key={doc.id} doc={doc} onClick={() => setViewerDoc(doc)} />)
+                {reportsState.items?.length > 0 ? (
+                  reportsState.items.map((doc) => (
+                    <DocumentRow 
+                      key={doc.id} 
+                      doc={{ 
+                        name: doc.displayFileName || doc.originalFileName, 
+                        size: (doc.size / 1024 / 1024).toFixed(2) + ' MB', 
+                        type: doc.contentType?.includes('pdf') ? "Document" : "Image", 
+                        url: `${import.meta.env.VITE_API_BASE_URL || "/api"}/patients/${patientId}/reports/${doc.id}/download`, 
+                        mimetype: doc.contentType 
+                      }} 
+                      onClick={() => setViewerDoc({...doc, 
+                        name: doc.displayFileName || doc.originalFileName, 
+                        url: `${import.meta.env.VITE_API_BASE_URL || "/api"}/patients/${patientId}/reports/${doc.id}/download`,
+                        mimetype: doc.contentType
+                      })} 
+                    />
+                  ))
                 ) : (
                   <div className="flex flex-col items-center justify-center py-16 gap-3 text-center rounded-xl border-2 border-dashed bg-muted/5">
                     <Paperclip className="h-10 w-10 text-muted-foreground/30" />
