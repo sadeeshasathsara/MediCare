@@ -161,7 +161,7 @@ export default function LiveConsultationPanel({
       }
       containerNode.innerHTML = ''
     }
-  }, [allowEmbed, currentUser?.email, currentUser?.name, joinInfo?.jitsiDomain, joinInfo?.roomId, joinInfo?.token, retryIndex])
+  }, [allowEmbed, currentUser?.email, currentUser?.name, jitsiDomain, roomId, token, retryIndex])
 
   if (fullscreen) {
     return (

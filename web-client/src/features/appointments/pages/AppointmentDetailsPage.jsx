@@ -91,9 +91,10 @@ function DetailsSkeleton() {
 
 // ─── Info chip ────────────────────────────────────────────────────────────────
 function InfoChip({ icon: Icon, label, value, highlight }) {
+  const IconComponent = Icon;
   return (
     <div className={`flex items-center gap-2.5 px-4 py-2.5 rounded-xl border ${highlight ? "bg-primary/5 border-primary/20" : "bg-muted/40 border-muted"}`}>
-      <Icon className={`h-4 w-4 shrink-0 ${highlight ? "text-primary" : "text-muted-foreground"}`} />
+      <IconComponent className={`h-4 w-4 shrink-0 ${highlight ? "text-primary" : "text-muted-foreground"}`} />
       <div>
         <p className="text-[10px] font-semibold text-muted-foreground tracking-widest uppercase">{label}</p>
         <p className={`text-sm font-semibold ${highlight ? "text-primary" : ""}`}>{value}</p>
@@ -636,7 +637,9 @@ export default function AppointmentDetailsPage() {
             { val: "prescriptions", label: "Prescriptions", icon: Pill },
             { val: "history", label: "Medical History", icon: History },
             { val: "documents", label: "Documents", icon: Paperclip },
-          ].map(({ val, label, icon: Icon }) => (
+          ].map(({ val, label, icon }) => {
+            const Icon = icon
+            return (
             <TabsTrigger
               key={val}
               value={val}
@@ -644,7 +647,8 @@ export default function AppointmentDetailsPage() {
             >
               <Icon className="h-4 w-4" /> {label}
             </TabsTrigger>
-          ))}
+            )
+          })}
         </TabsList>
 
         <div className="mt-6">
@@ -745,7 +749,9 @@ export default function AppointmentDetailsPage() {
                         icon: Activity,
                         done: appointment.status === "COMPLETED",
                       },
-                    ].map(({ label, value, icon: Icon, done }, idx) => (
+                    ].map(({ label, value, icon, done }, idx) => {
+                      const Icon = icon
+                      return (
                       <div key={label} className="flex gap-3 pb-4 last:pb-0">
                         <div className="flex flex-col items-center">
                           <div className={`h-7 w-7 rounded-full flex items-center justify-center shrink-0 border-2 ${done ? "bg-primary/10 border-primary/40" : "bg-muted border-muted"
@@ -759,7 +765,8 @@ export default function AppointmentDetailsPage() {
                           <div className="text-xs font-medium mt-0.5">{value}</div>
                         </div>
                       </div>
-                    ))}
+                      )
+                    })}
                   </CardContent>
                 </Card>
 

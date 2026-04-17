@@ -225,11 +225,19 @@ export default function SymptomChatBox({ profile, initialPrompt, isLocked }) {
     setShowTextInput(true)
 
     try {
-      await submitCheck({
+      const data = await submitCheck({
         symptoms: trimmed,
         age: profile?.dob ? calculateAge(profile.dob) : null,
         gender: profile?.gender || null
       }, newHistory)
+
+      // When the assistant returns options, show chips and hide the textarea
+      // unless the user explicitly chooses "Other".
+      if (Array.isArray(data?.options) && data.options.length > 0) {
+        setShowTextInput(false)
+      } else {
+        setShowTextInput(true)
+      }
     } catch (err) {
       console.error('Symptom check failed:', err)
     }
@@ -249,7 +257,9 @@ export default function SymptomChatBox({ profile, initialPrompt, isLocked }) {
 
       // Auto-submit if navigated from dashboard hero
       if (initialPrompt && initialPrompt.trim()) {
-        performSubmit(initialPrompt.trim(), [welcomeMsg])
+         window.setTimeout(() => {
+           performSubmit(initialPrompt.trim(), [welcomeMsg])
+         }, 0)
       }
     }
   }, [profile, messages.length, setMessages, initialPrompt])
@@ -257,15 +267,6 @@ export default function SymptomChatBox({ profile, initialPrompt, isLocked }) {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, loading, latestOptions])
-
-  // When options arrive, hide text input unless user clicks "Other"
-  useEffect(() => {
-    if (latestOptions.length > 0) {
-      setShowTextInput(false)
-    } else {
-      setShowTextInput(true)
-    }
-  }, [latestOptions])
 
   const handleSend = () => {
     if (input.trim() && !loading) {
