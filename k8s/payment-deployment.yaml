@@ -31,6 +31,16 @@ spec:
                 secretKeyRef:
                   name: medicare-secrets
                   key: CORS_ALLOWED_ORIGINS
+            - name: STRIPE_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: medicare-secrets
+                  key: STRIPE_SECRET_KEY
+            - name: STRIPE_PUBLISHABLE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: medicare-secrets
+                  key: STRIPE_PUBLISHABLE_KEY
 ---
 apiVersion: v1
 kind: Service
