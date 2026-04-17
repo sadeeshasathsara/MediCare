@@ -5,6 +5,8 @@ import java.util.List;
 public class SymptomResponse {
 
     private List<String> possibleConditions;
+    private String aiMessage;
+    private boolean isDiagnostic;
     private String recommendedSpecialty;
     private String recommendedDoctor;
     private List<String> recommendedDoctorIds;
@@ -32,6 +34,22 @@ public class SymptomResponse {
 
     public void setPossibleConditions(List<String> possibleConditions) {
         this.possibleConditions = possibleConditions;
+    }
+
+    public String getAiMessage() {
+        return aiMessage;
+    }
+
+    public void setAiMessage(String aiMessage) {
+        this.aiMessage = aiMessage;
+    }
+
+    public boolean isDiagnostic() {
+        return isDiagnostic;
+    }
+
+    public void setDiagnostic(boolean diagnostic) {
+        isDiagnostic = diagnostic;
     }
 
     public String getRecommendedSpecialty() {

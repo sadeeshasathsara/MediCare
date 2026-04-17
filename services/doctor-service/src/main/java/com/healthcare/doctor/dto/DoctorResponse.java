@@ -16,6 +16,8 @@ public class DoctorResponse {
     private String licenseNumber;
     private double consultationFee;
     private boolean verified;
+    private boolean hasProfilePhoto;
+    private Instant profilePhotoUpdatedAt;
     private Instant createdAt;
     private Instant updatedAt;
 
@@ -105,6 +107,22 @@ public class DoctorResponse {
 
     public void setVerified(boolean verified) {
         this.verified = verified;
+    }
+
+    public boolean isHasProfilePhoto() {
+        return hasProfilePhoto;
+    }
+
+    public void setHasProfilePhoto(boolean hasProfilePhoto) {
+        this.hasProfilePhoto = hasProfilePhoto;
+    }
+
+    public Instant getProfilePhotoUpdatedAt() {
+        return profilePhotoUpdatedAt;
+    }
+
+    public void setProfilePhotoUpdatedAt(Instant profilePhotoUpdatedAt) {
+        this.profilePhotoUpdatedAt = profilePhotoUpdatedAt;
     }
 
     public Instant getCreatedAt() {

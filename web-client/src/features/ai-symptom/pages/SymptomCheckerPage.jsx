@@ -1,4 +1,4 @@
-import { useEffect, useCallback } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Sparkles,
@@ -6,192 +6,50 @@ import {
   ShieldCheck,
   Clock,
   Stethoscope,
-  X,
+  HeartPulse,
 } from 'lucide-react'
-import { useSymptomChecker } from '@/features/ai-symptom/hooks/useSymptomChecker'
-import SymptomCheckerForm from '@/features/ai-symptom/components/SymptomCheckerForm'
-import SymptomResultCard from '@/features/ai-symptom/components/SymptomResultCard'
+import { useAuth } from '@/context/AuthContext'
+import { getPatientProfile } from '@/features/patients/services/patientApi'
+import SymptomChatBox from '@/features/ai-symptom/components/SymptomChatBox'
 
 /* ── Feature highlight cards ──────────────────────────────── */
 
 const FEATURES = [
   {
     icon: BrainCircuit,
-    title: 'AI-Powered Analysis',
-    desc: 'Leverages advanced AI to evaluate your symptoms and suggest possible conditions.',
+    title: 'AI Consultation',
+    desc: 'Describe your symptoms in natural language and chat with our specialized AI.',
   },
   {
     icon: ShieldCheck,
-    title: 'Urgency Assessment',
-    desc: 'Provides a triage-level urgency rating so you know when to seek care.',
+    title: 'Specialist Matching',
+    desc: 'Our AI identifies the right specialty and suggests the best doctors for you.',
   },
   {
     icon: Stethoscope,
-    title: 'Doctor Recommendations',
-    desc: 'Suggests the right type of specialist based on your reported symptoms.',
+    title: 'One-Click Booking',
+    desc: 'Seamlessly schedule appointments with recommended specialists.',
   },
   {
     icon: Clock,
-    title: 'Instant Results',
-    desc: 'Get a comprehensive triage summary within seconds — anytime, anywhere.',
+    title: 'Instant Support',
+    desc: 'Available 24/7 to provide triage guidance and health information.',
   },
 ]
 
-/* ── Keyframe injection (runs once) ───────────────────────── */
-
-const KEYFRAMES_ID = 'symptom-page-keyframes'
-
-function ensureKeyframes() {
-  if (typeof document === 'undefined') return
-  if (document.getElementById(KEYFRAMES_ID)) return
-
-  const style = document.createElement('style')
-  style.id = KEYFRAMES_ID
-  style.textContent = `
-    @keyframes sp-overlayIn {
-      from { opacity: 0; }
-      to   { opacity: 1; }
-    }
-    @keyframes sp-modalIn {
-      from { opacity: 0; transform: translateY(24px) scale(0.97); }
-      to   { opacity: 1; transform: translateY(0) scale(1); }
-    }
-    @keyframes sp-overlayOut {
-      from { opacity: 1; }
-      to   { opacity: 0; }
-    }
-    @keyframes sp-modalOut {
-      from { opacity: 1; transform: translateY(0) scale(1); }
-      to   { opacity: 0; transform: translateY(16px) scale(0.97); }
-    }
-  `
-  document.head.appendChild(style)
-}
-
-/* ── Result Modal ─────────────────────────────────────────── */
-
-function ResultModal({ result, doctors, doctorLookupStatus, doctorLookupError, onClose, onBookAppointment }) {
-  // Close on Escape key
-  const handleKeyDown = useCallback(
-    (e) => {
-      if (e.key === 'Escape') onClose()
-    },
-    [onClose],
-  )
-
-  useEffect(() => {
-    ensureKeyframes()
-    document.addEventListener('keydown', handleKeyDown)
-    // Prevent body scroll while modal is open
-    const prev = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown)
-      document.body.style.overflow = prev
-    }
-  }, [handleKeyDown])
-
-  if (!result) return null
-
-  return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label="AI Triage Result"
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 1000,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 16,
-      }}
-    >
-      {/* Backdrop */}
-      <div
-        onClick={onClose}
-        style={{
-          position: 'absolute',
-          inset: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.55)',
-          backdropFilter: 'blur(6px)',
-          WebkitBackdropFilter: 'blur(6px)',
-          animation: 'sp-overlayIn 0.25s ease both',
-        }}
-      />
-
-      {/* Modal panel */}
-      <div
-        style={{
-          position: 'relative',
-          width: '100%',
-          maxWidth: 680,
-          maxHeight: 'calc(100vh - 48px)',
-          overflowY: 'auto',
-          borderRadius: '1rem',
-          border: '1px solid hsl(var(--border))',
-          backgroundColor: 'hsl(var(--card))',
-          boxShadow: '0 24px 64px rgba(0,0,0,0.25)',
-          animation: 'sp-modalIn 0.35s ease both',
-        }}
-      >
-        {/* Close button */}
-        <button
-          onClick={onClose}
-          aria-label="Close result"
-          style={{
-            position: 'sticky',
-            top: 12,
-            float: 'right',
-            marginRight: 12,
-            zIndex: 10,
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: 32,
-            height: 32,
-            borderRadius: 8,
-            border: '1px solid hsl(var(--border))',
-            backgroundColor: 'hsl(var(--card) / 0.9)',
-            backdropFilter: 'blur(4px)',
-            color: 'hsl(var(--muted-foreground))',
-            cursor: 'pointer',
-            transition: 'all 0.15s ease',
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = 'hsl(var(--destructive) / 0.1)'
-            e.currentTarget.style.borderColor = 'hsl(var(--destructive) / 0.3)'
-            e.currentTarget.style.color = 'hsl(var(--destructive))'
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = 'hsl(var(--card) / 0.9)'
-            e.currentTarget.style.borderColor = 'hsl(var(--border))'
-            e.currentTarget.style.color = 'hsl(var(--muted-foreground))'
-          }}
-        >
-          <X size={16} />
-        </button>
-
-        <SymptomResultCard
-          result={result}
-          doctors={doctors}
-          doctorLookupStatus={doctorLookupStatus}
-          doctorLookupError={doctorLookupError}
-          onBookAppointment={onBookAppointment}
-        />
-      </div>
-    </div>
-  )
-}
-
-/* ── Main Page ────────────────────────────────────────────── */
-
 export default function SymptomCheckerPage() {
   const navigate = useNavigate()
-  const { loading, error, result, setResult, recommendedDoctors, doctorLookupStatus, doctorLookupError, submitCheck } = useSymptomChecker()
+  const { user } = useAuth()
+  const [profile, setProfile] = useState(null)
+  const userId = user?.id || ''
 
-  const closeModal = useCallback(() => setResult(null), [setResult])
+  useEffect(() => {
+    if (userId) {
+      getPatientProfile(userId)
+        .then(setProfile)
+        .catch(err => console.error('Failed to load profile for AI context:', err))
+    }
+  }, [userId])
 
   const handleBookAppointment = useCallback(
     (doctor, symptomResult) => {
@@ -206,10 +64,9 @@ export default function SymptomCheckerPage() {
         : ''
 
       const reason = reasonSeed
-        ? `AI symptom check suggested: ${reasonSeed}.`
-        : 'Appointment requested from AI symptom checker recommendation.'
+        ? `AI consultation suggested: ${reasonSeed}.`
+        : 'Appointment requested via AI doctor recommendation.'
 
-      setResult(null)
       navigate('/patient/appointments/new', {
         state: {
           prefill: {
@@ -221,187 +78,65 @@ export default function SymptomCheckerPage() {
         },
       })
     },
-    [navigate, setResult],
+    [navigate],
   )
 
   return (
-    <>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-        {/* ── Page header ──────────────────────────────── */}
-        <header
-          style={{
-            borderRadius: '1rem',
-            border: '1px solid hsl(var(--border))',
-            overflow: 'hidden',
-            background:
-              'linear-gradient(145deg, hsl(var(--card)) 0%, hsl(var(--background)) 100%)',
-          }}
-        >
-          {/* Accent bar */}
-          <div
-            style={{
-              height: 3,
-              background:
-                'linear-gradient(90deg, hsl(var(--primary)), hsl(var(--primary) / 0.3))',
-            }}
-          />
-
-          <div style={{ padding: '24px 28px' }}>
-            <div className="flex items-start gap-4 flex-wrap">
-              {/* Icon */}
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  width: 48,
-                  height: 48,
-                  borderRadius: 14,
-                  background:
-                    'linear-gradient(135deg, hsl(var(--primary)), hsl(var(--primary) / 0.65))',
-                  color: 'hsl(var(--primary-foreground))',
-                  flexShrink: 0,
-                  boxShadow: '0 4px 16px hsl(var(--primary) / 0.25)',
-                }}
-              >
-                <BrainCircuit size={24} />
-              </div>
-
-              {/* Text */}
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div className="flex items-center gap-2.5 flex-wrap">
-                  <h1
-                    style={{
-                      fontSize: 'clamp(1.25rem, 2vw, 1.5rem)',
-                      fontWeight: 800,
-                      color: 'hsl(var(--foreground))',
-                      letterSpacing: '-0.025em',
-                      lineHeight: 1.25,
-                    }}
-                  >
-                    AI Symptom Checker
-                  </h1>
-                  <span
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 5,
-                      padding: '3px 10px',
-                      borderRadius: 999,
-                      backgroundColor: 'hsl(var(--primary) / 0.1)',
-                      color: 'hsl(var(--primary))',
-                      fontSize: '0.65rem',
-                      fontWeight: 700,
-                      letterSpacing: '0.02em',
-                      textTransform: 'uppercase',
-                    }}
-                  >
-                    <Sparkles size={11} />
-                    AI Powered
-                  </span>
-                </div>
-
-                <p
-                  style={{
-                    marginTop: 6,
-                    fontSize: '0.875rem',
-                    lineHeight: 1.6,
-                    color: 'hsl(var(--muted-foreground))',
-                    maxWidth: 600,
-                  }}
-                >
-                  Describe your symptoms, age, and medical history to receive an
-                  instant AI-powered triage summary — with urgency guidance,
-                  possible conditions, and doctor recommendations.
-                </p>
-              </div>
-            </div>
-
-            {/* ── Feature cards row ─────────────────────── */}
-            <div
-              className="grid grid-cols-2 md:grid-cols-4 gap-3"
-              style={{ marginTop: 20 }}
-            >
-              {FEATURES.map((feat) => (
-                <div
-                  key={feat.title}
-                  style={{
-                    borderRadius: '0.75rem',
-                    border: '1px solid hsl(var(--border) / 0.6)',
-                    backgroundColor: 'hsl(var(--background) / 0.5)',
-                    padding: '14px 14px 12px',
-                    transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.borderColor = 'hsl(var(--primary) / 0.3)'
-                    e.currentTarget.style.boxShadow = '0 2px 12px hsl(var(--primary) / 0.06)'
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.borderColor = 'hsl(var(--border) / 0.6)'
-                    e.currentTarget.style.boxShadow = 'none'
-                  }}
-                >
-                  <div
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      width: 30,
-                      height: 30,
-                      borderRadius: 8,
-                      backgroundColor: 'hsl(var(--primary) / 0.1)',
-                      color: 'hsl(var(--primary))',
-                      marginBottom: 8,
-                    }}
-                  >
-                    <feat.icon size={15} />
-                  </div>
-                  <h3
-                    style={{
-                      fontSize: '0.75rem',
-                      fontWeight: 700,
-                      color: 'hsl(var(--foreground))',
-                      lineHeight: 1.3,
-                      letterSpacing: '-0.01em',
-                    }}
-                  >
-                    {feat.title}
-                  </h3>
-                  <p
-                    style={{
-                      marginTop: 3,
-                      fontSize: '0.65rem',
-                      lineHeight: 1.45,
-                      color: 'hsl(var(--muted-foreground))',
-                    }}
-                  >
-                    {feat.desc}
-                  </p>
-                </div>
-              ))}
-            </div>
+    <div className="max-w-4xl mx-auto pb-24 space-y-8 animate-in fade-in duration-700">
+      {/* ── Page header ──────────────────────────────── */}
+      <header className="relative py-12 px-8 rounded-3xl overflow-hidden border border-primary/10 shadow-2xl shadow-primary/5">
+        {/* Abstract background elements */}
+        <div className="absolute top-0 right-0 w-96 h-96 bg-primary/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+        <div className="absolute bottom-0 left-0 w-64 h-64 bg-primary/5 rounded-full blur-2xl translate-y-1/2 -translate-x-1/2" />
+        
+        <div className="relative z-10 flex flex-col items-center text-center space-y-6">
+          <div className="flex items-center gap-3 px-4 py-1.5 rounded-full bg-primary/10 border border-primary/20 text-primary animate-bounce-subtle">
+            <HeartPulse size={16} />
+            <span className="text-xs font-bold tracking-widest uppercase">MediCare AI Doctor</span>
           </div>
-        </header>
+          
+          <div className="space-y-4 max-w-2xl">
+            <h1 className="text-4xl md:text-5xl font-black tracking-tight text-foreground leading-[1.1]">
+              How are you feeling, <span className="text-primary">{profile?.name || user?.name || 'today'}?</span>
+            </h1>
+            <p className="text-lg text-muted-foreground leading-relaxed">
+              Describe your symptoms and our specialized AI assistant will help you identify potential causes and find the perfect doctor.
+            </p>
+          </div>
 
-        {/* ── Form ─────────────────────────────────────── */}
-        <SymptomCheckerForm
-          loading={loading}
-          error={error}
-          onSubmit={submitCheck}
-        />
-      </div>
+          {/* Quick Feature Grid */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 w-full pt-4">
+            {FEATURES.map((feat) => (
+              <div key={feat.title} className="p-4 rounded-2xl bg-card border border-border/50 hover:border-primary/20 transition-all hover:shadow-lg group">
+                <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+                  <feat.icon size={20} />
+                </div>
+                <h3 className="text-sm font-bold text-foreground mb-1">{feat.title}</h3>
+                <p className="text-[11px] text-muted-foreground line-clamp-2">{feat.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </header>
 
-      {/* ── Result popup modal ─────────────────────────── */}
-      {result && (
-        <ResultModal
-          result={result}
-          doctors={recommendedDoctors}
-          doctorLookupStatus={doctorLookupStatus}
-          doctorLookupError={doctorLookupError}
-          onClose={closeModal}
+      {/* ── Main Chat Section ────────────────────────────── */}
+      <section className="relative group">
+        <SymptomChatBox 
+          profile={profile} 
           onBookAppointment={handleBookAppointment}
         />
-      )}
-    </>
+      </section>
+
+      {/* ── Safety Disclaimer ────────────────────────────── */}
+      <footer className="text-center px-4">
+        <div className="inline-flex items-center gap-2 p-3 px-5 rounded-2xl bg-muted/50 border border-border/50 text-muted-foreground text-[11px] max-w-xl mx-auto leading-relaxed">
+          <ShieldCheck size={14} className="shrink-0 text-primary" />
+          <span>
+            <strong>Safety Note:</strong> AI assessments are for informational purposes only and are not medical diagnoses. 
+            In case of emergency, please visit your nearest hospital immediately.
+          </span>
+        </div>
+      </footer>
+    </div>
   )
 }

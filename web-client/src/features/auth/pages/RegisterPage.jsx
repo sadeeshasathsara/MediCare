@@ -13,6 +13,9 @@ export default function RegisterPage() {
     const [specialty, setSpecialty] = useState('')
     const [phone, setPhone] = useState('')
 
+    const [dob, setDob] = useState('')
+    const [gender, setGender] = useState('')
+
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState(null)
     const [success, setSuccess] = useState(null)
@@ -45,6 +48,23 @@ export default function RegisterPage() {
             }
 
             await api.post('/auth/register', payload)
+
+            // If PATIENT and we have dob/gender, we do a silent login to save them to patient profile
+            if (role === 'PATIENT' && (dob || gender)) {
+                try {
+                    const loginRes = await api.post('/auth/login', { email, password })
+                    const token = loginRes.data?.accessToken
+                    const userId = loginRes.data?.user?.id
+                    if (token && userId) {
+                        // Pass token directly in headers to avoid race conditions with localStorage
+                        await api.put(`/patients/${userId}`, { dob, gender }, {
+                            headers: { Authorization: `Bearer ${token}` }
+                        })
+                    }
+                } catch(e) {
+                   console.log('Could not auto-save patient profile during registration:', e)
+                }
+            }
 
             const msg =
                 role === 'DOCTOR'
@@ -267,7 +287,34 @@ export default function RegisterPage() {
                                         placeholder="Phone"
                                     />
                                 </div>
-                            ) : null}
+                            ) : (
+                                <div className="space-y-3 rounded-xl border p-4" style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--card))' }}>
+                                    <p className="text-sm font-medium" style={{ color: 'hsl(var(--foreground))' }}>
+                                        Patient Details
+                                    </p>
+
+                                    <input
+                                        type="date"
+                                        value={dob}
+                                        onChange={(e) => setDob(e.target.value)}
+                                        className="w-full px-4 py-3 border rounded-xl text-sm"
+                                        style={{ backgroundColor: 'hsl(var(--input))', borderColor: 'hsl(var(--border))', color: 'hsl(var(--muted-foreground))' }}
+                                        placeholder="Date of Birth"
+                                    />
+                                    
+                                    <select
+                                        value={gender}
+                                        onChange={(e) => setGender(e.target.value)}
+                                        className="w-full px-4 py-3 border rounded-xl text-sm"
+                                        style={{ backgroundColor: 'hsl(var(--input))', borderColor: 'hsl(var(--border))', color: 'hsl(var(--foreground))' }}
+                                    >
+                                        <option value="" disabled>Select Gender...</option>
+                                        <option value="MALE">Male</option>
+                                        <option value="FEMALE">Female</option>
+                                        <option value="OTHER">Other</option>
+                                    </select>
+                                </div>
+                            )}
                         </div>
 
                         <button

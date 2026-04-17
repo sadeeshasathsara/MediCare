@@ -69,16 +69,37 @@ public class OpenAiSymptomService {
                     "OpenAI API key is not configured for ai-symptom-service");
         }
 
-        String userPrompt = buildUserPrompt(request);
+        List<Map<String, String>> messages = new ArrayList<>();
+        
+        // 1. Better System Prompt for a conversational doctor
+        String dynamicSystemPrompt = "You are 'MediCare AI', a professional and empathetic medical assistant. " +
+                "Your goal is to help patients understand their symptoms through conversation and recommend the right specialist. " +
+                "GUIDELINES: " +
+                "1. If info is insufficient, ask ONE clarifying question at a time to narrow down the conditions. " +
+                "2. When you have enough info, provide a diagnosis summary and doctor recommendations. " +
+                "3. Always maintain a professional, calm, and reassuring tone. " +
+                "4. If symptoms sound life-threatening, recommend EMERGENCY immediately. " +
+                "5. RETURN ONLY JSON.";
+        
+        messages.add(Map.of("role", "system", "content", dynamicSystemPrompt));
+
+        // 2. Add History
+        if (request.history() != null) {
+            for (var msg : request.history()) {
+                messages.add(Map.of("role", msg.role(), "content", msg.content()));
+            }
+        }
+
+        // 3. Add Current Input (with demographic context)
+        String userContextPrompt = buildUserContextPrompt(request);
+        messages.add(Map.of("role", "user", "content", userContextPrompt));
 
         Map<String, Object> payload = Map.of(
                 "model", model,
-                "messages", List.of(
-                        Map.of("role", "system", "content", systemPrompt),
-                        Map.of("role", "user", "content", userPrompt)
-                ),
-                "temperature", 0.2,
-                "max_tokens", maxResponseTokens
+                "messages", messages,
+                "temperature", 0.3,
+                "max_tokens", maxResponseTokens,
+                "response_format", Map.of("type", "json_object")
         );
 
         HttpHeaders headers = new HttpHeaders();
@@ -89,53 +110,67 @@ public class OpenAiSymptomService {
 
         try {
             ResponseEntity<JsonNode> response = restTemplate.exchange(
-                    baseUrl,
-                    HttpMethod.POST,
-                    entity,
-                    JsonNode.class
+                    baseUrl, HttpMethod.POST, entity, JsonNode.class
             );
 
             JsonNode root = response.getBody();
-            if (root == null) {
-                throw new AiIntegrationException(HttpStatus.BAD_GATEWAY,
-                        "OpenAI returned an empty response");
-            }
+            if (root == null) throw new AiIntegrationException(HttpStatus.BAD_GATEWAY, "Empty AI response");
 
             String content = root.path("choices").path(0).path("message").path("content").asText();
-            if (content == null || content.isBlank()) {
-                throw new AiIntegrationException(HttpStatus.BAD_GATEWAY,
-                        "OpenAI response did not include generated content");
-            }
+            if (content == null || content.isBlank()) throw new AiIntegrationException(HttpStatus.BAD_GATEWAY, "No AI content");
 
             JsonNode structuredResponse = parseStructuredResponse(content.trim());
 
-            List<String> conditions = readConditions(structuredResponse.path("possibleConditions"));
-            String recommendedSpecialty = normalizeSpecialty(
-                    asTextOrDefault(structuredResponse.path("recommendedSpecialty"), DEFAULT_SPECIALTY));
-            String recommendedDoctor = asTextOrDefault(structuredResponse.path("recommendedDoctor"), recommendedSpecialty);
-            List<String> recommendedDoctorIds = readRecommendedDoctorIds(
-                    structuredResponse.path("recommendedDoctorIds"),
-                    request.availableDoctors()
-            );
-            if (recommendedDoctorIds.isEmpty()) {
-                recommendedDoctorIds = fallbackRecommendationIds(request.availableDoctors(), recommendedSpecialty);
-            }
-            String urgencyLevel = asTextOrDefault(structuredResponse.path("urgencyLevel"), "MODERATE");
-            String advice = asTextOrDefault(structuredResponse.path("advice"), "Please consult a licensed clinician.");
+            SymptomResponse res = new SymptomResponse();
+            res.setAiMessage(asTextOrDefault(structuredResponse.path("aiMessage"), "How can I help you today?"));
+            res.setDiagnostic(structuredResponse.path("isDiagnostic").asBoolean(false));
 
-            return new SymptomResponse(
-                    conditions,
-                    recommendedSpecialty,
-                    recommendedDoctor,
-                    recommendedDoctorIds,
-                    urgencyLevel,
-                    advice,
-                    DEFAULT_DISCLAIMER
-            );
+            if (res.isDiagnostic()) {
+                res.setPossibleConditions(readConditions(structuredResponse.path("possibleConditions")));
+                String spec = normalizeSpecialty(asTextOrDefault(structuredResponse.path("recommendedSpecialty"), DEFAULT_SPECIALTY));
+                res.setRecommendedSpecialty(spec);
+                res.setRecommendedDoctor(asTextOrDefault(structuredResponse.path("recommendedDoctor"), spec));
+                
+                List<String> docIds = readRecommendedDoctorIds(structuredResponse.path("recommendedDoctorIds"), request.availableDoctors());
+                if (docIds.isEmpty()) docIds = fallbackRecommendationIds(request.availableDoctors(), spec);
+                res.setRecommendedDoctorIds(docIds);
+                
+                res.setUrgencyLevel(asTextOrDefault(structuredResponse.path("urgencyLevel"), "MODERATE"));
+                res.setAdvice(asTextOrDefault(structuredResponse.path("advice"), "Please consult a professional."));
+            }
+
+            res.setDisclaimer(DEFAULT_DISCLAIMER);
+            return res;
+
         } catch (RestClientException ex) {
-            throw new AiIntegrationException(HttpStatus.BAD_GATEWAY,
-                    "Failed to get response from OpenAI: " + ex.getMessage());
+            throw new AiIntegrationException(HttpStatus.BAD_GATEWAY, "AI Service unreachable: " + ex.getMessage());
         }
+    }
+
+    private String buildUserContextPrompt(SymptomCheckRequest request) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("USER INPUT: ").append(request.symptoms()).append("\n\n");
+        
+        sb.append("PATIENT CONTEXT (Keep in mind but don't repeat unless relevant):\n");
+        if (request.age() != null) sb.append("- Age: ").append(request.age()).append("\n");
+        if (request.gender() != null) sb.append("- Gender: ").append(request.gender()).append("\n");
+        if (request.medicalHistory() != null) sb.append("- History: ").append(request.medicalHistory()).append("\n");
+
+        String docs = buildDoctorCatalogSnippet(request.availableDoctors());
+        if (!docs.isBlank()) sb.append("\nAVAILABLE DOCTORS:\n").append(docs);
+
+        sb.append("\nOUTPUT FORMAT (Return ONLY this JSON schema):\n");
+        sb.append("{\n")
+          .append("  \"aiMessage\": \"A conversational response as a doctor. If not diagnostic yet, ask a follow-up.\",\n")
+          .append("  \"isDiagnostic\": true/false,\n")
+          .append("  \"possibleConditions\": [\"...\"],\n")
+          .append("  \"recommendedSpecialty\": \"Cardiology|Dermatology|...\",\n")
+          .append("  \"recommendedDoctorIds\": [\"...\"],\n")
+          .append("  \"urgencyLevel\": \"LOW|MODERATE|HIGH|EMERGENCY\",\n")
+          .append("  \"advice\": \"Concise advice\"\n")
+          .append("}");
+
+        return sb.toString();
     }
 
     private String buildUserPrompt(SymptomCheckRequest request) {

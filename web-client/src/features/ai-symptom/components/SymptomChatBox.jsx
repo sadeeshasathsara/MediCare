@@ -1,9 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { Send, Bot, User, Loader2, AlertTriangle, ShieldCheck, Zap, AlertOctagon } from 'lucide-react'
+import { Send, Bot, User, Loader2, AlertTriangle, ShieldCheck, Zap, AlertOctagon, RotateCcw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
-import { checkSymptoms } from '@/features/ai-symptom/services/aiSymptomApi'
-import { listDoctors } from '@/features/doctors/services/doctorApi'
+import { useSymptomChecker } from '@/features/ai-symptom/hooks/useSymptomChecker'
 import RecommendedDoctors from './RecommendedDoctors'
 
 const URGENCY_CONFIG = {
@@ -40,32 +39,32 @@ function UrgencyBadge({ level }) {
   )
 }
 
-function AiMessage({ content, result }) {
+function AiMessage({ content, result, doctors, doctorsLoading }) {
   return (
-    <div className="flex gap-3 items-start">
-      <div className="h-8 w-8 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0 mt-0.5">
-        <Bot className="h-4 w-4 text-primary" />
+    <div className="flex gap-3 items-start animate-in fade-in slide-in-from-left-2 duration-300">
+      <div className="h-9 w-9 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0 mt-0.5 shadow-sm">
+        <Bot className="h-5 w-5 text-primary" />
       </div>
-      <div className="flex-1 space-y-3 max-w-[85%]">
-        <div className="rounded-2xl rounded-tl-sm bg-card/80 border border-muted/60 p-4 shadow-sm text-sm leading-relaxed text-foreground">
+      <div className="flex-1 space-y-4 max-w-[90%]">
+        <div className="rounded-2xl rounded-tl-sm bg-card border border-border/60 p-5 shadow-sm text-[15px] leading-relaxed text-foreground/90 whitespace-pre-wrap">
           {content}
         </div>
 
-        {result && (
-          <div className="rounded-2xl border bg-card/60 p-4 space-y-3 text-sm shadow-sm">
+        {result?.isDiagnostic && (
+          <div className="rounded-2xl border bg-card/40 backdrop-blur-sm p-6 space-y-6 shadow-md border-primary/10 animate-in zoom-in-95 duration-500">
             {/* Urgency */}
-            <div className="flex items-center justify-between flex-wrap gap-2">
-              <p className="font-semibold text-foreground/80 text-xs uppercase tracking-widest">Assessment</p>
+            <div className="flex items-center justify-between border-b border-border/50 pb-4">
+              <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Expert Assessment</span>
               <UrgencyBadge level={result.urgencyLevel} />
             </div>
 
             {/* Conditions */}
             {result.possibleConditions?.length > 0 && (
-              <div>
-                <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest mb-2">Possible Conditions</p>
-                <div className="flex flex-wrap gap-1.5">
+              <div className="space-y-3">
+                <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest">Potential Indications</p>
+                <div className="flex flex-wrap gap-2">
                   {result.possibleConditions.map((c, i) => (
-                    <span key={i} className="text-[11px] px-2.5 py-1 rounded-full bg-primary/8 text-primary border border-primary/15 font-medium">
+                    <span key={i} className="text-xs px-3 py-1.5 rounded-lg bg-primary/5 text-primary border border-primary/10 font-semibold shadow-sm">
                       {c}
                     </span>
                   ))}
@@ -75,22 +74,34 @@ function AiMessage({ content, result }) {
 
             {/* Recommended specialty */}
             {result.recommendedSpecialty && (
-              <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-                <span className="font-semibold">Recommended specialty:</span>
-                <span className="font-bold text-primary">{result.recommendedSpecialty}</span>
+              <div className="flex items-center gap-2 p-3 rounded-xl bg-primary/5 border border-primary/10">
+                <Stethoscope size={16} className="text-primary" />
+                <span className="text-xs font-medium text-muted-foreground italic">Recommended focus:</span>
+                <span className="text-xs font-bold text-primary">{result.recommendedSpecialty}</span>
               </div>
             )}
 
             {/* Advice */}
             {result.advice && (
-              <div className="p-3 rounded-xl bg-muted/30 border border-muted text-[12px] text-muted-foreground leading-relaxed">
-                💡 {result.advice}
+              <div className="p-4 rounded-xl bg-muted/30 border border-dashed border-muted-foreground/30 text-[13px] text-muted-foreground leading-relaxed italic">
+                “{result.advice}”
+              </div>
+            )}
+            
+            {/* Recommended Doctors Card */}
+            {(doctors?.length > 0 || doctorsLoading) && (
+              <div className="pt-2">
+                 <RecommendedDoctors 
+                    doctors={doctors}
+                    isLoading={doctorsLoading}
+                    specialty={result.recommendedSpecialty}
+                 />
               </div>
             )}
 
             {/* Disclaimer */}
             {result.disclaimer && (
-              <p className="text-[10px] text-muted-foreground/60 italic leading-relaxed border-t pt-2">
+              <p className="text-[10px] text-muted-foreground/50 border-t border-border/50 pt-3 text-center">
                 ⚕ {result.disclaimer}
               </p>
             )}
@@ -103,14 +114,14 @@ function AiMessage({ content, result }) {
 
 function UserMessage({ content }) {
   return (
-    <div className="flex gap-3 items-start justify-end">
-      <div className="flex-1 max-w-[75%]">
-        <div className="rounded-2xl rounded-tr-sm bg-primary/10 border border-primary/20 p-4 text-sm leading-relaxed text-foreground ml-auto">
+    <div className="flex gap-3 items-start justify-end animate-in fade-in slide-in-from-right-2 duration-300">
+      <div className="flex-1 max-w-[85%]">
+        <div className="rounded-2xl rounded-tr-sm bg-primary text-primary-foreground p-5 text-[15px] shadow-lg shadow-primary/10 ml-auto leading-relaxed">
           {content}
         </div>
       </div>
-      <div className="h-8 w-8 rounded-full bg-muted border border-muted flex items-center justify-center shrink-0 mt-0.5">
-        <User className="h-4 w-4 text-muted-foreground" />
+      <div className="h-9 w-9 rounded-full bg-muted border border-border flex items-center justify-center shrink-0 mt-0.5 shadow-sm">
+        <User className="h-5 w-5 text-muted-foreground" />
       </div>
     </div>
   )
@@ -118,16 +129,16 @@ function UserMessage({ content }) {
 
 function TypingIndicator() {
   return (
-    <div className="flex gap-3 items-start">
-      <div className="h-8 w-8 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
-        <Bot className="h-4 w-4 text-primary" />
+    <div className="flex gap-3 items-start animate-pulse">
+      <div className="h-9 w-9 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
+        <Bot className="h-5 w-5 text-primary" />
       </div>
-      <div className="rounded-2xl rounded-tl-sm bg-card/80 border border-muted/60 p-4 shadow-sm">
+      <div className="rounded-2xl rounded-tl-sm bg-card border border-border/60 p-5 shadow-sm">
         <div className="flex gap-1.5 items-center h-4">
           {[0, 1, 2].map((i) => (
             <div
               key={i}
-              className="h-2 w-2 rounded-full bg-primary/40 animate-bounce"
+              className="h-1.5 w-1.5 rounded-full bg-primary/40 animate-bounce"
               style={{ animationDelay: `${i * 150}ms` }}
             />
           ))}
@@ -137,98 +148,55 @@ function TypingIndicator() {
   )
 }
 
-const INITIAL_MESSAGE = {
-  role: 'ai',
-  content: "Hi! I'm your MediCare AI assistant 👋 Tell me how you're feeling today — describe any symptoms you're experiencing and I'll help recommend the right specialist for you.",
-}
-
-export default function SymptomChatBox() {
-  const [messages, setMessages] = useState([INITIAL_MESSAGE])
+export default function SymptomChatBox({ profile, onBookAppointment }) {
+  const { 
+    loading, 
+    error, 
+    messages, 
+    setMessages, 
+    result, 
+    recommendedDoctors, 
+    doctorLookupStatus, 
+    submitCheck 
+  } = useSymptomChecker()
+  
   const [input, setInput] = useState('')
-  const [isLoading, setIsLoading] = useState(false)
-  const [doctors, setDoctors] = useState([])
-  const [doctorsLoading, setDoctorsLoading] = useState(false)
-  const [currentSpecialty, setCurrentSpecialty] = useState('')
-  const [showDoctors, setShowDoctors] = useState(false)
   const bottomRef = useRef(null)
+
+  // Initialize with welcome message if empty
+  useEffect(() => {
+    if (messages.length === 0) {
+      const name = profile?.name?.split(' ')[0] || 'there'
+      setMessages([{
+        role: 'assistant',
+        content: `Hi ${name}! I'm your MediCare AI assistant 👋 Tell me how you're feeling today — describe any symptoms you're experiencing and I'll help recommend the right specialist for you.`
+      }])
+    }
+  }, [profile, messages.length, setMessages])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages, isLoading])
-
-  const fetchDoctorsForResult = async (result) => {
-    setDoctorsLoading(true)
-    setShowDoctors(true)
-    setCurrentSpecialty(result.recommendedSpecialty || '')
-
-    try {
-      let fetchedDoctors = []
-
-      // First try by recommended doctor IDs
-      if (result.recommendedDoctorIds?.length > 0) {
-        const res = await listDoctors({ ids: result.recommendedDoctorIds.join(','), size: 6 })
-        const items = res.content || (Array.isArray(res) ? res : [])
-        if (items.length > 0) {
-          fetchedDoctors = items
-        }
-      }
-
-      // Fall back to specialty-based search
-      if (fetchedDoctors.length === 0 && result.recommendedSpecialty) {
-        const res = await listDoctors({ specialization: result.recommendedSpecialty, size: 6 })
-        fetchedDoctors = res.content || (Array.isArray(res) ? res : [])
-      }
-
-      // Final fallback: any doctors
-      if (fetchedDoctors.length === 0) {
-        const res = await listDoctors({ size: 6 })
-        fetchedDoctors = res.content || (Array.isArray(res) ? res : [])
-      }
-
-      setDoctors(fetchedDoctors)
-    } catch (err) {
-      console.error('Failed to fetch doctors:', err)
-      setDoctors([])
-    } finally {
-      setDoctorsLoading(false)
-    }
-  }
+  }, [messages, loading])
 
   const handleSend = async () => {
     const trimmed = input.trim()
-    if (!trimmed || isLoading) return
+    if (!trimmed || loading) return
 
     const userMsg = { role: 'user', content: trimmed }
-    setMessages((prev) => [...prev, userMsg])
+    const currentHistory = [...messages]
+    
+    // Add user message to UI immediately
+    setMessages(prev => [...prev, userMsg])
     setInput('')
-    setIsLoading(true)
-    setShowDoctors(false)
 
     try {
-      const result = await checkSymptoms({ symptoms: trimmed, patientAge: null, patientGender: null })
-
-      // Build natural-language response
-      const conditions = result.possibleConditions?.join(', ') || 'various conditions'
-      const responseText = `Based on what you've described, this could be related to **${conditions}**. I'd recommend seeing a **${result.recommendedSpecialty || 'General Physician'}** for a proper evaluation.`
-
-      setMessages((prev) => [
-        ...prev,
-        { role: 'ai', content: responseText, result },
-      ])
-
-      // Fetch matching doctors
-      await fetchDoctorsForResult(result)
+      await submitCheck({
+        symptoms: trimmed,
+        age: profile?.dob ? calculateAge(profile.dob) : null,
+        gender: profile?.gender || null
+      }, [...currentHistory, userMsg])
     } catch (err) {
       console.error('Symptom check failed:', err)
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: 'ai',
-          content: "I'm sorry, I couldn't analyze your symptoms right now. Please try again in a moment, or consult a doctor directly.",
-        },
-      ])
-    } finally {
-      setIsLoading(false)
     }
   }
 
@@ -239,60 +207,92 @@ export default function SymptomChatBox() {
     }
   }
 
+  const handleReset = () => {
+    setMessages([])
+    setInput('')
+  }
+
+  const calculateAge = (dob) => {
+    const birthDate = new Date(dob)
+    const today = new Date()
+    let age = today.getFullYear() - birthDate.getFullYear()
+    const m = today.getMonth() - birthDate.getMonth()
+    if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) age--
+    return age
+  }
+
   return (
-    <div className="space-y-6">
-      {/* Chat window */}
-      <div className="rounded-2xl border bg-background/60 backdrop-blur shadow-lg overflow-hidden">
+    <div className="flex flex-col gap-6">
+      {/* Chat window container */}
+      <div className="relative rounded-[2.5rem] border border-primary/10 bg-card/60 backdrop-blur-xl shadow-2xl overflow-hidden min-h-[500px] flex flex-col">
+        {/* Header decoration */}
+        <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-transparent via-primary/20 to-transparent" />
+        
         {/* Messages area */}
-        <div className="h-72 overflow-y-auto p-5 space-y-5 scroll-smooth">
-          {messages.map((msg, i) =>
-            msg.role === 'ai'
-              ? <AiMessage key={i} content={msg.content} result={msg.result} />
+        <div className="flex-1 overflow-y-auto p-6 md:p-8 space-y-8 scrollbar-thin scrollbar-thumb-primary/10 scrollbar-track-transparent">
+          {messages.map((msg, i) => (
+            msg.role === 'assistant'
+              ? <AiMessage 
+                  key={i} 
+                  content={msg.content} 
+                  result={i === messages.length - 1 ? result : null} 
+                  doctors={i === messages.length - 1 ? recommendedDoctors : []}
+                  doctorsLoading={i === messages.length - 1 && doctorLookupStatus === 'loading'}
+                />
               : <UserMessage key={i} content={msg.content} />
-          )}
-          {isLoading && <TypingIndicator />}
-          <div ref={bottomRef} />
+          ))}
+          {loading && <TypingIndicator />}
+          <div ref={bottomRef} className="h-2" />
         </div>
 
-        {/* Input bar */}
-        <div className="border-t bg-muted/20 p-4">
-          <div className="flex gap-3 items-end">
-            <Textarea
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Describe your symptoms… (e.g. 'I have a fever, sore throat and headache')"
-              className="min-h-[44px] max-h-28 resize-none flex-1 bg-background border-muted/60 text-sm placeholder:text-muted-foreground/60 focus-visible:ring-primary/30 rounded-xl"
-              disabled={isLoading}
-            />
-            <Button
-              onClick={handleSend}
-              disabled={!input.trim() || isLoading}
-              size="icon"
-              className="h-11 w-11 rounded-xl shrink-0 cursor-pointer"
-            >
-              {isLoading
-                ? <Loader2 className="h-4 w-4 animate-spin" />
-                : <Send className="h-4 w-4" />
-              }
-            </Button>
+        {/* Floating Error Bar */}
+        {error && (
+          <div className="mx-8 mb-4 p-3 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-[11px] font-medium flex items-center gap-2 animate-in slide-in-from-bottom-2">
+            <AlertTriangle size={14} />
+            <span>{error}</span>
           </div>
-          <p className="text-[10px] text-muted-foreground/50 mt-2 text-center">
-            AI-generated suggestions are not a substitute for professional medical advice.
+        )}
+
+        {/* Input Bar Section */}
+        <div className="p-6 md:p-8 bg-gradient-to-t from-background via-background/80 to-transparent pt-12">
+          <div className="relative max-w-3xl mx-auto group">
+            <div className="absolute -inset-1 bg-gradient-to-r from-primary/20 to-primary/5 rounded-[2rem] blur opacity-25 group-hover:opacity-40 transition duration-1000 group-hover:duration-200" />
+            
+            <div className="relative flex gap-3 p-2 rounded-[1.8rem] bg-card border border-border shadow-2xl items-center">
+                <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="h-12 w-12 rounded-full text-muted-foreground/40 hover:text-primary transition-colors shrink-0"
+                    onClick={handleReset}
+                    title="Reset Conversation"
+                >
+                    <RotateCcw size={18} />
+                </Button>
+                
+                <Textarea
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    placeholder="Tell me how you're feeling today..."
+                    className="min-h-[52px] max-h-32 resize-none flex-1 bg-transparent border-0 ring-0 focus-visible:ring-0 text-[15px] p-4 placeholder:text-muted-foreground/40"
+                    disabled={loading}
+                />
+                
+                <Button
+                    onClick={handleSend}
+                    disabled={!input.trim() || loading}
+                    size="icon"
+                    className="h-12 w-12 rounded-full shrink-0 shadow-lg shadow-primary/20 transition-all hover:scale-105 active:scale-95"
+                >
+                    {loading ? <Loader2 className="animate-spin h-5 w-5" /> : <Send size={20} />}
+                </Button>
+            </div>
+          </div>
+          <p className="mt-4 text-[10px] text-center text-muted-foreground/40 font-medium tracking-tight">
+            PROMPT: Describe pain, duration, and any accompanying symptoms for better results.
           </p>
         </div>
       </div>
-
-      {/* Recommended doctors — animate in after AI responds */}
-      {showDoctors && (
-        <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-          <RecommendedDoctors
-            doctors={doctors}
-            isLoading={doctorsLoading}
-            specialty={currentSpecialty}
-          />
-        </div>
-      )}
     </div>
   )
 }

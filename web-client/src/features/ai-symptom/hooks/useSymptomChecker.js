@@ -29,32 +29,42 @@ export function useSymptomChecker() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [result, setResult] = useState(null)
+  const [messages, setMessages] = useState([]) // Track conversation
   const [recommendedDoctors, setRecommendedDoctors] = useState([])
   const [doctorLookupStatus, setDoctorLookupStatus] = useState('idle')
   const [doctorLookupError, setDoctorLookupError] = useState('')
 
-  const submitCheck = async (payload) => {
+  const submitCheck = async (payload, currentHistory = []) => {
     setLoading(true)
     setError('')
+    
+    // We only clear these if it's the final diagnostic step
+    // but for internal state, let's keep them scoped
     setDoctorLookupStatus('idle')
     setDoctorLookupError('')
-    setRecommendedDoctors([])
 
     try {
-      setDoctorLookupStatus('loading')
       const allDoctors = await fetchAllDoctors()
 
       const aiPayload = {
         ...payload,
+        history: currentHistory,
         availableDoctors: mapDoctorsForAi(allDoctors),
       }
 
       const data = await checkSymptoms(aiPayload)
-      setResult(data)
+      
+      // Update the messages state with the AI's response
+      const aiMessage = { role: 'assistant', content: data.aiMessage }
+      setMessages(prev => [...prev, aiMessage])
 
-      const doctorsToShow = pickRecommendedDoctors(allDoctors, data)
-      setRecommendedDoctors(doctorsToShow)
-      setDoctorLookupStatus('success')
+      if (data.isDiagnostic) {
+        setResult(data)
+        const doctorsToShow = pickRecommendedDoctors(allDoctors, data)
+        setRecommendedDoctors(doctorsToShow)
+        setDoctorLookupStatus('success')
+      }
+      
       return data
     } catch (err) {
       const message =
@@ -78,6 +88,8 @@ export function useSymptomChecker() {
     result,
     setResult,
     setError,
+    messages,
+    setMessages,
     recommendedDoctors,
     doctorLookupStatus,
     doctorLookupError,
