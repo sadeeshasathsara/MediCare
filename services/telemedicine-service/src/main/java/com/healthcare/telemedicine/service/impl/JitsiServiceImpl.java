@@ -46,7 +46,8 @@ public class JitsiServiceImpl implements JitsiService {
     @Override
     public boolean isJwtConfigured() {
         if (domain != null && domain.trim().equalsIgnoreCase("meet.jit.si")) {
-            // Public meet.jit.si does not support validating custom JWTs signed with your private secret.
+            // Public meet.jit.si does not support validating custom JWTs signed with your
+            // private secret.
             return false;
         }
         return appId != null && !appId.isBlank() && appSecret != null && !appSecret.isBlank();
@@ -92,7 +93,7 @@ public class JitsiServiceImpl implements JitsiService {
                 .claim("context", context)
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(exp))
-            .signWith(signingKey, algorithm)
+                .signWith(signingKey, algorithm)
                 .compact();
     }
 
