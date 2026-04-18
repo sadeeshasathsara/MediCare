@@ -103,5 +103,3 @@ The platform is integrated with **GitHub Actions**. Every push to the `main` bra
 ---
 
 > **Development Note**: A history of team-assigned service responsibilities structure (from the initial scaffold) is maintained by the team leads directly on the issue tracker. JWT filter sharing is actively governed in `auth-service`.
-# trigger
-# test
