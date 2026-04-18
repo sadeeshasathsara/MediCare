@@ -21,7 +21,7 @@ class JitsiServiceImplTest {
     void generateJoinToken_shouldIncludeExpectedClaims() {
         String secret = "01234567890123456789012345678901";
         JitsiServiceImpl service = new JitsiServiceImpl(
-                "meet.jit.si",
+                "jitsi.example.com",
                 "telemedicine-app",
                 secret,
                 120);
@@ -60,6 +60,17 @@ class JitsiServiceImplTest {
                 "meet.jit.si",
                 "",
                 "",
+                120);
+
+        assertFalse(service.isJwtConfigured());
+    }
+
+    @Test
+    void isJwtConfigured_shouldBeFalseForMeetJitSiEvenWhenCredentialsPresent() {
+        JitsiServiceImpl service = new JitsiServiceImpl(
+                "meet.jit.si",
+                "telemedicine-app",
+                "01234567890123456789012345678901",
                 120);
 
         assertFalse(service.isJwtConfigured());
