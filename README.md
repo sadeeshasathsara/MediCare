@@ -2,6 +2,8 @@
 
 A robust, microservices-based healthcare management software system designed to handle patient records, doctor schedules, telemedicine, billing, AI-assisted symptom checking, and notifications.
 
+**Live URL:** https://medicarelk.duckdns.org/
+
 ## 🏗️ System Architecture Overview
 
 The system operates as a polyglot monorepo featuring a decoupled frontend UI communicating with an array of backend domain services through an optimized NGINX API Gateway.
@@ -26,6 +28,11 @@ A production-grade **NGINX** gateway sits in front of the microservices. It hand
 - GZIP response compression
 - Endbound Rate limiting (DDoS protection)
 - Enforcing strict browser security headers (XSS, HSTS, frame options)
+
+## 🧩 Architecture Diagram
+
+<!-- TODO: Upload the architecture PNG and link it here. -->
+<!-- Example: ![MediCare Architecture Diagram](docs/architecture.png) -->
 
 ---
 
@@ -69,7 +76,7 @@ If you prefer to run the commands manually:
    > Note (Windows + Docker driver): `minikube service --url` opens a tunnel and the terminal
    > must remain open while you use that URL. If NodePort/IP access times out, use:
    > `kubectl port-forward svc/api-gateway 8080:8080` and call `http://localhost:8080`.
-For more detailed Kubernetes commands and troubleshooting, see the [KUBERNETES_GUIDE.md](file:///c:/Users/sadee/OneDrive/Documents/MediCare/KUBERNETES_GUIDE.md).
+For more detailed Kubernetes commands and troubleshooting, see [KUBERNETES_GUIDE.md](KUBERNETES_GUIDE.md).
 
 ---
 
@@ -99,6 +106,24 @@ Navigate to the localhost port provided by Vite in Step 2 (e.g., `http://localho
 The platform is integrated with **GitHub Actions**. Every push to the `main` branch:
 1. Builds and pushes microservice images to **GitHub Container Registry (GHCR)**.
 2. Validates Kubernetes manifests in the `k8s/` directory.
+
+---
+
+## 🔐 Configuration & Secrets (MongoDB, API keys)
+
+### MongoDB connection strings
+All Spring Boot services read MongoDB config from environment variables.
+
+- Preferred: `SPRING_DATA_MONGODB_URI`
+- Also supported (used by Kubernetes secrets in this repo): `MONGO_URI_*` (service-specific keys like `MONGO_URI_PAYMENT`)
+
+Kubernetes deployments typically inject `SPRING_DATA_MONGODB_URI` from the `medicare-secrets` Secret keys (e.g., `MONGO_URI_PAYMENT`).
+
+### Jenkins / Kubernetes secret file
+For CI/CD, Jenkins is expected to store a **secret-file credential** named `medicare-secrets-env` matching the template:
+- `k8s/SECRET-FILE/medicare-secrets-env.example`
+
+Do not commit real secrets (MongoDB URIs, Stripe keys, OpenAI keys, JWT secrets). If any credential was accidentally pushed to GitHub, rotate it immediately.
 
 ---
 

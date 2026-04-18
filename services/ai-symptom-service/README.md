@@ -15,6 +15,12 @@ Takes parsed natural-language inputs from patients querying potential conditions
 ./mvnw clean spring-boot:run
 ```
 
+## MongoDB Setup
+Set the MongoDB connection string before starting the service.
+
+- Preferred: `SPRING_DATA_MONGODB_URI`
+- Also supported: `MONGO_URI_AI`
+
 ## OpenAI Setup
 Set your OpenAI key before starting the service.
 

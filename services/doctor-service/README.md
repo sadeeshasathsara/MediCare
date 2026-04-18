@@ -141,12 +141,14 @@ curl http://localhost:8088/api/doctors/doctors \
 
 ## Environment Variables
 
-| Variable                     | Default                                       | Description                          |
-| ---------------------------- | --------------------------------------------- | ------------------------------------ |
-| `SPRING_DATA_MONGODB_URI`    | `mongodb+srv://...`                           | MongoDB connection string            |
-| `DOCTOR_SERVER_PORT`         | `3003`                                        | Internal server port (inside Docker) |
-| `CORS_ALLOWED_ORIGINS`       | `http://localhost:5173,http://localhost:3000` | Allowed CORS origins                 |
-| `DOCTOR_DEFAULT_SPECIALTIES` | _(see .env.example)_                          | Comma-separated default specialties  |
+| Variable                     | Default                                       | Description                           |
+| ---------------------------- | --------------------------------------------- | ------------------------------------- |
+| `SPRING_DATA_MONGODB_URI`    | `mongodb://localhost:27017/doctor-service`    | MongoDB connection string (preferred) |
+| `DOCTOR_SERVER_PORT`         | `3003`                                        | Internal server port (inside Docker)  |
+| `CORS_ALLOWED_ORIGINS`       | `http://localhost:5173,http://localhost:3000` | Allowed CORS origins                  |
+| `DOCTOR_DEFAULT_SPECIALTIES` | _(see .env.example)_                          | Comma-separated default specialties   |
+
+Note: `MONGO_URI_DOCTOR` is also supported as an alternative input for the MongoDB connection string (used by Kubernetes secrets in this repo).
 
 ---
 
@@ -176,9 +178,9 @@ curl http://localhost:8088/api/doctors/health
 ### `GET /api/doctors/doctors` – List all verified doctors
 
 **Query Parameters:**
-| Param | Required | Description |
-|---|---|---|
-| `specialty` | No | Filter by specialty (case-insensitive) |
+| Param       | Required | Description                            |
+| ----------- | -------- | -------------------------------------- |
+| `specialty` | No       | Filter by specialty (case-insensitive) |
 
 ```bash
 # List all verified doctors
@@ -365,12 +367,12 @@ curl -X POST http://localhost:8088/api/doctors/doctors/6651abc123def456/availabi
 ```
 
 **Validation Rules:**
-| Field | Rule |
-|---|---|
+| Field       | Rule                                           |
+| ----------- | ---------------------------------------------- |
 | `dayOfWeek` | Must be `MONDAY` – `SUNDAY` (case-insensitive) |
-| `startTime` | `HH:mm` format (e.g., `09:00`) |
-| `endTime` | `HH:mm` format, must be after `startTime` |
-| `slots` | At least one slot required |
+| `startTime` | `HH:mm` format (e.g., `09:00`)                 |
+| `endTime`   | `HH:mm` format, must be after `startTime`      |
+| `slots`     | At least one slot required                     |
 
 **Error `400 Bad Request` (invalid day):**
 
@@ -484,9 +486,9 @@ curl -X PUT http://localhost:8088/api/doctors/doctors/6651abc123def456/availabil
 ### `GET /api/doctors/doctors/{id}/appointments` – View pending and upcoming appointments
 
 **Query Parameters:**
-| Param | Required | Default | Description |
-|---|---|---|---|
-| `status` | No | `PENDING + ACCEPTED` | Filter by status |
+| Param    | Required | Default              | Description      |
+| -------- | -------- | -------------------- | ---------------- |
+| `status` | No       | `PENDING + ACCEPTED` | Filter by status |
 
 **Allowed status values:** `PENDING`, `ACCEPTED`, `REJECTED`, `COMPLETED`, `CANCELLED`
 
@@ -666,15 +668,15 @@ curl -X POST http://localhost:8088/api/doctors/doctors/6651abc123def456/prescrip
 ```
 
 **Validation Rules:**
-| Field | Rule |
-|---|---|
-| `patientId` | Required, non-blank |
-| `appointmentId` | Required, non-blank |
-| `diagnosis` | Required, non-blank |
-| `medications` | At least one medication required |
-| `medications[].name` | Required |
-| `medications[].dosage` | Required |
-| `medications[].frequency` | Required |
+| Field                     | Rule                             |
+| ------------------------- | -------------------------------- |
+| `patientId`               | Required, non-blank              |
+| `appointmentId`           | Required, non-blank              |
+| `diagnosis`               | Required, non-blank              |
+| `medications`             | At least one medication required |
+| `medications[].name`      | Required                         |
+| `medications[].dosage`    | Required                         |
+| `medications[].frequency` | Required                         |
 
 **Error `400 Bad Request` (validation failure):**
 
