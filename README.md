@@ -2,7 +2,11 @@
 
 A robust, microservices-based healthcare management software system designed to handle patient records, doctor schedules, telemedicine, billing, AI-assisted symptom checking, and notifications.
 
+<img width="1911" height="1043" alt="image" src="https://github.com/user-attachments/assets/f0b9cb17-4971-4555-947c-00126d797861" />
+
+
 **Live URL:** https://medicarelk.duckdns.org/
+----------------------------------------------
 
 ## 🏗️ System Architecture Overview
 
@@ -31,8 +35,11 @@ A production-grade **NGINX** gateway sits in front of the microservices. It hand
 
 ## 🧩 Architecture Diagram
 
-<!-- TODO: Upload the architecture PNG and link it here. -->
-<!-- Example: ![MediCare Architecture Diagram](docs/architecture.png) -->
+<img
+  alt="Healthcare Service Architecture"
+  src="https://github.com/user-attachments/assets/4b11017d-7c2b-4d95-861c-a297d9014514"
+  style="max-width: 100%; height: auto;"
+/>
 
 ---
 
