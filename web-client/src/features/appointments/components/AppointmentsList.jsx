@@ -20,16 +20,16 @@ import {
   Circle,
   Clock3,
   XCircle,
-  MoreHorizontal
+  MoreHorizontal,
 } from "lucide-react";
 
 const STAGES = [
-  { id: 'CONFIRMED', label: 'Confirmed' },
-  { id: 'COMPLETED', label: 'Completed' }
+  { id: "CONFIRMED", label: "Confirmed" },
+  { id: "COMPLETED", label: "Completed" },
 ];
 
 function StatusPipeline({ currentStatus }) {
-  const isCancelled = currentStatus === 'CANCELLED';
+  const isCancelled = currentStatus === "CANCELLED";
 
   if (isCancelled) {
     return (
@@ -39,7 +39,7 @@ function StatusPipeline({ currentStatus }) {
     );
   }
 
-  const getStageIndex = (status) => STAGES.findIndex(s => s.id === status);
+  const getStageIndex = (status) => STAGES.findIndex((s) => s.id === status);
   const currentIndex = getStageIndex(currentStatus);
 
   return (
@@ -49,21 +49,40 @@ function StatusPipeline({ currentStatus }) {
         <div className="absolute left-0 top-1/2 -translate-y-1/2 w-full h-[1px] bg-muted z-0" />
 
         {STAGES.map((stage, idx) => {
-          const isCompleted = idx < currentIndex || currentStatus === 'COMPLETED';
-          const isCurrent = idx === currentIndex && currentStatus !== 'COMPLETED';
+          const isCompleted =
+            idx < currentIndex || currentStatus === "COMPLETED";
+          const isCurrent =
+            idx === currentIndex && currentStatus !== "COMPLETED";
 
           return (
-            <div key={stage.id} className="relative z-10 flex flex-col items-center">
-              <div className={`h-5 w-5 rounded-full flex items-center justify-center border-2 transition-colors duration-500 ${isCompleted ? 'bg-primary border-primary text-primary-foreground' :
-                isCurrent ? 'bg-background border-primary text-primary' :
-                  'bg-background border-muted text-muted-foreground'
-                }`}>
-                {isCompleted ? <CheckCircle2 className="h-3 w-3" /> :
-                  isCurrent ? <Clock3 className="h-3 w-3 animate-pulse" /> :
-                    <Circle className="h-3 w-3" />}
+            <div
+              key={stage.id}
+              className="relative z-10 flex flex-col items-center"
+            >
+              <div
+                className={`h-5 w-5 rounded-full flex items-center justify-center border-2 transition-colors duration-500 ${
+                  isCompleted
+                    ? "bg-primary border-primary text-primary-foreground"
+                    : isCurrent
+                      ? "bg-background border-primary text-primary"
+                      : "bg-background border-muted text-muted-foreground"
+                }`}
+              >
+                {isCompleted ? (
+                  <CheckCircle2 className="h-3 w-3" />
+                ) : isCurrent ? (
+                  <Clock3 className="h-3 w-3 animate-pulse" />
+                ) : (
+                  <Circle className="h-3 w-3" />
+                )}
               </div>
-              <span className={`absolute top-6 whitespace-nowrap text-[9px] font-bold uppercase tracking-wider ${isCompleted || isCurrent ? 'text-primary' : 'text-muted-foreground'
-                }`}>
+              <span
+                className={`absolute top-6 whitespace-nowrap text-[9px] font-bold uppercase tracking-wider ${
+                  isCompleted || isCurrent
+                    ? "text-primary"
+                    : "text-muted-foreground"
+                }`}
+              >
                 {stage.label}
               </span>
             </div>
@@ -99,7 +118,10 @@ export default function AppointmentsList({
     return (
       <div className={gridClassName}>
         {Array.from({ length: 8 }).map((_, i) => (
-          <div key={i} className="rounded-xl border-2 border-muted hover:border-primary/20 p-4 space-y-5 animate-pulse bg-card">
+          <div
+            key={i}
+            className="rounded-xl border-2 border-muted hover:border-primary/20 p-4 space-y-5 animate-pulse bg-card"
+          >
             <div className="flex items-center gap-3">
               <Skeleton className="h-10 w-10 rounded-full bg-muted/80" />
               <div className="space-y-2 flex-1">
@@ -126,7 +148,10 @@ export default function AppointmentsList({
         </div>
         <div className="space-y-1">
           <h3 className="text-xl font-semibold">No appointments yet</h3>
-          <p className="text-muted-foreground max-w-xs mx-auto">When you schedule or receive consultations, they will appear here as a clear pipeline.</p>
+          <p className="text-muted-foreground max-w-xs mx-auto">
+            When you schedule or receive consultations, they will appear here as
+            a clear pipeline.
+          </p>
         </div>
       </div>
     );
@@ -138,24 +163,29 @@ export default function AppointmentsList({
         {appointments
           .slice()
           .sort((a, b) => {
-            const aCancelled = a?.status === 'CANCELLED';
-            const bCancelled = b?.status === 'CANCELLED';
+            const aCancelled = a?.status === "CANCELLED";
+            const bCancelled = b?.status === "CANCELLED";
             if (aCancelled !== bCancelled) return aCancelled ? 1 : -1;
             return getApptTime(b) - getApptTime(a);
           })
           .map((app) => {
-            const isCancelledCard = app?.status === 'CANCELLED';
+            const isCancelledCard = app?.status === "CANCELLED";
             return (
               <Card
                 key={app.id}
                 onClick={() => {
                   if (isCancelledCard) return;
-                  navigate(isDoctor ? `/doctor/appointments/${app.id}` : `/appointments/${app.id}`);
+                  navigate(
+                    isDoctor
+                      ? `/doctor/appointments/${app.id}`
+                      : `/appointments/${app.id}`,
+                  );
                 }}
-                className={`group overflow-hidden relative transition-all duration-300 border-2 border-muted flex flex-col h-full ${isCancelledCard
-                    ? 'cursor-not-allowed opacity-80'
-                    : 'cursor-pointer hover:shadow-xl hover:-translate-y-1 hover:border-primary/20'
-                  }`}
+                className={`group overflow-hidden relative transition-all duration-300 border-2 border-muted flex flex-col h-full ${
+                  isCancelledCard
+                    ? "cursor-not-allowed opacity-80"
+                    : "cursor-pointer hover:shadow-xl hover:-translate-y-1 hover:border-primary/20"
+                }`}
               >
                 {isCancelledCard ? (
                   <div
@@ -166,17 +196,28 @@ export default function AppointmentsList({
                 ) : null}
 
                 {/* Status color strip */}
-                <div className={`h-1.5 w-full ${app.status === 'PENDING' ? 'bg-orange-400' :
-                  app.status === 'CONFIRMED' ? 'bg-green-500' :
-                    app.status === 'CANCELLED' ? 'bg-destructive' : 'bg-primary'
-                  }`} />
+                <div
+                  className={`h-1.5 w-full ${
+                    app.status === "PENDING"
+                      ? "bg-orange-400"
+                      : app.status === "CONFIRMED"
+                        ? "bg-green-500"
+                        : app.status === "CANCELLED"
+                          ? "bg-destructive"
+                          : "bg-primary"
+                  }`}
+                />
 
                 <CardHeader className="pb-2 pt-4 px-4">
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-3">
                       <div className="h-10 w-10 shrink-0 rounded-full bg-muted flex items-center justify-center overflow-hidden border">
                         {!isDoctor && app.profileImageUrl ? (
-                          <img src={app.profileImageUrl} alt="Doctor" className="h-full w-full object-cover" />
+                          <img
+                            src={app.profileImageUrl}
+                            alt="Doctor"
+                            className="h-full w-full object-cover"
+                          />
                         ) : isDoctor ? (
                           <User className="h-5 w-5 text-primary" />
                         ) : (
@@ -194,7 +235,12 @@ export default function AppointmentsList({
                         )}
                       </div>
                     </div>
-                    <Badge variant={app.status === 'CANCELLED' ? 'destructive' : 'secondary'} className="text-[10px] px-2 py-0 h-5 items-center flex">
+                    <Badge
+                      variant={
+                        app.status === "CANCELLED" ? "destructive" : "secondary"
+                      }
+                      className="text-[10px] px-2 py-0 h-5 items-center flex"
+                    >
                       {app.status}
                     </Badge>
                   </div>
@@ -204,33 +250,52 @@ export default function AppointmentsList({
                   <div className="p-3 rounded-lg bg-muted/30 border flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 justify-between">
                     <div className="flex items-center gap-2 text-xs">
                       <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
-                      <span className="font-medium whitespace-nowrap">{new Date(app.scheduledAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                      <span className="font-medium whitespace-nowrap">
+                        {new Date(app.scheduledAt).toLocaleDateString(
+                          undefined,
+                          { month: "short", day: "numeric", year: "numeric" },
+                        )}
+                      </span>
                     </div>
                     <div className="flex items-center gap-2 text-xs">
                       <Clock className="h-3.5 w-3.5 text-muted-foreground" />
-                      <span className="font-medium whitespace-nowrap">{new Date(app.scheduledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                      <span className="font-medium whitespace-nowrap">
+                        {new Date(app.scheduledAt).toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </span>
                     </div>
                   </div>
 
                   <div className="space-y-1 flex-1">
-                    <p className="text-[10px] font-semibold text-muted-foreground tracking-wide">REASON</p>
-                    <p className="text-xs font-medium line-clamp-2 italic">"{app.reason || 'No description provided'}"</p>
-
+                    <p className="text-[10px] font-semibold text-muted-foreground tracking-wide">
+                      REASON
+                    </p>
+                    <p className="text-xs font-medium line-clamp-2 italic">
+                      "{app.reason || "No description provided"}"
+                    </p>
                   </div>
 
                   <StatusPipeline currentStatus={app.status} />
 
                   <div className="pt-4 border-t flex items-center justify-between gap-2">
-                    {!isDoctor && (app.status === "PENDING" || app.status === "CONFIRMED") ? (
+                    {!isDoctor &&
+                    (app.status === "PENDING" || app.status === "CONFIRMED") ? (
                       <div className="flex gap-2 w-full">
                         <Button
                           size="sm"
                           variant="outline"
                           disabled={cancelingId === app.id}
-                          onClick={(e) => { e.stopPropagation(); handleStatusUpdate(app.id, "CANCELLED"); }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleStatusUpdate(app.id, "CANCELLED");
+                          }}
                           className="cursor-pointer w-full text-xs border-destructive text-destructive hover:bg-destructive/5"
                         >
-                          {cancelingId === app.id ? "Cancelling..." : "Cancel Appointment"}
+                          {cancelingId === app.id
+                            ? "Cancelling..."
+                            : "Cancel Appointment"}
                         </Button>
                       </div>
                     ) : (
@@ -238,7 +303,11 @@ export default function AppointmentsList({
                         <span className="text-xs text-muted-foreground italic">
                           ID: {app.id.substring(0, 8)}...
                         </span>
-                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0"
+                        >
                           <MoreHorizontal className="h-4 w-4" />
                         </Button>
                       </div>
