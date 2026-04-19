@@ -78,6 +78,7 @@ export default function AppointmentsList({
   appointments,
   handleStatusUpdate,
   isDoctor,
+  gridClassName = "grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4",
   cancelingId = null,
   hasMore = false,
   onLoadMore = null,
@@ -96,7 +97,7 @@ export default function AppointmentsList({
 
   if (isInitialLoading) {
     return (
-      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      <div className={gridClassName}>
         {Array.from({ length: 8 }).map((_, i) => (
           <div key={i} className="rounded-xl border-2 border-muted hover:border-primary/20 p-4 space-y-5 animate-pulse bg-card">
             <div className="flex items-center gap-3">
@@ -133,7 +134,7 @@ export default function AppointmentsList({
 
   return (
     <>
-      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      <div className={gridClassName}>
         {appointments
           .slice()
           .sort((a, b) => {
