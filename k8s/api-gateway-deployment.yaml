@@ -86,8 +86,10 @@ data:
           proxy_pass http://$auth_service;
             }
 
-            location = /api/auth/verify-doctor {
-              auth_request /_auth;
+              # Strip the /ai prefix so the ai-symptom-service receives paths it actually serves
+              # e.g. /api/ai/symptom-check -> /symptom-check, /api/ai/health -> /health
+              rewrite ^/api/ai/?$ / break;
+              rewrite ^/api/ai/(.*)$ /$1 break;
               auth_request_set $user_id $upstream_http_x_user_id;
               auth_request_set $user_role $upstream_http_x_user_role;
               auth_request_set $user_verified $upstream_http_x_user_verified;

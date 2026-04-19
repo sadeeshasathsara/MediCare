@@ -6,6 +6,9 @@ import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
+
 public class LocalStorageService implements StorageService {
 
     private final Path baseDir;
@@ -33,7 +36,7 @@ public class LocalStorageService implements StorageService {
         try {
             Path path = resolveKeyPath(key);
             if (!Files.exists(path)) {
-                throw new IllegalArgumentException("Object not found");
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Object not found");
             }
             long size = Files.size(path);
             InputStream in = Files.newInputStream(path);
@@ -60,7 +63,7 @@ public class LocalStorageService implements StorageService {
             safeKey = safeKey.substring(1);
         Path resolved = baseDir.resolve(safeKey).normalize();
         if (!resolved.startsWith(baseDir)) {
-            throw new IllegalArgumentException("Invalid storage key");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid storage key");
         }
         return resolved;
     }

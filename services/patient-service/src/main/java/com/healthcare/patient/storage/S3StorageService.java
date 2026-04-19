@@ -1,6 +1,8 @@
 package com.healthcare.patient.storage;
 
 import org.springframework.core.env.Environment;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
@@ -68,7 +70,7 @@ public class S3StorageService implements StorageService {
             String contentType = res.response().contentType();
             return new StoredObject(res, contentLength, contentType);
         } catch (NoSuchKeyException e) {
-            throw new IllegalArgumentException("Object not found", e);
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Object not found", e);
         }
     }
 
