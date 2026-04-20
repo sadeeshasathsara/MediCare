@@ -53,14 +53,7 @@ public class AppointmentService {
         appointment.setUpdatedAt(now);
 
         Appointment saved = appointmentRepository.save(appointment);
-<<<<<<< HEAD
         notificationClient.notifyRequested(saved, patientId, "PATIENT");
-=======
-
-        // A brand new appointment doesn't trigger confirmed/completed events.
-        // We could emit an appointment.created event, but per spec, only confirmed,
-        // cancelled, completed are listed.
->>>>>>> 22d2337331741962273c0fc544b72beb95a1915a
         return toResponse(saved);
     }
 
@@ -154,25 +147,18 @@ public class AppointmentService {
 
         // Publish events based on status changes
         if (oldStatus != AppointmentStatus.CONFIRMED && request.getStatus() == AppointmentStatus.CONFIRMED) {
-<<<<<<< HEAD
-            eventPublisher.publishEvent("appointment.confirmed", saved.getId(), saved.getPatientId(), saved.getDoctorId(), toResponse(saved));
-            notificationClient.notifyConfirmed(saved, doctorId, "DOCTOR");
-        } else if (oldStatus != AppointmentStatus.COMPLETED && request.getStatus() == AppointmentStatus.COMPLETED) {
-            eventPublisher.publishEvent("appointment.completed", saved.getId(), saved.getPatientId(), saved.getDoctorId(), toResponse(saved));
-            notificationClient.notifyCompleted(saved, doctorId, "DOCTOR");
-        } else if (oldStatus != AppointmentStatus.CANCELLED && request.getStatus() == AppointmentStatus.CANCELLED) {
-            eventPublisher.publishEvent("appointment.cancelled", saved.getId(), saved.getPatientId(), saved.getDoctorId(), toResponse(saved));
-            String cancellationReason = defaultText(request.getNotes(), "Cancelled by doctor");
-            notificationClient.notifyCancelled(saved, doctorId, "DOCTOR", cancellationReason);
-=======
             eventPublisher.publishEvent("appointment.confirmed", saved.getId(), saved.getPatientId(),
                     saved.getDoctorId(), toResponse(saved));
+            notificationClient.notifyConfirmed(saved, doctorId, "DOCTOR");
         } else if (oldStatus != AppointmentStatus.COMPLETED && request.getStatus() == AppointmentStatus.COMPLETED) {
             eventPublisher.publishEvent("appointment.completed", saved.getId(), saved.getPatientId(),
                     saved.getDoctorId(), toResponse(saved));
+            notificationClient.notifyCompleted(saved, doctorId, "DOCTOR");
         } else if (oldStatus != AppointmentStatus.CANCELLED && request.getStatus() == AppointmentStatus.CANCELLED) {
             eventPublisher.publishEvent("appointment.cancelled", saved.getId(), saved.getPatientId(),
                     saved.getDoctorId(), toResponse(saved));
+            String cancellationReason = defaultText(request.getNotes(), "Cancelled by doctor");
+            notificationClient.notifyCancelled(saved, doctorId, "DOCTOR", cancellationReason);
         }
 
         return toResponse(saved);
@@ -202,7 +188,7 @@ public class AppointmentService {
         if (oldStatus != AppointmentStatus.CONFIRMED) {
             eventPublisher.publishEvent("appointment.confirmed", saved.getId(), saved.getPatientId(),
                     saved.getDoctorId(), toResponse(saved));
->>>>>>> 22d2337331741962273c0fc544b72beb95a1915a
+            notificationClient.notifyConfirmed(saved, patientId, "PATIENT");
         }
 
         return toResponse(saved);
@@ -229,14 +215,10 @@ public class AppointmentService {
         appointment.setUpdatedAt(Instant.now());
         Appointment saved = appointmentRepository.save(appointment);
 
-<<<<<<< HEAD
-        eventPublisher.publishEvent("appointment.cancelled", saved.getId(), saved.getPatientId(), saved.getDoctorId(), toResponse(saved));
-        String cancellationReason = isDoctor ? "Cancelled by doctor" : "Cancelled by patient";
-        notificationClient.notifyCancelled(saved, userId, isDoctor ? "DOCTOR" : "PATIENT", cancellationReason);
-=======
         eventPublisher.publishEvent("appointment.cancelled", saved.getId(), saved.getPatientId(), saved.getDoctorId(),
                 toResponse(saved));
->>>>>>> 22d2337331741962273c0fc544b72beb95a1915a
+        String cancellationReason = isDoctor ? "Cancelled by doctor" : "Cancelled by patient";
+        notificationClient.notifyCancelled(saved, userId, isDoctor ? "DOCTOR" : "PATIENT", cancellationReason);
     }
 
     // A simulated external cross-service call placeholder, because Appointment

@@ -45,20 +45,11 @@ public class SendGridEmailSender implements EmailSender {
                 new Email(message.to()),
                 new Content("text/html", message.htmlBody()));
 
-<<<<<<< HEAD
-        try {
-            Request request = new Request();
-            request.setMethod(Method.POST);
-            request.setEndpoint("mail/send");
-            request.setBody(mail.build());
-
-=======
         Request request = new Request();
         request.setMethod(Method.POST);
         request.setEndpoint("mail/send");
         try {
             request.setBody(mail.build());
->>>>>>> 22d2337331741962273c0fc544b72beb95a1915a
             SendGrid client = new SendGrid(apiKey);
             Response response = client.api(request);
             if (response.getStatusCode() < 200 || response.getStatusCode() >= 300) {

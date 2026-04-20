@@ -42,6 +42,7 @@ public class NotificationEventService {
     private static final String TEMPLATE_EMAIL_APPOINTMENT_CONFIRMED = "appointment-confirmed";
     private static final String TEMPLATE_EMAIL_APPOINTMENT_CANCELLED = "appointment-cancelled";
     private static final String TEMPLATE_EMAIL_CONSULTATION_COMPLETED = "consultation-completed";
+    private static final String TEMPLATE_EMAIL_APPOINTMENT_ACTIVITY = "appointment-activity";
     private static final Set<NotificationEventType> APPOINTMENT_ACTIVITY_EVENTS = Set.of(
             NotificationEventType.APPOINTMENT_REQUESTED,
             NotificationEventType.APPOINTMENT_CONFIRMED,
@@ -51,13 +52,19 @@ public class NotificationEventService {
 
     private static final String TEMPLATE_SMS_BOOKING_CONFIRMATION = "booking-confirmation";
     private static final String TEMPLATE_SMS_APPOINTMENT_REMINDER = "appointment-reminder";
+    private static final String TEMPLATE_SMS_APPOINTMENT_ACTIVITY = "appointment-activity";
 
     private final NotificationDeliveryRepository repository;
     private final NotificationProperties properties;
+    private final RecipientProfileLookupService recipientProfileLookupService;
 
-    public NotificationEventService(NotificationDeliveryRepository repository, NotificationProperties properties) {
+    public NotificationEventService(
+            NotificationDeliveryRepository repository,
+            NotificationProperties properties,
+            RecipientProfileLookupService recipientProfileLookupService) {
         this.repository = repository;
         this.properties = properties;
+        this.recipientProfileLookupService = recipientProfileLookupService;
     }
 
     public void validateInternalToken(String providedToken) {
@@ -84,13 +91,16 @@ public class NotificationEventService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "unsupported appointment activity event type");
         }
 
-        String patientName = defaultText(request.patientName(), "Patient");
-        String doctorName = defaultText(request.doctorName(), "Doctor");
+        EventRecipient patient = resolveActivityPatientRecipient(request.patientId(), request.patientName());
+        EventRecipient doctor = resolveActivityDoctorRecipient(request.doctorId(), request.doctorName());
+
+        String patientName = patient.name();
+        String doctorName = doctor.name();
         String reason = defaultText(request.appointmentReason(), "General consultation");
         String appointmentDateTime = formatInstant(request.appointmentDateTime());
-
-        EventRecipient patient = new EventRecipient(request.patientId(), patientName, "", null);
-        EventRecipient doctor = new EventRecipient(request.doctorId(), doctorName, "", null);
+        String emailSubject = buildEmailSubject(eventType, request.appointmentId());
+        String actorUserId = defaultText(request.actorUserId(), "");
+        String actorRole = defaultText(request.actorRole(), "");
 
         Map<String, Object> patientData = createCommonTemplateData(
                 request.eventId(),
@@ -104,8 +114,10 @@ public class NotificationEventService {
         patientData.put("doctorName", doctorName);
         patientData.put("appointmentReason", reason);
         patientData.put("appointmentDateTime", appointmentDateTime);
-        patientData.put("actorUserId", defaultText(request.actorUserId(), ""));
-        patientData.put("actorRole", defaultText(request.actorRole(), ""));
+        patientData.put("eventType", eventType.name());
+        patientData.put("eventLabel", eventLabel(eventType));
+        patientData.put("actorUserId", actorUserId);
+        patientData.put("actorRole", actorRole);
 
         Map<String, Object> doctorData = createCommonTemplateData(
                 request.eventId(),
@@ -119,12 +131,17 @@ public class NotificationEventService {
         doctorData.put("doctorName", doctorName);
         doctorData.put("appointmentReason", reason);
         doctorData.put("appointmentDateTime", appointmentDateTime);
-        doctorData.put("actorUserId", defaultText(request.actorUserId(), ""));
-        doctorData.put("actorRole", defaultText(request.actorRole(), ""));
+        doctorData.put("eventType", eventType.name());
+        doctorData.put("eventLabel", eventLabel(eventType));
+        doctorData.put("actorUserId", actorUserId);
+        doctorData.put("actorRole", actorRole);
 
         String subject = buildInAppSubject(eventType, patientName, doctorName);
         String patientSummary = buildInAppSummary(eventType, patientName, doctorName, reason, appointmentDateTime, false);
         String doctorSummary = buildInAppSummary(eventType, patientName, doctorName, reason, appointmentDateTime, true);
+        patientData.put("smsMessage", buildSmsSummary(eventType, patientName, doctorName, appointmentDateTime, reason, false));
+        doctorData.put("smsMessage", buildSmsSummary(eventType, patientName, doctorName, appointmentDateTime, reason, true));
+        Instant now = Instant.now();
 
         DeliveryCount counts;
         if (eventType == NotificationEventType.APPOINTMENT_REQUESTED) {
@@ -139,6 +156,36 @@ public class NotificationEventService {
                     subject,
                     doctorData,
                     doctorSummary);
+            counts = counts.add(persistEmailDelivery(
+                    eventType,
+                    request.eventId(),
+                    request.appointmentId(),
+                    request.sourceService(),
+                    request.occurredAt(),
+                    doctor,
+                    "DOCTOR",
+                    emailSubject,
+                    TEMPLATE_EMAIL_APPOINTMENT_ACTIVITY,
+                    doctorData,
+                    doctorSummary,
+                    now));
+
+            if (properties.getSms().isEnabled() && isPhoneValid(doctor.phoneNumber())) {
+                counts = counts.add(persistSmsDelivery(
+                        eventType,
+                        request.eventId(),
+                        request.appointmentId(),
+                        request.sourceService(),
+                        request.occurredAt(),
+                        doctor,
+                        "DOCTOR",
+                        "Appointment update SMS",
+                        TEMPLATE_SMS_APPOINTMENT_ACTIVITY,
+                        doctorData,
+                        doctorSummary,
+                        SmsNotificationType.BOOKING_CONFIRMATION,
+                        now));
+            }
         } else {
             counts = persistInAppForRecipients(
                     eventType,
@@ -153,6 +200,41 @@ public class NotificationEventService {
                     doctorData,
                     patientSummary,
                     doctorSummary);
+
+            counts = counts.add(persistEmailForRecipients(
+                    eventType,
+                    request.eventId(),
+                    request.appointmentId(),
+                    request.sourceService(),
+                    request.occurredAt(),
+                    patient,
+                    doctor,
+                    emailSubject,
+                    TEMPLATE_EMAIL_APPOINTMENT_ACTIVITY,
+                    patientData,
+                    doctorData,
+                    patientSummary,
+                    doctorSummary,
+                    now));
+
+            if (properties.getSms().isEnabled()) {
+                counts = counts.add(persistSmsForRecipients(
+                        eventType,
+                        request.eventId(),
+                        request.appointmentId(),
+                        request.sourceService(),
+                        request.occurredAt(),
+                        patient,
+                        doctor,
+                        "Appointment update SMS",
+                        TEMPLATE_SMS_APPOINTMENT_ACTIVITY,
+                        patientData,
+                        doctorData,
+                        patientSummary,
+                        doctorSummary,
+                        SmsNotificationType.BOOKING_CONFIRMATION,
+                        now));
+            }
         }
 
         return buildResponse(request.eventId(), eventType, counts);
@@ -494,11 +576,28 @@ public class NotificationEventService {
             String summary,
             Instant scheduledAt) {
 
+        String normalizedEmail = normalizeEmail(recipient.email());
+        if (!hasText(normalizedEmail)) {
+            return persistFailedEmailDelivery(
+                    eventType,
+                    eventId,
+                    appointmentId,
+                    sourceService,
+                    occurredAt,
+                    recipient,
+                    recipientRole,
+                    subject,
+                    templateName,
+                    templateData,
+                    summary,
+                    "Recipient email is missing for userId=" + defaultText(recipient.userId(), "unknown"));
+        }
+
         NotificationDelivery delivery = baseDelivery(
                 eventType, eventId, appointmentId, sourceService, occurredAt, recipient, recipientRole,
                 subject, templateName, templateData, summary, scheduledAt);
         delivery.setChannel(NotificationChannel.EMAIL);
-        delivery.setRecipientEmail(normalizeEmail(recipient.email()));
+        delivery.setRecipientEmail(normalizedEmail);
         delivery.setRecipientPhone(normalizePhone(recipient.phoneNumber()));
         delivery.setSmsType(null);
 
@@ -529,6 +628,36 @@ public class NotificationEventService {
         delivery.setSmsType(smsType);
 
         return persistDelivery(delivery);
+    }
+
+    private DeliveryCount persistFailedEmailDelivery(
+            NotificationEventType eventType,
+            String eventId,
+            String appointmentId,
+            String sourceService,
+            Instant occurredAt,
+            EventRecipient recipient,
+            String recipientRole,
+            String subject,
+            String templateName,
+            Map<String, Object> templateData,
+            String summary,
+            String failureReason) {
+
+        NotificationDelivery failed = baseDelivery(
+                eventType, eventId, appointmentId, sourceService, occurredAt, recipient, recipientRole,
+                subject, templateName, templateData, summary, Instant.now());
+        failed.setChannel(NotificationChannel.EMAIL);
+        failed.setRecipientEmail(normalizeEmail(recipient.email()));
+        failed.setRecipientPhone(normalizePhone(recipient.phoneNumber()));
+        failed.setSmsType(null);
+        failed.setStatus(NotificationStatus.FAILED);
+        failed.setAttemptCount(Math.max(1, properties.getWorker().getMaxAttempts()));
+        failed.setNextAttemptAt(null);
+        failed.setLastError(truncate(defaultText(failureReason, "Email delivery failed"), 500));
+        failed.setSentAt(null);
+
+        return persistDelivery(failed);
     }
 
     private NotificationDelivery baseDelivery(
@@ -605,6 +734,79 @@ public class NotificationEventService {
         return data;
     }
 
+    private EventRecipient resolveActivityPatientRecipient(String userId, String preferredName) {
+        return resolveActivityRecipient(userId, preferredName, true);
+    }
+
+    private EventRecipient resolveActivityDoctorRecipient(String userId, String preferredName) {
+        return resolveActivityRecipient(userId, preferredName, false);
+    }
+
+    private EventRecipient resolveActivityRecipient(String userId, String preferredName, boolean patient) {
+        String safeUserId = defaultText(userId, "");
+        String defaultName = patient ? "Patient" : "Doctor";
+        String fallbackName = defaultText(preferredName, defaultName);
+
+        try {
+            RecipientProfileLookupService.ResolvedRecipient resolved = patient
+                    ? recipientProfileLookupService.resolvePatient(safeUserId)
+                    : recipientProfileLookupService.resolveDoctor(safeUserId);
+
+            String resolvedName = defaultText(resolved.name(), fallbackName);
+            return new EventRecipient(
+                    safeUserId,
+                    resolvedName,
+                    normalizeEmail(resolved.email()),
+                    normalizePhone(resolved.phone()));
+        } catch (Exception ex) {
+            return new EventRecipient(safeUserId, fallbackName, "", null);
+        }
+    }
+
+    private static String eventLabel(NotificationEventType eventType) {
+        return switch (eventType) {
+            case APPOINTMENT_REQUESTED -> "Appointment Requested";
+            case APPOINTMENT_CONFIRMED -> "Appointment Confirmed";
+            case APPOINTMENT_RESCHEDULED -> "Appointment Rescheduled";
+            case APPOINTMENT_CANCELLED -> "Appointment Cancelled";
+            case APPOINTMENT_COMPLETED, CONSULTATION_COMPLETED -> "Consultation Completed";
+            default -> "Appointment Updated";
+        };
+    }
+
+    private static String buildEmailSubject(NotificationEventType eventType, String appointmentId) {
+        return switch (eventType) {
+            case APPOINTMENT_REQUESTED -> "Appointment requested - " + appointmentId;
+            case APPOINTMENT_CONFIRMED -> "Appointment confirmed - " + appointmentId;
+            case APPOINTMENT_RESCHEDULED -> "Appointment rescheduled - " + appointmentId;
+            case APPOINTMENT_CANCELLED -> "Appointment cancelled - " + appointmentId;
+            case APPOINTMENT_COMPLETED, CONSULTATION_COMPLETED -> "Consultation completed - " + appointmentId;
+            default -> "Appointment update - " + appointmentId;
+        };
+    }
+
+    private static String buildSmsSummary(
+            NotificationEventType eventType,
+            String patientName,
+            String doctorName,
+            String appointmentDateTime,
+            String reason,
+            boolean doctorPerspective) {
+        String safeDateTime = defaultText(appointmentDateTime, "N/A");
+        String safeReason = defaultText(reason, "General consultation");
+        return switch (eventType) {
+            case APPOINTMENT_REQUESTED -> "New appointment request from " + patientName
+                    + " for " + safeDateTime + ".";
+            case APPOINTMENT_CONFIRMED -> doctorPerspective
+                    ? "You confirmed appointment with " + patientName + " for " + safeDateTime + "."
+                    : "Appointment with " + doctorName + " is confirmed for " + safeDateTime + ".";
+            case APPOINTMENT_RESCHEDULED -> "Appointment rescheduled to " + safeDateTime + ".";
+            case APPOINTMENT_CANCELLED -> "Appointment cancelled. Reason: " + safeReason + ".";
+            case APPOINTMENT_COMPLETED, CONSULTATION_COMPLETED -> "Consultation completed.";
+            default -> "Appointment updated.";
+        };
+    }
+
     private static String buildInAppSubject(NotificationEventType eventType, String patientName, String doctorName) {
         return switch (eventType) {
             case APPOINTMENT_REQUESTED -> "New appointment request from " + patientName;
@@ -661,6 +863,17 @@ public class NotificationEventService {
             return fallback;
         }
         return value.trim();
+    }
+
+    private static boolean hasText(String value) {
+        return value != null && !value.isBlank();
+    }
+
+    private static String truncate(String value, int maxLength) {
+        if (value == null || value.length() <= maxLength) {
+            return value;
+        }
+        return value.substring(0, maxLength) + "...";
     }
 
     private static String normalizeEmail(String email) {

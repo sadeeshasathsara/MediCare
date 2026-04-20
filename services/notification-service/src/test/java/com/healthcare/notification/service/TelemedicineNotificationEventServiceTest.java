@@ -8,6 +8,7 @@ import com.healthcare.notification.dto.internal.TriggerAcceptedResponse;
 import com.healthcare.notification.model.NotificationDelivery;
 import com.healthcare.notification.model.NotificationEventType;
 import com.healthcare.notification.model.NotificationStatus;
+import com.healthcare.notification.model.NotificationChannel;
 import com.healthcare.notification.repository.NotificationDeliveryRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -91,7 +92,7 @@ class TelemedicineNotificationEventServiceTest {
     }
 
     @Test
-    void shouldQueueEmailsWhenRecipientProfilesResolveSuccessfully() {
+    void shouldQueueEmailAndSmsWhenRecipientProfilesResolveSuccessfully() {
         when(profileLookupService.resolvePatient("patient-1"))
                 .thenReturn(new RecipientProfileLookupService.ResolvedRecipient(
                         "patient-1",
@@ -122,17 +123,19 @@ class TelemedicineNotificationEventServiceTest {
 
         TriggerAcceptedResponse response = service.handleConsultationCompleted(request);
 
-        assertEquals(4, response.acceptedRecipients());
+        assertEquals(6, response.acceptedRecipients());
         assertEquals(0, response.duplicateRecipients());
 
         ArgumentCaptor<NotificationDelivery> captor = ArgumentCaptor.forClass(NotificationDelivery.class);
-        verify(repository, times(4)).save(captor.capture());
+        verify(repository, times(6)).save(captor.capture());
         List<NotificationDelivery> saved = captor.getAllValues();
 
         long pendingCount = saved.stream().filter(item -> item.getStatus() == NotificationStatus.PENDING).count();
         long sentCount = saved.stream().filter(item -> item.getStatus() == NotificationStatus.SENT).count();
-        assertEquals(2, pendingCount);
+        long smsCount = saved.stream().filter(item -> item.getChannel() == NotificationChannel.SMS).count();
+        assertEquals(4, pendingCount);
         assertEquals(2, sentCount);
+        assertEquals(2, smsCount);
         saved.forEach(item -> assertEquals(NotificationEventType.TELEMEDICINE_CONSULTATION_COMPLETED, item.getEventType()));
     }
 }

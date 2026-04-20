@@ -10,6 +10,7 @@ import com.healthcare.notification.model.NotificationChannel;
 import com.healthcare.notification.model.NotificationDelivery;
 import com.healthcare.notification.model.NotificationEventType;
 import com.healthcare.notification.model.NotificationStatus;
+import com.healthcare.notification.model.SmsNotificationType;
 import com.healthcare.notification.repository.NotificationDeliveryRepository;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
@@ -21,6 +22,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 @Service
 public class TelemedicineNotificationEventService {
@@ -34,6 +36,8 @@ public class TelemedicineNotificationEventService {
     private static final String TEMPLATE_APPOINTMENT_RESCHEDULED = "telemedicine-appointment-rescheduled";
     private static final String TEMPLATE_CONSULTATION_COMPLETED = "telemedicine-consultation-completed";
     private static final String TEMPLATE_PRESCRIPTION_ISSUED = "telemedicine-prescription-issued";
+    private static final String TEMPLATE_SMS_TELEMEDICINE_UPDATE = "telemedicine-update";
+    private static final Pattern E164_PATTERN = Pattern.compile("^\\+?[1-9]\\d{7,14}$");
 
     private final NotificationDeliveryRepository repository;
     private final NotificationProperties properties;
@@ -104,6 +108,8 @@ public class TelemedicineNotificationEventService {
             case RESCHEDULED -> "You rescheduled telemedicine appointment " + request.appointmentId()
                     + " with " + patient.displayName() + ". Reason: " + appointmentReason + ".";
         };
+        patientData.put("smsMessage", patientSummary);
+        doctorData.put("smsMessage", doctorSummary);
 
         DeliveryCount counts = DeliveryCount.zero();
         counts = counts.add(persistInAppForRecipient(
@@ -157,6 +163,38 @@ public class TelemedicineNotificationEventService {
                 doctorData,
                 doctorSummary,
                 scheduledAt));
+
+        if (properties.getSms().isEnabled()) {
+            counts = counts.add(persistSmsForRecipient(
+                    eventType,
+                    request.eventId(),
+                    request.appointmentId(),
+                    request.sourceService(),
+                    request.occurredAt(),
+                    patient,
+                    "PATIENT",
+                    "Telemedicine update SMS",
+                    TEMPLATE_SMS_TELEMEDICINE_UPDATE,
+                    patientData,
+                    patientSummary,
+                    SmsNotificationType.BOOKING_CONFIRMATION,
+                    scheduledAt));
+
+            counts = counts.add(persistSmsForRecipient(
+                    eventType,
+                    request.eventId(),
+                    request.appointmentId(),
+                    request.sourceService(),
+                    request.occurredAt(),
+                    doctor,
+                    "DOCTOR",
+                    "Telemedicine update SMS",
+                    TEMPLATE_SMS_TELEMEDICINE_UPDATE,
+                    doctorData,
+                    doctorSummary,
+                    SmsNotificationType.BOOKING_CONFIRMATION,
+                    scheduledAt));
+        }
 
         return new TriggerAcceptedResponse(request.eventId(), eventType, counts.accepted(), counts.duplicates());
     }
@@ -194,6 +232,8 @@ public class TelemedicineNotificationEventService {
                 + ". Session ID: " + request.sessionId() + ". Reason: " + appointmentReason + ".";
         String doctorSummary = "Telemedicine consultation completed for appointment " + request.appointmentId()
                 + " with " + patient.displayName() + ". Reason: " + appointmentReason + ".";
+        patientData.put("smsMessage", patientSummary);
+        doctorData.put("smsMessage", doctorSummary);
 
         DeliveryCount counts = DeliveryCount.zero();
         counts = counts.add(persistInAppForRecipient(
@@ -247,6 +287,38 @@ public class TelemedicineNotificationEventService {
                 doctorData,
                 doctorSummary,
                 scheduledAt));
+
+        if (properties.getSms().isEnabled()) {
+            counts = counts.add(persistSmsForRecipient(
+                    eventType,
+                    request.eventId(),
+                    request.appointmentId(),
+                    request.sourceService(),
+                    request.occurredAt(),
+                    patient,
+                    "PATIENT",
+                    "Telemedicine update SMS",
+                    TEMPLATE_SMS_TELEMEDICINE_UPDATE,
+                    patientData,
+                    patientSummary,
+                    SmsNotificationType.BOOKING_CONFIRMATION,
+                    scheduledAt));
+
+            counts = counts.add(persistSmsForRecipient(
+                    eventType,
+                    request.eventId(),
+                    request.appointmentId(),
+                    request.sourceService(),
+                    request.occurredAt(),
+                    doctor,
+                    "DOCTOR",
+                    "Telemedicine update SMS",
+                    TEMPLATE_SMS_TELEMEDICINE_UPDATE,
+                    doctorData,
+                    doctorSummary,
+                    SmsNotificationType.BOOKING_CONFIRMATION,
+                    scheduledAt));
+        }
 
         return new TriggerAcceptedResponse(request.eventId(), eventType, counts.accepted(), counts.duplicates());
     }
@@ -284,6 +356,8 @@ public class TelemedicineNotificationEventService {
                 + request.appointmentId() + ". Reason: " + appointmentReason + ".";
         String doctorSummary = "You issued a telemedicine prescription for appointment "
                 + request.appointmentId() + ". Reason: " + appointmentReason + ".";
+        patientData.put("smsMessage", patientSummary);
+        doctorData.put("smsMessage", doctorSummary);
 
         DeliveryCount counts = DeliveryCount.zero();
         counts = counts.add(persistInAppForRecipient(
@@ -337,6 +411,38 @@ public class TelemedicineNotificationEventService {
                 doctorData,
                 doctorSummary,
                 scheduledAt));
+
+        if (properties.getSms().isEnabled()) {
+            counts = counts.add(persistSmsForRecipient(
+                    eventType,
+                    request.eventId(),
+                    request.appointmentId(),
+                    request.sourceService(),
+                    request.occurredAt(),
+                    patient,
+                    "PATIENT",
+                    "Telemedicine update SMS",
+                    TEMPLATE_SMS_TELEMEDICINE_UPDATE,
+                    patientData,
+                    patientSummary,
+                    SmsNotificationType.BOOKING_CONFIRMATION,
+                    scheduledAt));
+
+            counts = counts.add(persistSmsForRecipient(
+                    eventType,
+                    request.eventId(),
+                    request.appointmentId(),
+                    request.sourceService(),
+                    request.occurredAt(),
+                    doctor,
+                    "DOCTOR",
+                    "Telemedicine update SMS",
+                    TEMPLATE_SMS_TELEMEDICINE_UPDATE,
+                    doctorData,
+                    doctorSummary,
+                    SmsNotificationType.BOOKING_CONFIRMATION,
+                    scheduledAt));
+        }
 
         return new TriggerAcceptedResponse(request.eventId(), eventType, counts.accepted(), counts.duplicates());
     }
@@ -406,6 +512,48 @@ public class TelemedicineNotificationEventService {
         delivery.setRecipientEmail(normalizeEmail(recipient.email()));
         delivery.setRecipientPhone(normalizePhone(recipient.phone()));
         delivery.setSmsType(null);
+
+        return persistDelivery(delivery);
+    }
+
+    private DeliveryCount persistSmsForRecipient(
+            NotificationEventType eventType,
+            String eventId,
+            String appointmentId,
+            String sourceService,
+            Instant occurredAt,
+            RecipientContext recipient,
+            String recipientRole,
+            String subject,
+            String templateName,
+            Map<String, Object> templateData,
+            String summary,
+            SmsNotificationType smsType,
+            Instant scheduledAt) {
+
+        if (!isPhoneValid(recipient.phone())) {
+            return DeliveryCount.zero();
+        }
+
+        NotificationDelivery delivery = baseDelivery(
+                eventType,
+                eventId,
+                appointmentId,
+                sourceService,
+                occurredAt,
+                recipient.userId(),
+                recipient.displayName(),
+                recipientRole,
+                subject,
+                templateName,
+                templateData,
+                summary,
+                scheduledAt);
+
+        delivery.setChannel(NotificationChannel.SMS);
+        delivery.setRecipientEmail(normalizeEmail(recipient.email()));
+        delivery.setRecipientPhone(normalizePhone(recipient.phone()));
+        delivery.setSmsType(smsType);
 
         return persistDelivery(delivery);
     }
@@ -664,6 +812,13 @@ public class TelemedicineNotificationEventService {
 
     private static boolean hasText(String value) {
         return value != null && !value.isBlank();
+    }
+
+    private static boolean isPhoneValid(String phoneNumber) {
+        if (!hasText(phoneNumber)) {
+            return false;
+        }
+        return E164_PATTERN.matcher(phoneNumber.trim()).matches();
     }
 
     private static String defaultText(String value, String fallback) {
