@@ -95,6 +95,7 @@ export default function DoctorDashboard() {
               appointments={pendingAppointments.slice(0, 4)}
               handleStatusUpdate={() => {}} // Simplified, you'd integrate the actual function here if you wanted interactions from dash
               isDoctor={true}
+              gridClassName="grid gap-4 grid-cols-1"
             />
           </div>
         </div>
