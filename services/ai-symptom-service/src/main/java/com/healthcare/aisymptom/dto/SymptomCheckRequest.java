@@ -25,6 +25,9 @@ public record SymptomCheckRequest(
 
         @Valid
         @Size(max = 300, message = "availableDoctors cannot exceed 300 entries")
-        List<DoctorCandidateDto> availableDoctors
+        List<DoctorCandidateDto> availableDoctors,
+
+        @Valid
+        List<ChatMessageDto> history
 ) {
 }

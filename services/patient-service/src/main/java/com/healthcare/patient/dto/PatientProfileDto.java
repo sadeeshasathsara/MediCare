@@ -9,6 +9,8 @@ public class PatientProfileDto {
     private String email;
     private String name;
     private String dob;
+    private String gender;
+
     private ContactDto contact;
     private AddressDto address;
     private PatientStatus status;
@@ -51,6 +53,14 @@ public class PatientProfileDto {
 
     public void setDob(String dob) {
         this.dob = dob;
+    }
+
+    public String getGender() {
+        return gender;
+    }
+
+    public void setGender(String gender) {
+        this.gender = gender;
     }
 
     public ContactDto getContact() {

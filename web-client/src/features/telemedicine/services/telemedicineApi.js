@@ -1,12 +1,9 @@
 import api from '@/services/api'
 
+// NOTE: The API gateway exposes telemedicine as `/api/telemedicine/*` and rewrites it to
+// the telemedicine-service native `/api/v1/*`. Therefore the frontend must NOT include
+// `/api/v1` here, otherwise it becomes `/api/v1/api/v1/*` upstream.
 const TELEMEDICINE_BASE = '/telemedicine'
-const APPOINTMENT_GATEWAY_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api'
-const APPOINTMENT_ABSOLUTE_BASE = import.meta.env.VITE_APPOINTMENT_API_BASE_URL || `${APPOINTMENT_GATEWAY_BASE}/appointments`
-const APPOINTMENT_ABSOLUTE_BASE_FALLBACK = import.meta.env.VITE_APPOINTMENT_API_BASE_URL_FALLBACK || `${APPOINTMENT_GATEWAY_BASE}/appointments`
-const RETRYABLE_APPOINTMENT_STATUSES = new Set([500, 502, 503, 504])
-const APPOINTMENT_RETRY_DELAY_MS = 1200
-const APPOINTMENT_MAX_ATTEMPTS = 2
 const RESCHEDULE_PREFIX = '[telemedicine-rescheduled]'
 
 function unwrapEnvelope(response, fallbackValue = null) {

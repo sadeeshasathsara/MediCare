@@ -17,6 +17,7 @@ import com.healthcare.telemedicine.service.JitsiService;
 
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
+import io.jsonwebtoken.security.SecureDigestAlgorithm;
 
 @Service
 public class JitsiServiceImpl implements JitsiService {
@@ -44,6 +45,11 @@ public class JitsiServiceImpl implements JitsiService {
 
     @Override
     public boolean isJwtConfigured() {
+        if (domain != null && domain.trim().equalsIgnoreCase("meet.jit.si")) {
+            // Public meet.jit.si does not support validating custom JWTs signed with your
+            // private secret.
+            return false;
+        }
         return appId != null && !appId.isBlank() && appSecret != null && !appSecret.isBlank();
     }
 
@@ -60,6 +66,7 @@ public class JitsiServiceImpl implements JitsiService {
         }
 
         SecretKey signingKey = Keys.hmacShaKeyFor(appSecret.getBytes(StandardCharsets.UTF_8));
+        SecureDigestAlgorithm<SecretKey, ?> algorithm = Jwts.SIG.HS256;
         Instant now = Instant.now();
         Instant exp = tokenExpiry(scheduledAt);
 
@@ -86,7 +93,7 @@ public class JitsiServiceImpl implements JitsiService {
                 .claim("context", context)
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(exp))
-                .signWith(signingKey)
+                .signWith(signingKey, algorithm)
                 .compact();
     }
 

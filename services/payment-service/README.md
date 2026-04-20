@@ -21,7 +21,8 @@ All endpoints are expected to be called through the API gateway path prefix:
 - `http://localhost:8080/api/payments/...`
 
 ## Required Environment Variables
-- `MONGO_URI_PAYMENT`
+- `SPRING_DATA_MONGODB_URI` (preferred)
+- `MONGO_URI_PAYMENT` (supported for Kubernetes/Jenkins secret-key mapping)
 - `STRIPE_SECRET_KEY`
 - `STRIPE_PUBLISHABLE_KEY`
 - `CORS_ALLOWED_ORIGINS` (optional)

@@ -71,19 +71,34 @@ public class SessionServiceImpl implements SessionService {
     }
 
     @Override
-    public ConsultationSession createSession(String appointmentId, String actorId) {
-        ExternalAppointment appointment = appointmentGateway.getById(appointmentId, actorId, DOCTOR_ROLE);
+    public ConsultationSession createSession(String appointmentId, String actorId, String actorRole) {
+        if (!DOCTOR_ROLE.equals(actorRole) && !PATIENT_ROLE.equals(actorRole)) {
+            throw new ForbiddenException("Unsupported role for session creation");
+        }
 
-        if (!Objects.equals(appointment.doctorId(), actorId)) {
+        ExternalAppointment appointment = appointmentGateway.getById(appointmentId, actorId, actorRole);
+
+        if (DOCTOR_ROLE.equals(actorRole) && !Objects.equals(appointment.doctorId(), actorId)) {
             throw new ForbiddenException("Doctor can only create sessions for own appointments");
         }
-        if (!appointmentAdapter.isEligibleForSession(appointment)) {
-            throw new ConflictException("Session can only be created for confirmed appointments");
+
+        if (PATIENT_ROLE.equals(actorRole) && !Objects.equals(appointment.patientId(), actorId)) {
+            throw new ForbiddenException("Patient can only create sessions for own appointments");
         }
 
-        sessionRepository.findByAppointmentIdAndDeletedAtIsNull(appointmentId).ifPresent(existing -> {
-            throw new ConflictException("Session already exists for this appointment");
-        });
+        if (!appointmentAdapter.isEligibleForSession(appointment)) {
+            throw new ConflictException("Session can only be created for eligible appointments");
+        }
+
+        ConsultationSession existing = sessionRepository
+                .findFirstByAppointmentIdAndDeletedAtIsNullOrderByCreatedAtDesc(appointmentId)
+                .orElse(null);
+        if (existing != null) {
+            log.warn("Multiple sessions may exist for appointmentId={}; returning existing sessionId={}",
+                    appointmentId,
+                    existing.getId());
+            return existing;
+        }
 
         String roomId = jitsiService.roomNameForAppointment(appointmentId);
         String roomToken = null;
@@ -111,15 +126,26 @@ public class SessionServiceImpl implements SessionService {
     }
 
     @Override
-    public JoinTokenResponse generateJoinToken(String sessionId, String role, boolean markJoined, String actorId, String actorRole) {
+    public JoinTokenResponse generateJoinToken(String sessionId, String role, boolean markJoined, String actorId,
+            String actorRole) {
         ConsultationSession session = findSession(sessionId);
 
         String normalizedRequestedRole = normalizeRole(role);
         validateRoleForSession(session, normalizedRequestedRole, actorId, actorRole);
 
         boolean moderator = "DOCTOR".equals(normalizedRequestedRole);
-        boolean publicRoom = true;
+        boolean jwtConfigured = jitsiService.isJwtConfigured();
+        boolean publicRoom = !jwtConfigured;
         String token = null;
+        if (jwtConfigured) {
+            token = jitsiService.generateJoinToken(
+                    session.getJitsiRoomId(),
+                    actorId,
+                    null,
+                    null,
+                    moderator,
+                    session.getScheduledAt());
+        }
 
         if (markJoined) {
             SessionStatus before = session.getSessionStatus();
@@ -143,7 +169,7 @@ public class SessionServiceImpl implements SessionService {
                 .jitsiDomain(jitsiService.getDomain())
                 .role(normalizedRequestedRole.toLowerCase())
                 .token(token)
-                .expiresAt(null)
+                .expiresAt(jwtConfigured ? jitsiService.tokenExpiry(session.getScheduledAt()) : null)
                 .publicRoom(publicRoom)
                 .build();
     }
@@ -178,7 +204,8 @@ public class SessionServiceImpl implements SessionService {
         Instant endTime = Instant.now();
         session.setEndedAt(endTime);
         session.setSessionStatus(SessionStatus.COMPLETED);
-        session.setDurationSeconds(session.getStartedAt() == null ? 0L : session.getStartedAt().until(endTime, ChronoUnit.SECONDS));
+        session.setDurationSeconds(
+                session.getStartedAt() == null ? 0L : session.getStartedAt().until(endTime, ChronoUnit.SECONDS));
 
         ConsultationSession saved = sessionRepository.save(session);
         auditStatusChange(saved, previous, saved.getSessionStatus(), actorId, "session.ended", null);
@@ -243,9 +270,10 @@ public class SessionServiceImpl implements SessionService {
     @Override
     public int markMissedSessions() {
         Instant cutoff = Instant.now().minus(sessionGraceMinutes, ChronoUnit.MINUTES);
-        List<ConsultationSession> staleSessions = sessionRepository.findBySessionStatusInAndScheduledAtBeforeAndDeletedAtIsNull(
-                List.of(SessionStatus.SCHEDULED, SessionStatus.WAITING),
-                cutoff);
+        List<ConsultationSession> staleSessions = sessionRepository
+                .findBySessionStatusInAndScheduledAtBeforeAndDeletedAtIsNull(
+                        List.of(SessionStatus.SCHEDULED, SessionStatus.WAITING),
+                        cutoff);
 
         int updated = 0;
         for (ConsultationSession session : staleSessions) {
@@ -254,7 +282,8 @@ public class SessionServiceImpl implements SessionService {
             session.setEndedAt(Instant.now());
             session.setDurationSeconds(0L);
             sessionRepository.save(session);
-            auditStatusChange(session, previous, SessionStatus.MISSED, "system", "session.auto_missed", Map.of("cutoff", cutoff));
+            auditStatusChange(session, previous, SessionStatus.MISSED, "system", "session.auto_missed",
+                    Map.of("cutoff", cutoff));
             updated++;
         }
         return updated;

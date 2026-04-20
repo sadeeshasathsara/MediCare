@@ -31,6 +31,8 @@ public class CreateAvailabilityRequest {
         @NotBlank(message = "endTime is required (HH:mm)")
         private String endTime;
 
+        private int maxCapacity = 1;
+
         public String getDayOfWeek() {
             return dayOfWeek;
         }
@@ -53,6 +55,14 @@ public class CreateAvailabilityRequest {
 
         public void setEndTime(String endTime) {
             this.endTime = endTime;
+        }
+
+        public int getMaxCapacity() {
+            return maxCapacity;
+        }
+
+        public void setMaxCapacity(int maxCapacity) {
+            this.maxCapacity = maxCapacity;
         }
     }
 }

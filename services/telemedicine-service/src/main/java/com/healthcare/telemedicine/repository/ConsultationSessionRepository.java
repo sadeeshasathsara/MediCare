@@ -11,32 +11,33 @@ import com.healthcare.telemedicine.model.ConsultationSession;
 import com.healthcare.telemedicine.model.enums.SessionStatus;
 
 public interface ConsultationSessionRepository extends MongoRepository<ConsultationSession, String> {
-    Optional<ConsultationSession> findByIdAndDeletedAtIsNull(String id);
+        Optional<ConsultationSession> findByIdAndDeletedAtIsNull(String id);
 
-    Optional<ConsultationSession> findByAppointmentIdAndDeletedAtIsNull(String appointmentId);
+        Optional<ConsultationSession> findFirstByAppointmentIdAndDeletedAtIsNullOrderByCreatedAtDesc(
+                        String appointmentId);
 
-    List<ConsultationSession> findByDoctorIdAndDeletedAtIsNull(String doctorId, Sort sort);
+        List<ConsultationSession> findByDoctorIdAndDeletedAtIsNull(String doctorId, Sort sort);
 
-    List<ConsultationSession> findByPatientIdAndDeletedAtIsNull(String patientId, Sort sort);
-    
-    List<ConsultationSession> findByPatientIdInAndDeletedAtIsNull(List<String> patientIds, Sort sort);
+        List<ConsultationSession> findByPatientIdAndDeletedAtIsNull(String patientId, Sort sort);
 
-    List<ConsultationSession> findByDoctorIdAndSessionStatusAndDeletedAtIsNull(
-            String doctorId,
-            SessionStatus sessionStatus,
-            Sort sort);
+        List<ConsultationSession> findByPatientIdInAndDeletedAtIsNull(List<String> patientIds, Sort sort);
 
-    List<ConsultationSession> findByPatientIdAndSessionStatusAndDeletedAtIsNull(
-            String patientId,
-            SessionStatus sessionStatus,
-            Sort sort);
-    
-    List<ConsultationSession> findByPatientIdInAndSessionStatusAndDeletedAtIsNull(
-            List<String> patientIds,
-            SessionStatus sessionStatus,
-            Sort sort);
+        List<ConsultationSession> findByDoctorIdAndSessionStatusAndDeletedAtIsNull(
+                        String doctorId,
+                        SessionStatus sessionStatus,
+                        Sort sort);
 
-    List<ConsultationSession> findBySessionStatusInAndScheduledAtBeforeAndDeletedAtIsNull(
-            List<SessionStatus> statuses,
-            Instant scheduledAt);
+        List<ConsultationSession> findByPatientIdAndSessionStatusAndDeletedAtIsNull(
+                        String patientId,
+                        SessionStatus sessionStatus,
+                        Sort sort);
+
+        List<ConsultationSession> findByPatientIdInAndSessionStatusAndDeletedAtIsNull(
+                        List<String> patientIds,
+                        SessionStatus sessionStatus,
+                        Sort sort);
+
+        List<ConsultationSession> findBySessionStatusInAndScheduledAtBeforeAndDeletedAtIsNull(
+                        List<SessionStatus> statuses,
+                        Instant scheduledAt);
 }

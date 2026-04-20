@@ -1,29 +1,36 @@
-import { createAsyncThunk, createSlice } from '@reduxjs/toolkit'
+import { createAsyncThunk, createSlice, createSelector } from '@reduxjs/toolkit'
 import {
     getDoctorAvailability,
+    getDoctorByUserId,
     listDoctorSpecialties,
     listDoctors,
 } from '@/features/doctors/services/doctorApi'
 
 const EMPTY_RESOURCE = { items: [], status: 'idle', error: null, lastFetched: 0 }
 
+export const fetchDoctorById = createAsyncThunk(
+    'doctors/fetchDoctorById',
+    async (id) => {
+        const data = await getDoctorByUserId(id)
+        return data
+    }
+)
+
 export const fetchDoctors = createAsyncThunk(
     'doctors/fetchDoctors',
     async ({ params = {}, force = false } = {}) => {
         const data = await listDoctors(params)
+        const items = data.content ? data.content : (Array.isArray(data) ? data : [])
+        const totalPages = data.totalPages !== undefined ? data.totalPages : (items.length > 0 ? 1 : 0)
+        const page = data.number !== undefined ? data.number : 0
+        
         return {
-            items: Array.isArray(data) ? data : [],
+            items,
+            totalPages,
+            page,
             force,
             fetchedAt: Date.now(),
         }
-    },
-    {
-        condition: ({ force = false } = {}, { getState }) => {
-            if (force) return true
-            const state = getState()
-            const doctors = state.doctors?.doctors
-            return !(doctors && doctors.status === 'succeeded' && Array.isArray(doctors.items) && doctors.items.length > 0)
-        },
     }
 )
 
@@ -78,6 +85,7 @@ const initialState = {
     doctors: { ...EMPTY_RESOURCE },
     specialties: { ...EMPTY_RESOURCE },
     availabilityByDoctorId: {},
+    currentDoctor: { data: null, status: 'idle', error: null },
 }
 
 const doctorsSlice = createSlice({
@@ -93,6 +101,8 @@ const doctorsSlice = createSlice({
             .addCase(fetchDoctors.fulfilled, (state, action) => {
                 state.doctors = {
                     items: action.payload.items,
+                    totalPages: action.payload.totalPages,
+                    page: action.payload.page,
                     status: 'succeeded',
                     error: null,
                     lastFetched: action.payload.fetchedAt,
@@ -148,12 +158,34 @@ const doctorsSlice = createSlice({
                     error: action.error?.message || 'Failed to load availability.',
                 }
             })
+            .addCase(fetchDoctorById.pending, (state) => {
+                state.currentDoctor.status = 'loading'
+                state.currentDoctor.error = null
+            })
+            .addCase(fetchDoctorById.fulfilled, (state, action) => {
+                state.currentDoctor = {
+                    data: action.payload,
+                    status: 'succeeded',
+                    error: null,
+                }
+            })
+            .addCase(fetchDoctorById.rejected, (state, action) => {
+                state.currentDoctor.status = 'failed'
+                state.currentDoctor.error = action.error?.message || 'Failed to load doctor.'
+            })
     },
 })
 
 export const selectDoctorsResource = (state) => state.doctors?.doctors || EMPTY_RESOURCE
 export const selectDoctors = (state) => selectDoctorsResource(state).items
 export const selectDoctorsStatus = (state) => selectDoctorsResource(state).status
+export const selectDoctorsPagination = createSelector(
+    selectDoctorsResource,
+    (resource) => ({
+        totalPages: resource.totalPages || 0,
+        page: resource.page || 0,
+    })
+)
 
 export const selectSpecialtiesResource = (state) => state.doctors?.specialties || EMPTY_RESOURCE
 export const selectDoctorSpecialties = (state) => selectSpecialtiesResource(state).items
@@ -167,5 +199,8 @@ export const selectDoctorAvailability = (state, doctorId) =>
 
 export const selectDoctorAvailabilityStatus = (state, doctorId) =>
     selectDoctorAvailabilityResource(state, doctorId).status
+
+export const selectCurrentDoctor = (state) => state.doctors?.currentDoctor?.data
+export const selectCurrentDoctorStatus = (state) => state.doctors?.currentDoctor?.status
 
 export default doctorsSlice.reducer

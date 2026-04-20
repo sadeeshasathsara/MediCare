@@ -34,6 +34,11 @@ public class Doctor {
 
     private boolean verified;
 
+    private String profilePhotoKey;
+    private String profilePhotoContentType;
+    private Long profilePhotoSize;
+    private Instant profilePhotoUpdatedAt;
+
     private Instant createdAt;
 
     private Instant updatedAt;
@@ -124,6 +129,38 @@ public class Doctor {
 
     public void setVerified(boolean verified) {
         this.verified = verified;
+    }
+
+    public String getProfilePhotoKey() {
+        return profilePhotoKey;
+    }
+
+    public void setProfilePhotoKey(String profilePhotoKey) {
+        this.profilePhotoKey = profilePhotoKey;
+    }
+
+    public String getProfilePhotoContentType() {
+        return profilePhotoContentType;
+    }
+
+    public void setProfilePhotoContentType(String profilePhotoContentType) {
+        this.profilePhotoContentType = profilePhotoContentType;
+    }
+
+    public Long getProfilePhotoSize() {
+        return profilePhotoSize;
+    }
+
+    public void setProfilePhotoSize(Long profilePhotoSize) {
+        this.profilePhotoSize = profilePhotoSize;
+    }
+
+    public Instant getProfilePhotoUpdatedAt() {
+        return profilePhotoUpdatedAt;
+    }
+
+    public void setProfilePhotoUpdatedAt(Instant profilePhotoUpdatedAt) {
+        this.profilePhotoUpdatedAt = profilePhotoUpdatedAt;
     }
 
     public Instant getCreatedAt() {

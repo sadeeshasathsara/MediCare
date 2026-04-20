@@ -86,6 +86,7 @@ data:
           proxy_pass http://$auth_service;
             }
 
+            # Verify doctor endpoint
             location = /api/auth/verify-doctor {
               auth_request /_auth;
               auth_request_set $user_id $upstream_http_x_user_id;
@@ -203,8 +204,9 @@ data:
           proxy_set_header X-User-Id $user_id;
           proxy_set_header X-User-Role $user_role;
           proxy_set_header X-User-Verified $user_verified;
-                rewrite ^/api/ai/?$ /ai break;
-                rewrite ^/api/ai/(.+)$ /ai/$1 break;
+                # ai-symptom-service serves routes like /symptom-check and /health
+                rewrite ^/api/ai/(.*)$ /$1 break;
+                rewrite ^/api/ai/?$ / break;
                 proxy_pass http://$ai_symptom_service;
             }
         }

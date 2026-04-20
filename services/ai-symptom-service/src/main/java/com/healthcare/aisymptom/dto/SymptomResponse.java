@@ -1,16 +1,22 @@
 package com.healthcare.aisymptom.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.List;
 
 public class SymptomResponse {
 
     private List<String> possibleConditions;
+    private String aiMessage;
+    
+    @JsonProperty("isDiagnostic")
+    private boolean isDiagnostic;
     private String recommendedSpecialty;
     private String recommendedDoctor;
     private List<String> recommendedDoctorIds;
     private String urgencyLevel;
     private String advice;
     private String disclaimer;
+    private List<String> options;
 
     public SymptomResponse() {
     }
@@ -32,6 +38,22 @@ public class SymptomResponse {
 
     public void setPossibleConditions(List<String> possibleConditions) {
         this.possibleConditions = possibleConditions;
+    }
+
+    public String getAiMessage() {
+        return aiMessage;
+    }
+
+    public void setAiMessage(String aiMessage) {
+        this.aiMessage = aiMessage;
+    }
+
+    public boolean isDiagnostic() {
+        return isDiagnostic;
+    }
+
+    public void setDiagnostic(boolean diagnostic) {
+        isDiagnostic = diagnostic;
     }
 
     public String getRecommendedSpecialty() {
@@ -80,5 +102,13 @@ public class SymptomResponse {
 
     public void setDisclaimer(String disclaimer) {
         this.disclaimer = disclaimer;
+    }
+
+    public List<String> getOptions() {
+        return options;
+    }
+
+    public void setOptions(List<String> options) {
+        this.options = options;
     }
 }

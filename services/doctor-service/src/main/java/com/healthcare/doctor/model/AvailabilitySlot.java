@@ -24,6 +24,10 @@ public class AvailabilitySlot {
 
     private SlotStatus status;
 
+    private int maxCapacity = 1;
+
+    private int currentBookings = 0;
+
     private Instant createdAt;
 
     private Instant updatedAt;
@@ -74,6 +78,22 @@ public class AvailabilitySlot {
 
     public void setStatus(SlotStatus status) {
         this.status = status;
+    }
+
+    public int getMaxCapacity() {
+        return maxCapacity;
+    }
+
+    public void setMaxCapacity(int maxCapacity) {
+        this.maxCapacity = maxCapacity;
+    }
+
+    public int getCurrentBookings() {
+        return currentBookings;
+    }
+
+    public void setCurrentBookings(int currentBookings) {
+        this.currentBookings = currentBookings;
     }
 
     public Instant getCreatedAt() {

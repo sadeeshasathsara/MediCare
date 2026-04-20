@@ -24,3 +24,8 @@ export const createDoctorAvailability = async (doctorId, payload) => {
   const { data } = await api.post(`/doctors/${doctorId}/availability`, payload)
   return data
 }
+
+export const deleteDoctorAvailabilitySlot = async (doctorId, slotId) => {
+  const { data } = await api.delete(`/doctors/${doctorId}/availability/${slotId}`)
+  return data
+}

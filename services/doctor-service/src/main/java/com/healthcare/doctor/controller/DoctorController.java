@@ -4,8 +4,10 @@ import com.healthcare.doctor.dto.DoctorResponse;
 import com.healthcare.doctor.dto.UpdateDoctorRequest;
 import com.healthcare.doctor.service.DoctorService;
 import jakarta.validation.Valid;
+import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -25,16 +27,20 @@ public class DoctorController {
      * GET /doctors – list all verified doctors (filterable by specialty)
      */
     @GetMapping
-    public ResponseEntity<List<DoctorResponse>> listDoctors(
+    public ResponseEntity<Page<DoctorResponse>> listDoctors(
             @RequestHeader(value = "X-User-Role", required = false) String role,
-            @RequestParam(required = false) String specialty) {
+            @RequestParam(required = false) String specialty,
+            @RequestParam(required = false) String search,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int limit) {
         if (!hasAnyRole(role, "ADMIN", "DOCTOR", "PATIENT")) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN,
                     "Only admin, doctor, or patient roles can list doctors");
         }
 
-        return ResponseEntity.ok(doctorService.listVerifiedDoctors(specialty));
+        return ResponseEntity.ok(doctorService.searchVerifiedDoctors(search, specialty, page, limit));
     }
+
 
     /**
      * GET /doctors/specialties – list all available specialties

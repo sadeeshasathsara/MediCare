@@ -84,14 +84,14 @@ public class PatientReportService {
     }
 
     public List<ReportMetadataDto> list(String userId) {
-        AccessGuard.requireSelfOrAdmin(userId);
+        AccessGuard.requireSelfOrAdminOrDoctor(userId);
         return patientReportRepository.findByUserIdAndDeletedAtIsNullOrderByUploadedAtDesc(userId).stream()
                 .map(this::toDto)
                 .toList();
     }
 
     public StoredObject download(String userId, String reportId) {
-        AccessGuard.requireSelfOrAdmin(userId);
+        AccessGuard.requireSelfOrAdminOrDoctor(userId);
 
         PatientReport report = patientReportRepository.findByIdAndUserIdAndDeletedAtIsNull(reportId, userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "report not found"));
@@ -100,6 +100,7 @@ public class PatientReportService {
     }
 
     public PatientReport getReportMetadataOrThrow(String userId, String reportId) {
+        AccessGuard.requireSelfOrAdminOrDoctor(userId);
         return patientReportRepository.findByIdAndUserIdAndDeletedAtIsNull(reportId, userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "report not found"));
     }
