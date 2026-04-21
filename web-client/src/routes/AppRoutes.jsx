@@ -53,7 +53,6 @@ const patientLinks = [
   { label: 'Dashboard', path: '/' },
   { label: 'Book Consultation', path: '/patient/book' },
   { label: 'My Appointments', path: '/appointments' },
-  { label: 'Telemedicine', path: '/telemedicine' },
   { label: 'Notifications', path: '/notifications' },
   { label: 'AI Symptom', path: '/patient/symptom-checker' },
 ]
