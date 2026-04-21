@@ -5,6 +5,14 @@ import api from '@/services/api'
 // `/api/v1` here, otherwise it becomes `/api/v1/api/v1/*` upstream.
 const TELEMEDICINE_BASE = '/telemedicine'
 const RESCHEDULE_PREFIX = '[telemedicine-rescheduled]'
+const DEFAULT_API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api'
+const APPOINTMENT_ABSOLUTE_BASE =
+  import.meta.env.VITE_APPOINTMENT_API_BASE_URL || `${trimTrailingSlash(DEFAULT_API_BASE)}/appointments/appointments`
+const APPOINTMENT_ABSOLUTE_BASE_FALLBACK =
+  import.meta.env.VITE_APPOINTMENT_API_BASE_URL_FALLBACK || `${trimTrailingSlash(DEFAULT_API_BASE)}/appointments`
+const APPOINTMENT_MAX_ATTEMPTS = Math.max(1, Number(import.meta.env.VITE_APPOINTMENT_API_MAX_ATTEMPTS) || 3)
+const APPOINTMENT_RETRY_DELAY_MS = Math.max(0, Number(import.meta.env.VITE_APPOINTMENT_API_RETRY_DELAY_MS) || 350)
+const RETRYABLE_APPOINTMENT_STATUSES = new Set([408, 429, 500, 502, 503, 504])
 
 function unwrapEnvelope(response, fallbackValue = null) {
   const payload = response?.data
