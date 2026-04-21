@@ -11,6 +11,7 @@ import { RefreshCcw } from 'lucide-react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 
 import { useAuth } from '@/context/AuthContext'
+import { getAuthItem } from '@/services/authStorage'
 import AppointmentDetailsPanel from '@/features/telemedicine/components/AppointmentDetailsPanel'
 import ConsultationWorkspaceHeader from '@/features/telemedicine/components/ConsultationWorkspaceHeader'
 import AppointmentInbox from '@/features/telemedicine/components/AppointmentInbox'
@@ -139,14 +140,14 @@ export default function TelemedicinePage() {
 
   const { user, accessToken } = useAuth()
   const doctorId = useMemo(() => {
-    const storedUser = safeJsonParse(localStorage.getItem('user'))
+    const storedUser = safeJsonParse(getAuthItem('user'))
     const fromStorage = resolveDoctorIdFromUserLike(storedUser)
     if (fromStorage) return fromStorage
 
     const fromAuthContext = resolveDoctorIdFromUserLike(user)
     if (fromAuthContext) return fromAuthContext
 
-    const fromToken = decodeJwtSubject(accessToken || localStorage.getItem('accessToken'))
+    const fromToken = decodeJwtSubject(accessToken || getAuthItem('accessToken'))
     return normalizeId(fromToken)
   }, [accessToken, user])
   const doctorDisplay = useMemo(() => resolveTelemedicineDoctor(user, doctorId), [doctorId, user])

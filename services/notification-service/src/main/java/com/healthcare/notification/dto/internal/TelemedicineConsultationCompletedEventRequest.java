@@ -12,7 +12,10 @@ public record TelemedicineConsultationCompletedEventRequest(
         @NotBlank String sourceService,
         @NotBlank String sessionId,
         @NotBlank String patientUserId,
+        String patientName,
         @NotBlank String doctorUserId,
+        String doctorName,
+        String appointmentReason,
         @NotNull Instant endedAt,
         Long durationSeconds) {
 }

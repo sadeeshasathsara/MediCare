@@ -14,6 +14,7 @@ public record AppointmentConfirmedEventRequest(
         @NotNull @Valid EventRecipient patient,
         @NotNull @Valid EventRecipient doctor,
         @NotNull Instant appointmentDateTime,
+        String appointmentReason,
         @NotBlank String channel,
         String notes) {
 }

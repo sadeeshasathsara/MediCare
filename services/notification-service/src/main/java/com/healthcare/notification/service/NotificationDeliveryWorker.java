@@ -64,7 +64,9 @@ public class NotificationDeliveryWorker {
         Instant now = Instant.now();
         try {
             NotificationChannel channel = delivery.getChannel() == null ? NotificationChannel.EMAIL : delivery.getChannel();
-            if (channel == NotificationChannel.SMS) {
+            if (channel == NotificationChannel.IN_APP) {
+                delivery.setContentText(delivery.getSummary());
+            } else if (channel == NotificationChannel.SMS) {
                 String smsBody = smsTemplateRenderer.render(delivery.getTemplateName(), delivery.getTemplateData());
                 SmsSendResult smsResult = notificationSmsService.send(delivery, smsBody);
                 delivery.setContentText(smsBody);
