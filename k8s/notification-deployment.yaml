@@ -52,7 +52,34 @@ spec:
                   name: medicare-secrets
                   key: SENDGRID_API_KEY
             - name: NOTIFICATION_SMS_ENABLED
-              value: "false"
+              valueFrom:
+                secretKeyRef:
+                  name: medicare-secrets
+                  key: NOTIFICATION_SMS_ENABLED
+            - name: NOTIFICATION_SMS_PROVIDER
+              valueFrom:
+                secretKeyRef:
+                  name: medicare-secrets
+                  key: NOTIFICATION_SMS_PROVIDER
+                  optional: true
+            - name: TWILIO_ACCOUNT_SID
+              valueFrom:
+                secretKeyRef:
+                  name: medicare-secrets
+                  key: TWILIO_ACCOUNT_SID
+                  optional: true
+            - name: TWILIO_AUTH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: medicare-secrets
+                  key: TWILIO_AUTH_TOKEN
+                  optional: true
+            - name: TWILIO_FROM_NUMBER
+              valueFrom:
+                secretKeyRef:
+                  name: medicare-secrets
+                  key: TWILIO_FROM_NUMBER
+                  optional: true
             - name: NOTIFICATION_PROFILE_LOOKUP_PATIENT_SERVICE_BASE_URL
               valueFrom:
                 secretKeyRef:
