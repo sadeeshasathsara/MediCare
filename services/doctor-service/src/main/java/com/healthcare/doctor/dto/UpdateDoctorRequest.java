@@ -11,6 +11,8 @@ public class UpdateDoctorRequest {
 
     private String specialty;
 
+    private String licenseNumber;
+
     @Min(value = 0, message = "Consultation fee must be zero or positive")
     private Double consultationFee;
 
@@ -40,6 +42,14 @@ public class UpdateDoctorRequest {
 
     public void setSpecialty(String specialty) {
         this.specialty = specialty;
+    }
+
+    public String getLicenseNumber() {
+        return licenseNumber;
+    }
+
+    public void setLicenseNumber(String licenseNumber) {
+        this.licenseNumber = licenseNumber;
     }
 
     public Double getConsultationFee() {

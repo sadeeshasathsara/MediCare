@@ -155,7 +155,13 @@ public class AuthService {
         RefreshTokenService.CreatedRefreshToken refresh = refreshTokenService.createForUser(user.getId());
 
         long expiresInSeconds = Math.max(1, jwtService.getAccessTtlMs() / 1000);
-        UserInfoDto userInfo = new UserInfoDto(user.getId(), user.getRole(), user.isDoctorVerified());
+        UserInfoDto userInfo = new UserInfoDto(
+            user.getId(),
+            user.getRole(),
+            user.isDoctorVerified(),
+            user.getEmail(),
+            user.getFullName(),
+            toDoctorProfileDto(user.getDoctorProfile()));
 
         return new LoginResponse(accessToken, refresh.rawToken(), "Bearer", expiresInSeconds, userInfo);
     }
