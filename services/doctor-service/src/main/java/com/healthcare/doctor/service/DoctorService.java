@@ -83,6 +83,14 @@ public class DoctorService {
             }
             doctor.setSpecialty(specialty);
         }
+
+        if (request.getLicenseNumber() != null) {
+            String licenseNumber = request.getLicenseNumber().trim();
+            if (licenseNumber.isBlank()) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "licenseNumber cannot be blank");
+            }
+            doctor.setLicenseNumber(licenseNumber);
+        }
         if (request.getConsultationFee() != null) {
             if (request.getConsultationFee() < 0) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "consultationFee must be zero or positive");

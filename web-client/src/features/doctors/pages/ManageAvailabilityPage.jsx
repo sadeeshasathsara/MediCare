@@ -15,6 +15,8 @@ import {
   getDoctorAvailability,
   createDoctorAvailability,
   deleteDoctorAvailabilitySlot,
+  getDoctorByUserId,
+  updateDoctorProfile,
 } from "../services/doctorApi";
 import {
   Card,
@@ -57,6 +59,8 @@ export default function ManageAvailabilityPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
+  const [consultationFee, setConsultationFee] = useState("");
+
   const [newSlot, setNewSlot] = useState({
     dayOfWeek: "MONDAY",
     startTime: "09:00",
@@ -84,9 +88,25 @@ export default function ManageAvailabilityPage() {
     }
   }, [doctorId]);
 
+  const fetchFee = useCallback(async () => {
+    if (!doctorId) return;
+    try {
+      const data = await getDoctorByUserId(doctorId);
+      if (
+        data?.consultationFee != null &&
+        !Number.isNaN(Number(data.consultationFee))
+      ) {
+        setConsultationFee(String(data.consultationFee));
+      }
+    } catch {
+      // ignore
+    }
+  }, [doctorId]);
+
   useEffect(() => {
     fetchSlots();
-  }, [fetchSlots]);
+    fetchFee();
+  }, [fetchSlots, fetchFee]);
 
   const handleCreate = async (e) => {
     e.preventDefault();
@@ -108,6 +128,16 @@ export default function ManageAvailabilityPage() {
     }
 
     try {
+      const feeTrimmed = String(consultationFee ?? "").trim();
+      if (feeTrimmed !== "") {
+        const feeNumber = Number(feeTrimmed);
+        if (Number.isNaN(feeNumber) || feeNumber < 0) {
+          setError("Consultation fee must be a number (0 or greater).");
+          return;
+        }
+        await updateDoctorProfile(doctorId, { consultationFee: feeNumber });
+      }
+
       const payload = {
         slots: [
           {
@@ -166,6 +196,25 @@ export default function ManageAvailabilityPage() {
             </CardHeader>
             <CardContent className="pt-6">
               <form onSubmit={handleCreate} className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-xs font-bold uppercase text-muted-foreground">
+                    Consultation Fee
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    inputMode="decimal"
+                    placeholder="e.g. 50"
+                    value={consultationFee}
+                    onChange={(e) => setConsultationFee(e.target.value)}
+                    className="w-full rounded-lg border bg-background px-3 py-2 text-sm"
+                  />
+                  <p className="text-[10px] text-muted-foreground">
+                    This is the price patients see when booking.
+                  </p>
+                </div>
+
                 <div className="space-y-2">
                   <label className="text-xs font-bold uppercase text-muted-foreground">
                     Day of Week
