@@ -40,12 +40,14 @@ class TelemedicineNotificationEventServiceTest {
     private RecipientProfileLookupService profileLookupService;
 
     private TelemedicineNotificationEventService service;
+    private NotificationEmailQueueService emailQueueService;
 
     @BeforeEach
     void setUp() {
         NotificationProperties properties = new NotificationProperties();
         properties.setRetentionDays(90);
-        service = new TelemedicineNotificationEventService(repository, properties, profileLookupService);
+        emailQueueService = new NotificationEmailQueueService(repository, properties);
+        service = new TelemedicineNotificationEventService(repository, properties, profileLookupService, emailQueueService);
     }
 
     @Test
@@ -92,7 +94,7 @@ class TelemedicineNotificationEventServiceTest {
     }
 
     @Test
-    void shouldQueueEmailAndSmsWhenRecipientProfilesResolveSuccessfully() {
+    void shouldQueueInAppAndSmsWithoutCompletionEmailWhenRecipientProfilesResolveSuccessfully() {
         when(profileLookupService.resolvePatient("patient-1"))
                 .thenReturn(new RecipientProfileLookupService.ResolvedRecipient(
                         "patient-1",
@@ -123,19 +125,55 @@ class TelemedicineNotificationEventServiceTest {
 
         TriggerAcceptedResponse response = service.handleConsultationCompleted(request);
 
-        assertEquals(6, response.acceptedRecipients());
+        assertEquals(4, response.acceptedRecipients());
         assertEquals(0, response.duplicateRecipients());
 
         ArgumentCaptor<NotificationDelivery> captor = ArgumentCaptor.forClass(NotificationDelivery.class);
-        verify(repository, times(6)).save(captor.capture());
+        verify(repository, times(4)).save(captor.capture());
         List<NotificationDelivery> saved = captor.getAllValues();
 
         long pendingCount = saved.stream().filter(item -> item.getStatus() == NotificationStatus.PENDING).count();
         long sentCount = saved.stream().filter(item -> item.getStatus() == NotificationStatus.SENT).count();
         long smsCount = saved.stream().filter(item -> item.getChannel() == NotificationChannel.SMS).count();
-        assertEquals(4, pendingCount);
+        assertEquals(2, pendingCount);
         assertEquals(2, sentCount);
         assertEquals(2, smsCount);
         saved.forEach(item -> assertEquals(NotificationEventType.TELEMEDICINE_CONSULTATION_COMPLETED, item.getEventType()));
+    }
+
+    @Test
+    void consultationCompletedEmailHandlerShouldNotQueueWhenCanonicalAppointmentCompletedIsEnabled() {
+        when(profileLookupService.resolvePatient("patient-1"))
+                .thenReturn(new RecipientProfileLookupService.ResolvedRecipient(
+                        "patient-1",
+                        "Patient One",
+                        "patient@medicare.com",
+                        "+94770000001"));
+        when(profileLookupService.resolveDoctor("doctor-1"))
+                .thenReturn(new RecipientProfileLookupService.ResolvedRecipient(
+                        "doctor-1",
+                        "Doctor One",
+                        "doctor@medicare.com",
+                        "+94770000002"));
+
+        TelemedicineConsultationCompletedEventRequest request = new TelemedicineConsultationCompletedEventRequest(
+                "tm-session-2-completed",
+                Instant.parse("2026-04-16T11:00:00Z"),
+                "apt-3",
+                "telemedicine-service",
+                "session-2",
+                "patient-1",
+                "Patient One",
+                "doctor-1",
+                "Doctor One",
+                "Diabetes follow-up",
+                Instant.parse("2026-04-16T11:20:00Z"),
+                1200L);
+
+        TriggerAcceptedResponse response = service.handleConsultationCompletedEmail(request);
+
+        assertEquals(0, response.acceptedRecipients());
+        assertEquals(0, response.duplicateRecipients());
+        verify(repository, times(0)).save(any(NotificationDelivery.class));
     }
 }

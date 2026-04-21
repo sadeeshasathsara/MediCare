@@ -38,21 +38,37 @@ public class TelemedicineNotificationEventService {
     private static final String TEMPLATE_PRESCRIPTION_ISSUED = "telemedicine-prescription-issued";
     private static final String TEMPLATE_SMS_TELEMEDICINE_UPDATE = "telemedicine-update";
     private static final Pattern E164_PATTERN = Pattern.compile("^\\+?[1-9]\\d{7,14}$");
+    private static final boolean TELEMEDICINE_CONSULTATION_COMPLETION_EMAIL_ENABLED = false;
 
     private final NotificationDeliveryRepository repository;
     private final NotificationProperties properties;
     private final RecipientProfileLookupService recipientProfileLookupService;
+    private final NotificationEmailQueueService emailQueueService;
 
     public TelemedicineNotificationEventService(
             NotificationDeliveryRepository repository,
             NotificationProperties properties,
-            RecipientProfileLookupService recipientProfileLookupService) {
+            RecipientProfileLookupService recipientProfileLookupService,
+            NotificationEmailQueueService emailQueueService) {
         this.repository = repository;
         this.properties = properties;
         this.recipientProfileLookupService = recipientProfileLookupService;
+        this.emailQueueService = emailQueueService;
     }
 
     public TriggerAcceptedResponse handleAppointmentStatus(TelemedicineAppointmentStatusEventRequest request) {
+        return handleAppointmentStatus(request, true, true, true);
+    }
+
+    public TriggerAcceptedResponse handleAppointmentStatusEmail(TelemedicineAppointmentStatusEventRequest request) {
+        return handleAppointmentStatus(request, false, true, false);
+    }
+
+    private TriggerAcceptedResponse handleAppointmentStatus(
+            TelemedicineAppointmentStatusEventRequest request,
+            boolean includeInApp,
+            boolean includeEmail,
+            boolean includeSms) {
         NotificationEventType eventType = mapAppointmentEventType(request.decisionStatus());
         String subject = switch (request.decisionStatus()) {
             case ACCEPTED -> "Telemedicine appointment accepted - " + request.appointmentId();
@@ -112,59 +128,63 @@ public class TelemedicineNotificationEventService {
         doctorData.put("smsMessage", doctorSummary);
 
         DeliveryCount counts = DeliveryCount.zero();
-        counts = counts.add(persistInAppForRecipient(
-                eventType,
-                request.eventId(),
-                request.appointmentId(),
-                request.sourceService(),
-                request.occurredAt(),
-                patient,
-                "PATIENT",
-                subject,
-                patientData,
-                patientSummary));
+        if (includeInApp) {
+            counts = counts.add(persistInAppForRecipient(
+                    eventType,
+                    request.eventId(),
+                    request.appointmentId(),
+                    request.sourceService(),
+                    request.occurredAt(),
+                    patient,
+                    "PATIENT",
+                    subject,
+                    patientData,
+                    patientSummary));
 
-        counts = counts.add(persistInAppForRecipient(
-                eventType,
-                request.eventId(),
-                request.appointmentId(),
-                request.sourceService(),
-                request.occurredAt(),
-                doctor,
-                "DOCTOR",
-                subject,
-                doctorData,
-                doctorSummary));
+            counts = counts.add(persistInAppForRecipient(
+                    eventType,
+                    request.eventId(),
+                    request.appointmentId(),
+                    request.sourceService(),
+                    request.occurredAt(),
+                    doctor,
+                    "DOCTOR",
+                    subject,
+                    doctorData,
+                    doctorSummary));
+        }
 
-        counts = counts.add(persistEmailForRecipient(
-                eventType,
-                request.eventId(),
-                request.appointmentId(),
-                request.sourceService(),
-                request.occurredAt(),
-                patient,
-                "PATIENT",
-                subject,
-                templateName,
-                patientData,
-                patientSummary,
-                scheduledAt));
+        if (includeEmail) {
+            counts = counts.add(persistEmailForRecipient(
+                    eventType,
+                    request.eventId(),
+                    request.appointmentId(),
+                    request.sourceService(),
+                    request.occurredAt(),
+                    patient,
+                    "PATIENT",
+                    subject,
+                    templateName,
+                    patientData,
+                    patientSummary,
+                    scheduledAt));
 
-        counts = counts.add(persistEmailForRecipient(
-                eventType,
-                request.eventId(),
-                request.appointmentId(),
-                request.sourceService(),
-                request.occurredAt(),
-                doctor,
-                "DOCTOR",
-                subject,
-                templateName,
-                doctorData,
-                doctorSummary,
-                scheduledAt));
+            counts = counts.add(persistEmailForRecipient(
+                    eventType,
+                    request.eventId(),
+                    request.appointmentId(),
+                    request.sourceService(),
+                    request.occurredAt(),
+                    doctor,
+                    "DOCTOR",
+                    subject,
+                    templateName,
+                    doctorData,
+                    doctorSummary,
+                    scheduledAt));
+        }
 
-        if (properties.getSms().isEnabled()) {
+        if (includeSms && properties.getSms().isEnabled()) {
             counts = counts.add(persistSmsForRecipient(
                     eventType,
                     request.eventId(),
@@ -200,6 +220,18 @@ public class TelemedicineNotificationEventService {
     }
 
     public TriggerAcceptedResponse handleConsultationCompleted(TelemedicineConsultationCompletedEventRequest request) {
+        return handleConsultationCompleted(request, true, TELEMEDICINE_CONSULTATION_COMPLETION_EMAIL_ENABLED, true);
+    }
+
+    public TriggerAcceptedResponse handleConsultationCompletedEmail(TelemedicineConsultationCompletedEventRequest request) {
+        return handleConsultationCompleted(request, false, TELEMEDICINE_CONSULTATION_COMPLETION_EMAIL_ENABLED, false);
+    }
+
+    private TriggerAcceptedResponse handleConsultationCompleted(
+            TelemedicineConsultationCompletedEventRequest request,
+            boolean includeInApp,
+            boolean includeEmail,
+            boolean includeSms) {
         NotificationEventType eventType = NotificationEventType.TELEMEDICINE_CONSULTATION_COMPLETED;
         String subject = "Telemedicine consultation completed - " + request.appointmentId();
         Instant scheduledAt = Instant.now();
@@ -236,59 +268,63 @@ public class TelemedicineNotificationEventService {
         doctorData.put("smsMessage", doctorSummary);
 
         DeliveryCount counts = DeliveryCount.zero();
-        counts = counts.add(persistInAppForRecipient(
-                eventType,
-                request.eventId(),
-                request.appointmentId(),
-                request.sourceService(),
-                request.occurredAt(),
-                patient,
-                "PATIENT",
-                subject,
-                patientData,
-                patientSummary));
+        if (includeInApp) {
+            counts = counts.add(persistInAppForRecipient(
+                    eventType,
+                    request.eventId(),
+                    request.appointmentId(),
+                    request.sourceService(),
+                    request.occurredAt(),
+                    patient,
+                    "PATIENT",
+                    subject,
+                    patientData,
+                    patientSummary));
 
-        counts = counts.add(persistInAppForRecipient(
-                eventType,
-                request.eventId(),
-                request.appointmentId(),
-                request.sourceService(),
-                request.occurredAt(),
-                doctor,
-                "DOCTOR",
-                subject,
-                doctorData,
-                doctorSummary));
+            counts = counts.add(persistInAppForRecipient(
+                    eventType,
+                    request.eventId(),
+                    request.appointmentId(),
+                    request.sourceService(),
+                    request.occurredAt(),
+                    doctor,
+                    "DOCTOR",
+                    subject,
+                    doctorData,
+                    doctorSummary));
+        }
 
-        counts = counts.add(persistEmailForRecipient(
-                eventType,
-                request.eventId(),
-                request.appointmentId(),
-                request.sourceService(),
-                request.occurredAt(),
-                patient,
-                "PATIENT",
-                subject,
-                TEMPLATE_CONSULTATION_COMPLETED,
-                patientData,
-                patientSummary,
-                scheduledAt));
+        if (includeEmail) {
+            counts = counts.add(persistEmailForRecipient(
+                    eventType,
+                    request.eventId(),
+                    request.appointmentId(),
+                    request.sourceService(),
+                    request.occurredAt(),
+                    patient,
+                    "PATIENT",
+                    subject,
+                    TEMPLATE_CONSULTATION_COMPLETED,
+                    patientData,
+                    patientSummary,
+                    scheduledAt));
 
-        counts = counts.add(persistEmailForRecipient(
-                eventType,
-                request.eventId(),
-                request.appointmentId(),
-                request.sourceService(),
-                request.occurredAt(),
-                doctor,
-                "DOCTOR",
-                subject,
-                TEMPLATE_CONSULTATION_COMPLETED,
-                doctorData,
-                doctorSummary,
-                scheduledAt));
+            counts = counts.add(persistEmailForRecipient(
+                    eventType,
+                    request.eventId(),
+                    request.appointmentId(),
+                    request.sourceService(),
+                    request.occurredAt(),
+                    doctor,
+                    "DOCTOR",
+                    subject,
+                    TEMPLATE_CONSULTATION_COMPLETED,
+                    doctorData,
+                    doctorSummary,
+                    scheduledAt));
+        }
 
-        if (properties.getSms().isEnabled()) {
+        if (includeSms && properties.getSms().isEnabled()) {
             counts = counts.add(persistSmsForRecipient(
                     eventType,
                     request.eventId(),
@@ -324,6 +360,18 @@ public class TelemedicineNotificationEventService {
     }
 
     public TriggerAcceptedResponse handlePrescriptionIssued(TelemedicinePrescriptionIssuedEventRequest request) {
+        return handlePrescriptionIssued(request, true, true, true);
+    }
+
+    public TriggerAcceptedResponse handlePrescriptionIssuedEmail(TelemedicinePrescriptionIssuedEventRequest request) {
+        return handlePrescriptionIssued(request, false, true, false);
+    }
+
+    private TriggerAcceptedResponse handlePrescriptionIssued(
+            TelemedicinePrescriptionIssuedEventRequest request,
+            boolean includeInApp,
+            boolean includeEmail,
+            boolean includeSms) {
         NotificationEventType eventType = NotificationEventType.TELEMEDICINE_PRESCRIPTION_ISSUED;
         String subject = "Telemedicine prescription issued - " + request.appointmentId();
         Instant scheduledAt = Instant.now();
@@ -360,59 +408,63 @@ public class TelemedicineNotificationEventService {
         doctorData.put("smsMessage", doctorSummary);
 
         DeliveryCount counts = DeliveryCount.zero();
-        counts = counts.add(persistInAppForRecipient(
-                eventType,
-                request.eventId(),
-                request.appointmentId(),
-                request.sourceService(),
-                request.occurredAt(),
-                patient,
-                "PATIENT",
-                subject,
-                patientData,
-                patientSummary));
+        if (includeInApp) {
+            counts = counts.add(persistInAppForRecipient(
+                    eventType,
+                    request.eventId(),
+                    request.appointmentId(),
+                    request.sourceService(),
+                    request.occurredAt(),
+                    patient,
+                    "PATIENT",
+                    subject,
+                    patientData,
+                    patientSummary));
 
-        counts = counts.add(persistInAppForRecipient(
-                eventType,
-                request.eventId(),
-                request.appointmentId(),
-                request.sourceService(),
-                request.occurredAt(),
-                doctor,
-                "DOCTOR",
-                subject,
-                doctorData,
-                doctorSummary));
+            counts = counts.add(persistInAppForRecipient(
+                    eventType,
+                    request.eventId(),
+                    request.appointmentId(),
+                    request.sourceService(),
+                    request.occurredAt(),
+                    doctor,
+                    "DOCTOR",
+                    subject,
+                    doctorData,
+                    doctorSummary));
+        }
 
-        counts = counts.add(persistEmailForRecipient(
-                eventType,
-                request.eventId(),
-                request.appointmentId(),
-                request.sourceService(),
-                request.occurredAt(),
-                patient,
-                "PATIENT",
-                subject,
-                TEMPLATE_PRESCRIPTION_ISSUED,
-                patientData,
-                patientSummary,
-                scheduledAt));
+        if (includeEmail) {
+            counts = counts.add(persistEmailForRecipient(
+                    eventType,
+                    request.eventId(),
+                    request.appointmentId(),
+                    request.sourceService(),
+                    request.occurredAt(),
+                    patient,
+                    "PATIENT",
+                    subject,
+                    TEMPLATE_PRESCRIPTION_ISSUED,
+                    patientData,
+                    patientSummary,
+                    scheduledAt));
 
-        counts = counts.add(persistEmailForRecipient(
-                eventType,
-                request.eventId(),
-                request.appointmentId(),
-                request.sourceService(),
-                request.occurredAt(),
-                doctor,
-                "DOCTOR",
-                subject,
-                TEMPLATE_PRESCRIPTION_ISSUED,
-                doctorData,
-                doctorSummary,
-                scheduledAt));
+            counts = counts.add(persistEmailForRecipient(
+                    eventType,
+                    request.eventId(),
+                    request.appointmentId(),
+                    request.sourceService(),
+                    request.occurredAt(),
+                    doctor,
+                    "DOCTOR",
+                    subject,
+                    TEMPLATE_PRESCRIPTION_ISSUED,
+                    doctorData,
+                    doctorSummary,
+                    scheduledAt));
+        }
 
-        if (properties.getSms().isEnabled()) {
+        if (includeSms && properties.getSms().isEnabled()) {
             counts = counts.add(persistSmsForRecipient(
                     eventType,
                     request.eventId(),
@@ -461,39 +513,12 @@ public class TelemedicineNotificationEventService {
             String summary,
             Instant scheduledAt) {
 
-        if (recipient.errorMessage() != null) {
-            return persistFailedEmail(
-                    eventType,
-                    eventId,
-                    appointmentId,
-                    sourceService,
-                    occurredAt,
-                    recipient,
-                    recipientRole,
-                    subject,
-                    templateName,
-                    templateData,
-                    summary,
-                    recipient.errorMessage());
-        }
-
-        if (!hasText(recipient.email())) {
-            return persistFailedEmail(
-                    eventType,
-                    eventId,
-                    appointmentId,
-                    sourceService,
-                    occurredAt,
-                    recipient,
-                    recipientRole,
-                    subject,
-                    templateName,
-                    templateData,
-                    summary,
-                    "Recipient email is missing for userId=" + recipient.userId());
-        }
-
-        NotificationDelivery delivery = baseDelivery(
+        String failureReason = recipient.errorMessage() != null
+                ? recipient.errorMessage()
+                : (!hasText(recipient.email())
+                        ? "Recipient email is missing for userId=" + recipient.userId()
+                        : null);
+        NotificationEmailQueueService.QueueResult result = emailQueueService.queueEmail(
                 eventType,
                 eventId,
                 appointmentId,
@@ -501,19 +526,16 @@ public class TelemedicineNotificationEventService {
                 occurredAt,
                 recipient.userId(),
                 recipient.displayName(),
+                recipient.email(),
+                recipient.phone(),
                 recipientRole,
                 subject,
                 templateName,
                 templateData,
                 summary,
-                scheduledAt);
-
-        delivery.setChannel(NotificationChannel.EMAIL);
-        delivery.setRecipientEmail(normalizeEmail(recipient.email()));
-        delivery.setRecipientPhone(normalizePhone(recipient.phone()));
-        delivery.setSmsType(null);
-
-        return persistDelivery(delivery);
+                scheduledAt,
+                failureReason);
+        return DeliveryCount.fromQueueResult(result);
     }
 
     private DeliveryCount persistSmsForRecipient(
@@ -596,48 +618,6 @@ public class TelemedicineNotificationEventService {
         delivery.setReadAt(null);
 
         return persistDelivery(delivery);
-    }
-
-    private DeliveryCount persistFailedEmail(
-            NotificationEventType eventType,
-            String eventId,
-            String appointmentId,
-            String sourceService,
-            Instant occurredAt,
-            RecipientContext recipient,
-            String recipientRole,
-            String subject,
-            String templateName,
-            Map<String, Object> templateData,
-            String summary,
-            String failureReason) {
-
-        NotificationDelivery failed = baseDelivery(
-                eventType,
-                eventId,
-                appointmentId,
-                sourceService,
-                occurredAt,
-                recipient.userId(),
-                recipient.displayName(),
-                recipientRole,
-                subject,
-                templateName,
-                templateData,
-                summary,
-                Instant.now());
-
-        failed.setChannel(NotificationChannel.EMAIL);
-        failed.setRecipientEmail(normalizeEmail(recipient.email()));
-        failed.setRecipientPhone(normalizePhone(recipient.phone()));
-        failed.setSmsType(null);
-        failed.setStatus(NotificationStatus.FAILED);
-        failed.setAttemptCount(Math.max(1, properties.getWorker().getMaxAttempts()));
-        failed.setNextAttemptAt(null);
-        failed.setLastError(truncate(defaultText(failureReason, "Recipient resolution failed"), 500));
-        failed.setSentAt(null);
-
-        return persistDelivery(failed);
     }
 
     private NotificationDelivery baseDelivery(
@@ -795,13 +775,6 @@ public class TelemedicineNotificationEventService {
         templateData.put("expiresAt", formatInstant(request.expiresAt()));
     }
 
-    private static String truncate(String value, int maxLength) {
-        if (value == null || value.length() <= maxLength) {
-            return value;
-        }
-        return value.substring(0, maxLength) + "...";
-    }
-
     private static String normalizeEmail(String email) {
         return email == null ? "" : email.trim().toLowerCase(Locale.ROOT);
     }
@@ -846,6 +819,13 @@ public class TelemedicineNotificationEventService {
 
         static DeliveryCount oneDuplicate() {
             return new DeliveryCount(0, 1);
+        }
+
+        static DeliveryCount fromQueueResult(NotificationEmailQueueService.QueueResult result) {
+            if (result == null) {
+                return zero();
+            }
+            return new DeliveryCount(result.accepted(), result.duplicates());
         }
 
         DeliveryCount add(DeliveryCount other) {
