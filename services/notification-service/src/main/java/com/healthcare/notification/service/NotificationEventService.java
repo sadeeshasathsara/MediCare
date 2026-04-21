@@ -57,14 +57,17 @@ public class NotificationEventService {
     private final NotificationDeliveryRepository repository;
     private final NotificationProperties properties;
     private final RecipientProfileLookupService recipientProfileLookupService;
+    private final NotificationEmailQueueService emailQueueService;
 
     public NotificationEventService(
             NotificationDeliveryRepository repository,
             NotificationProperties properties,
-            RecipientProfileLookupService recipientProfileLookupService) {
+            RecipientProfileLookupService recipientProfileLookupService,
+            NotificationEmailQueueService emailQueueService) {
         this.repository = repository;
         this.properties = properties;
         this.recipientProfileLookupService = recipientProfileLookupService;
+        this.emailQueueService = emailQueueService;
     }
 
     public void validateInternalToken(String providedToken) {
@@ -86,6 +89,18 @@ public class NotificationEventService {
     }
 
     public TriggerAcceptedResponse handleAppointmentActivity(AppointmentActivityEventRequest request) {
+        return handleAppointmentActivity(request, true, true, true);
+    }
+
+    public TriggerAcceptedResponse handleAppointmentActivityEmail(AppointmentActivityEventRequest request) {
+        return handleAppointmentActivity(request, false, true, false);
+    }
+
+    private TriggerAcceptedResponse handleAppointmentActivity(
+            AppointmentActivityEventRequest request,
+            boolean includeInApp,
+            boolean includeEmail,
+            boolean includeSms) {
         NotificationEventType eventType = request.eventType();
         if (!APPOINTMENT_ACTIVITY_EVENTS.contains(eventType)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "unsupported appointment activity event type");
@@ -143,50 +158,8 @@ public class NotificationEventService {
         doctorData.put("smsMessage", buildSmsSummary(eventType, patientName, doctorName, appointmentDateTime, reason, true));
         Instant now = Instant.now();
 
-        DeliveryCount counts;
-        if (eventType == NotificationEventType.APPOINTMENT_REQUESTED) {
-            counts = persistInAppForRecipient(
-                    eventType,
-                    request.eventId(),
-                    request.appointmentId(),
-                    request.sourceService(),
-                    request.occurredAt(),
-                    doctor,
-                    "DOCTOR",
-                    subject,
-                    doctorData,
-                    doctorSummary);
-            counts = counts.add(persistEmailDelivery(
-                    eventType,
-                    request.eventId(),
-                    request.appointmentId(),
-                    request.sourceService(),
-                    request.occurredAt(),
-                    doctor,
-                    "DOCTOR",
-                    emailSubject,
-                    TEMPLATE_EMAIL_APPOINTMENT_ACTIVITY,
-                    doctorData,
-                    doctorSummary,
-                    now));
-
-            if (properties.getSms().isEnabled() && isPhoneValid(doctor.phoneNumber())) {
-                counts = counts.add(persistSmsDelivery(
-                        eventType,
-                        request.eventId(),
-                        request.appointmentId(),
-                        request.sourceService(),
-                        request.occurredAt(),
-                        doctor,
-                        "DOCTOR",
-                        "Appointment update SMS",
-                        TEMPLATE_SMS_APPOINTMENT_ACTIVITY,
-                        doctorData,
-                        doctorSummary,
-                        SmsNotificationType.BOOKING_CONFIRMATION,
-                        now));
-            }
-        } else {
+        DeliveryCount counts = DeliveryCount.zero();
+        if (includeInApp) {
             counts = persistInAppForRecipients(
                     eventType,
                     request.eventId(),
@@ -200,7 +173,9 @@ public class NotificationEventService {
                     doctorData,
                     patientSummary,
                     doctorSummary);
+        }
 
+        if (includeEmail) {
             counts = counts.add(persistEmailForRecipients(
                     eventType,
                     request.eventId(),
@@ -216,25 +191,25 @@ public class NotificationEventService {
                     patientSummary,
                     doctorSummary,
                     now));
+        }
 
-            if (properties.getSms().isEnabled()) {
-                counts = counts.add(persistSmsForRecipients(
-                        eventType,
-                        request.eventId(),
-                        request.appointmentId(),
-                        request.sourceService(),
-                        request.occurredAt(),
-                        patient,
-                        doctor,
-                        "Appointment update SMS",
-                        TEMPLATE_SMS_APPOINTMENT_ACTIVITY,
-                        patientData,
-                        doctorData,
-                        patientSummary,
-                        doctorSummary,
-                        SmsNotificationType.BOOKING_CONFIRMATION,
-                        now));
-            }
+        if (includeSms && properties.getSms().isEnabled()) {
+            counts = counts.add(persistSmsForRecipients(
+                    eventType,
+                    request.eventId(),
+                    request.appointmentId(),
+                    request.sourceService(),
+                    request.occurredAt(),
+                    patient,
+                    doctor,
+                    "Appointment update SMS",
+                    TEMPLATE_SMS_APPOINTMENT_ACTIVITY,
+                    patientData,
+                    doctorData,
+                    patientSummary,
+                    doctorSummary,
+                    SmsNotificationType.BOOKING_CONFIRMATION,
+                    now));
         }
 
         return buildResponse(request.eventId(), eventType, counts);
@@ -576,32 +551,24 @@ public class NotificationEventService {
             String summary,
             Instant scheduledAt) {
 
-        String normalizedEmail = normalizeEmail(recipient.email());
-        if (!hasText(normalizedEmail)) {
-            return persistFailedEmailDelivery(
-                    eventType,
-                    eventId,
-                    appointmentId,
-                    sourceService,
-                    occurredAt,
-                    recipient,
-                    recipientRole,
-                    subject,
-                    templateName,
-                    templateData,
-                    summary,
-                    "Recipient email is missing for userId=" + defaultText(recipient.userId(), "unknown"));
-        }
-
-        NotificationDelivery delivery = baseDelivery(
-                eventType, eventId, appointmentId, sourceService, occurredAt, recipient, recipientRole,
-                subject, templateName, templateData, summary, scheduledAt);
-        delivery.setChannel(NotificationChannel.EMAIL);
-        delivery.setRecipientEmail(normalizedEmail);
-        delivery.setRecipientPhone(normalizePhone(recipient.phoneNumber()));
-        delivery.setSmsType(null);
-
-        return persistDelivery(delivery);
+        NotificationEmailQueueService.QueueResult result = emailQueueService.queueEmail(
+                eventType,
+                eventId,
+                appointmentId,
+                sourceService,
+                occurredAt,
+                recipient.userId(),
+                recipient.name(),
+                recipient.email(),
+                recipient.phoneNumber(),
+                recipientRole,
+                subject,
+                templateName,
+                templateData,
+                summary,
+                scheduledAt,
+                null);
+        return DeliveryCount.fromQueueResult(result);
     }
 
     private DeliveryCount persistSmsDelivery(
@@ -628,36 +595,6 @@ public class NotificationEventService {
         delivery.setSmsType(smsType);
 
         return persistDelivery(delivery);
-    }
-
-    private DeliveryCount persistFailedEmailDelivery(
-            NotificationEventType eventType,
-            String eventId,
-            String appointmentId,
-            String sourceService,
-            Instant occurredAt,
-            EventRecipient recipient,
-            String recipientRole,
-            String subject,
-            String templateName,
-            Map<String, Object> templateData,
-            String summary,
-            String failureReason) {
-
-        NotificationDelivery failed = baseDelivery(
-                eventType, eventId, appointmentId, sourceService, occurredAt, recipient, recipientRole,
-                subject, templateName, templateData, summary, Instant.now());
-        failed.setChannel(NotificationChannel.EMAIL);
-        failed.setRecipientEmail(normalizeEmail(recipient.email()));
-        failed.setRecipientPhone(normalizePhone(recipient.phoneNumber()));
-        failed.setSmsType(null);
-        failed.setStatus(NotificationStatus.FAILED);
-        failed.setAttemptCount(Math.max(1, properties.getWorker().getMaxAttempts()));
-        failed.setNextAttemptAt(null);
-        failed.setLastError(truncate(defaultText(failureReason, "Email delivery failed"), 500));
-        failed.setSentAt(null);
-
-        return persistDelivery(failed);
     }
 
     private NotificationDelivery baseDelivery(
@@ -865,17 +802,6 @@ public class NotificationEventService {
         return value.trim();
     }
 
-    private static boolean hasText(String value) {
-        return value != null && !value.isBlank();
-    }
-
-    private static String truncate(String value, int maxLength) {
-        if (value == null || value.length() <= maxLength) {
-            return value;
-        }
-        return value.substring(0, maxLength) + "...";
-    }
-
     private static String normalizeEmail(String email) {
         return email == null ? "" : email.trim().toLowerCase(Locale.ROOT);
     }
@@ -902,6 +828,13 @@ public class NotificationEventService {
 
         static DeliveryCount oneDuplicate() {
             return new DeliveryCount(0, 1);
+        }
+
+        static DeliveryCount fromQueueResult(NotificationEmailQueueService.QueueResult result) {
+            if (result == null) {
+                return zero();
+            }
+            return new DeliveryCount(result.accepted(), result.duplicates());
         }
 
         DeliveryCount add(DeliveryCount other) {

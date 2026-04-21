@@ -745,9 +745,14 @@ export default function TelemedicinePage() {
         }))
       })
       await refreshConsultationForSession(updatedSession)
-      setSessionActionState(actionSuccess('end', 'Session completed. You can now complete consultation notes and prescriptions.'))
+      setSessionActionState(
+        actionSuccess(
+          'end',
+          'Telemedicine completed. Appointment marked completed and notifications queued for patient and doctor.'
+        )
+      )
     } catch (error) {
-      setSessionActionState(actionError('end', getErrorMessage(error, 'Unable to end the session.')))
+      setSessionActionState(actionError('end', getErrorMessage(error, 'Unable to complete telemedicine.')))
     }
   }
 
@@ -1032,7 +1037,7 @@ export default function TelemedicinePage() {
                     disabled={sessionActionState.loading}
                     className="inline-flex items-center justify-center rounded-2xl border border-rose-300 bg-rose-100 px-4 py-2 text-sm font-semibold text-rose-900 transition hover:bg-rose-200 disabled:cursor-not-allowed disabled:opacity-60 dark:border-rose-800/70 dark:bg-rose-950/35 dark:text-rose-100 dark:hover:bg-rose-900/45"
                   >
-                    {sessionActionState.loading && sessionActionState.kind === 'end' ? 'Ending...' : 'End Session'}
+                    {sessionActionState.loading && sessionActionState.kind === 'end' ? 'Completing...' : 'Complete Telemedicine'}
                   </button>
                 ) : null}
                 {selectedSession.sessionStatus === 'COMPLETED' ? (

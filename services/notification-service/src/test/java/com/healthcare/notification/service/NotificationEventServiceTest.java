@@ -32,13 +32,15 @@ class NotificationEventServiceTest {
     private RecipientProfileLookupService profileLookupService;
 
     private NotificationEventService service;
+    private NotificationEmailQueueService emailQueueService;
 
     @BeforeEach
     void setUp() {
         NotificationProperties properties = new NotificationProperties();
         properties.setInternalToken("secret-token");
         properties.setRetentionDays(90);
-        service = new NotificationEventService(repository, properties, profileLookupService);
+        emailQueueService = new NotificationEmailQueueService(repository, properties);
+        service = new NotificationEventService(repository, properties, profileLookupService, emailQueueService);
     }
 
     @Test
@@ -89,7 +91,7 @@ class NotificationEventServiceTest {
     }
 
     @Test
-    void shouldCreateDoctorOnlyRecordsForAppointmentRequestedActivity() {
+    void shouldCreatePatientAndDoctorRecordsForAppointmentRequestedActivity() {
         org.mockito.Mockito.when(profileLookupService.resolvePatient("patient-1"))
                 .thenReturn(new RecipientProfileLookupService.ResolvedRecipient(
                         "patient-1", "Patient One", "patient@medicare.com", "+94770000001"));
@@ -114,7 +116,7 @@ class NotificationEventServiceTest {
 
         TriggerAcceptedResponse response = service.handleAppointmentActivity(request);
 
-        assertEquals(3, response.acceptedRecipients());
+        assertEquals(6, response.acceptedRecipients());
         assertEquals(0, response.duplicateRecipients());
     }
 
@@ -145,6 +147,36 @@ class NotificationEventServiceTest {
         TriggerAcceptedResponse response = service.handleAppointmentActivity(request);
 
         assertEquals(5, response.acceptedRecipients());
+        assertEquals(0, response.duplicateRecipients());
+    }
+
+    @Test
+    void shouldQueueEmailOnlyForAppointmentActivityEmailHandler() {
+        org.mockito.Mockito.when(profileLookupService.resolvePatient("patient-1"))
+                .thenReturn(new RecipientProfileLookupService.ResolvedRecipient(
+                        "patient-1", "Patient One", "patient@medicare.com", "+94770000001"));
+        org.mockito.Mockito.when(profileLookupService.resolveDoctor("doctor-1"))
+                .thenReturn(new RecipientProfileLookupService.ResolvedRecipient(
+                        "doctor-1", "Doctor One", "doctor@medicare.com", "+94770000002"));
+
+        AppointmentActivityEventRequest request = new AppointmentActivityEventRequest(
+                "activity-3",
+                NotificationEventType.APPOINTMENT_COMPLETED,
+                Instant.parse("2026-04-18T12:00:00Z"),
+                "apt-5",
+                "appointment-service",
+                "patient-1",
+                "Patient One",
+                "doctor-1",
+                "Doctor One",
+                "Follow-up",
+                Instant.parse("2026-04-20T09:00:00Z"),
+                "doctor-1",
+                "DOCTOR");
+
+        TriggerAcceptedResponse response = service.handleAppointmentActivityEmail(request);
+
+        assertEquals(2, response.acceptedRecipients());
         assertEquals(0, response.duplicateRecipients());
     }
 }

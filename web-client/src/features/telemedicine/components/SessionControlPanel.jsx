@@ -165,7 +165,7 @@ export default function SessionControlPanel({
                       {actionState.loading && actionState.kind === 'join' ? 'Preparing...' : 'Generate Doctor Join'}
                     </button>
 
-                    {/* Start Session — shown when not yet live */}
+                    {/* Start Session - shown when not yet live */}
                     {session.sessionStatus !== 'LIVE' && session.sessionStatus !== 'COMPLETED' && (
                       <button
                         type="button"
@@ -178,7 +178,7 @@ export default function SessionControlPanel({
                       </button>
                     )}
 
-                    {/* End Session — shown only when live */}
+                    {/* Complete Telemedicine - shown only when live */}
                     {session.sessionStatus === 'LIVE' && (
                       <button
                         type="button"
@@ -186,7 +186,7 @@ export default function SessionControlPanel({
                         onClick={onEndSession}
                         className={actionButtonClass('danger')}
                       >
-                        {actionState.loading && actionState.kind === 'end' ? 'Ending...' : 'End Session'}
+                        {actionState.loading && actionState.kind === 'end' ? 'Completing...' : 'Complete Telemedicine'}
                       </button>
                     )}
                   </div>
