@@ -9,6 +9,13 @@ This service supports email + SMS notifications with async processing and delive
   - Appointment confirmed
   - Appointment cancelled (with refund details)
   - Consultation completed (with prescription link)
+  - Appointment activity (requested/confirmed/rescheduled/cancelled/completed)
+  - Telemedicine appointment status / consultation / prescription events
+- Dedicated internal email queue APIs implemented for:
+  - Appointment activity email queueing
+  - Telemedicine appointment status email queueing
+  - Telemedicine consultation-completed email queueing (dedupe-aware)
+  - Telemedicine prescription-issued email queueing
 - Token-protected internal endpoints (`X-Service-Token`).
 - MongoDB persistence for each recipient (patient and doctor as separate records).
 - Idempotency implemented using unique key:
@@ -33,6 +40,8 @@ This service supports email + SMS notifications with async processing and delive
   - email notifications immediately (patient + doctor)
   - booking confirmation SMS immediately (patient + doctor when phone numbers are present)
   - reminder SMS at 1 hour before appointment (patient + doctor when phone numbers are present)
+- Appointment requested activity now creates notifications for **both** patient and doctor (in-app + email; SMS when enabled and phone is valid).
+- Canonical completion email source is `APPOINTMENT_COMPLETED` activity; telemedicine consultation-completed email queueing is disabled to avoid duplicate completion emails.
 
 ## Developed APIs
 
@@ -67,6 +76,18 @@ Direct service URL (if running standalone): `http://localhost:3007`
 - Optional query params:
   - `type`: `APPOINTMENT_CONFIRMED | APPOINTMENT_CANCELLED | CONSULTATION_COMPLETED`
   - `status`: `PENDING | SENT | FAILED`
+
+### 5) Dedicated Internal Email Queue APIs
+
+- `POST /internal/emails/appointment-activity`
+- `POST /internal/emails/telemedicine/appointment-status`
+- `POST /internal/emails/telemedicine/consultation-completed`
+- `POST /internal/emails/telemedicine/prescription-issued`
+- Header for all: `X-Service-Token: <NOTIFICATION_INTERNAL_TOKEN>`
+- Behavior:
+  - reuses the same event payload DTOs as existing internal event APIs
+  - queues **email channel only**
+  - consultation-completed email endpoint is currently dedupe-aware and does not enqueue completion email records while appointment-completed remains canonical
 
 ## Email + SMS Setup Completion Tracker
 
@@ -111,6 +132,7 @@ Optional tuning variables:
 ### 4) Functional Verification Checklist
 
 - [ ] `POST /internal/events/appointment-confirmed` returns `202 Accepted`.
+- [ ] `POST /internal/emails/appointment-activity` returns `202 Accepted`.
 - [ ] `GET /notifications/me` shows created records (`PENDING` initially).
 - [ ] Worker processes records and status becomes `SENT`.
 - [ ] SendGrid dashboard shows accepted outbound email.
