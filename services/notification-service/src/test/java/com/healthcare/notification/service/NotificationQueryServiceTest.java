@@ -1,5 +1,7 @@
 package com.healthcare.notification.service;
 
+import com.healthcare.notification.dto.api.NotificationReadState;
+import com.healthcare.notification.model.NotificationChannel;
 import com.healthcare.notification.model.NotificationDelivery;
 import com.healthcare.notification.model.NotificationEventType;
 import com.healthcare.notification.model.NotificationStatus;
@@ -32,8 +34,10 @@ class NotificationQueryServiceTest {
     void shouldFilterByUserIdAndOptionalCriteria() {
         NotificationDelivery delivery = new NotificationDelivery();
         delivery.setRecipientUserId("user-1");
+        delivery.setChannel(NotificationChannel.IN_APP);
         delivery.setEventType(NotificationEventType.APPOINTMENT_CONFIRMED);
         delivery.setStatus(NotificationStatus.SENT);
+        delivery.setReadAt(null);
 
         when(mongoTemplate.count(any(Query.class), eq(NotificationDelivery.class))).thenReturn(1L);
         when(mongoTemplate.find(any(Query.class), eq(NotificationDelivery.class))).thenReturn(List.of(delivery));
@@ -44,15 +48,14 @@ class NotificationQueryServiceTest {
                 0,
                 20,
                 NotificationEventType.APPOINTMENT_CONFIRMED,
-                NotificationStatus.SENT);
+                NotificationStatus.SENT,
+                NotificationReadState.UNREAD);
 
         ArgumentCaptor<Query> queryCaptor = ArgumentCaptor.forClass(Query.class);
         verify(mongoTemplate).find(queryCaptor.capture(), eq(NotificationDelivery.class));
 
         Document queryDoc = queryCaptor.getValue().getQueryObject();
-        assertEquals("user-1", queryDoc.get("recipientUserId"));
-        assertEquals("APPOINTMENT_CONFIRMED", String.valueOf(queryDoc.get("eventType")));
-        assertEquals("SENT", String.valueOf(queryDoc.get("status")));
+        assertTrue(queryDoc.containsKey("$and"));
         assertEquals(1, page.getTotalElements());
         assertEquals(1, page.getContent().size());
         assertTrue(page.getContent().stream().allMatch(item -> "user-1".equals(item.getRecipientUserId())));

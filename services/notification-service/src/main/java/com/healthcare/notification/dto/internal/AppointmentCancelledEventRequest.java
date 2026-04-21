@@ -13,6 +13,7 @@ public record AppointmentCancelledEventRequest(
         @NotBlank String sourceService,
         @NotNull @Valid EventRecipient patient,
         @NotNull @Valid EventRecipient doctor,
+        String appointmentReason,
         @NotBlank String cancellationReason,
         @Valid RefundInfo refund) {
 }

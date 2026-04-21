@@ -66,7 +66,10 @@ public class NotificationServiceRestClient implements TelemedicineNotificationCl
                 appointment.getId(),
                 SOURCE_SERVICE,
                 appointment.getPatientId(),
+                appointment.getPatientName(),
                 appointment.getDoctorId(),
+                appointment.getDoctorName(),
+                appointment.getReasonForVisit(),
                 decisionStatus,
                 appointment.getScheduledAt(),
                 appointment.getProposedScheduledAt(),
@@ -94,7 +97,10 @@ public class NotificationServiceRestClient implements TelemedicineNotificationCl
                 SOURCE_SERVICE,
                 session.getId(),
                 session.getPatientId(),
+                null,
                 session.getDoctorId(),
+                null,
+                null,
                 occurredAt,
                 session.getDurationSeconds());
 
@@ -123,7 +129,10 @@ public class NotificationServiceRestClient implements TelemedicineNotificationCl
                 prescription.getId(),
                 prescription.getConsultationId(),
                 prescription.getPatientId(),
+                null,
                 prescription.getDoctorId(),
+                null,
+                null,
                 issuedAt,
                 prescription.getExpiresAt());
 

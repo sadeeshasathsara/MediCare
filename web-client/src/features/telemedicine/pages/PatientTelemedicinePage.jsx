@@ -27,6 +27,7 @@ import {
 } from 'lucide-react'
 
 import { useAuth } from '@/context/AuthContext'
+import { getAuthItem } from '@/services/authStorage'
 import FeatureNotice from '@/features/telemedicine/components/FeatureNotice'
 import LiveConsultationPanel from '@/features/telemedicine/components/LiveConsultationPanel'
 import StatusBadge from '@/features/telemedicine/components/StatusBadge'
@@ -229,7 +230,7 @@ export default function PatientTelemedicinePage() {
   ), [accessToken])
 
   const patientIdentifiers = useMemo(() => {
-    const storedUser = safeJsonParse(localStorage.getItem('user'))
+    const storedUser = safeJsonParse(getAuthItem('user'))
     const identifiers = new Set([
       ...getTelemedicinePatientIdentifiers(user),
       ...getTelemedicinePatientIdentifiers(storedUser),

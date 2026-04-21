@@ -21,6 +21,45 @@ function shortId(id) {
   return String(id || '').slice(0, 8).toUpperCase()
 }
 
+function hasMeaningfulText(value) {
+  return typeof value === 'string' && value.trim().length > 0
+}
+
+function getPatientName(appointment) {
+  const patientId = String(appointment?.patientId || '').trim()
+  const fallbackLabel = patientId ? `patient ${patientId}`.toLowerCase() : ''
+
+  const candidates = [
+    appointment?.patientName,
+    appointment?.patientDisplay?.name,
+  ]
+
+  for (const candidate of candidates) {
+    if (!hasMeaningfulText(candidate)) continue
+    const trimmed = candidate.trim()
+    if (fallbackLabel && trimmed.toLowerCase() === fallbackLabel) continue
+    return trimmed
+  }
+
+  return 'Unknown patient'
+}
+
+function getAppointmentReason(appointment) {
+  const candidates = [
+    appointment?.reasonForVisit,
+    appointment?.reason,
+    appointment?.notes,
+  ]
+
+  for (const candidate of candidates) {
+    if (hasMeaningfulText(candidate)) {
+      return candidate.trim()
+    }
+  }
+
+  return 'Consultation request'
+}
+
 function useNowTick(intervalMs = 1000) {
   const [nowMs, setNowMs] = useState(null)
 
@@ -115,7 +154,7 @@ function PendingCard({ appointment, onSelect }) {
     <button
       type="button"
       onClick={() => onSelect(appointment.id)}
-      className="group w-full rounded-2xl border-2 border-amber-300 bg-amber-50/60 p-4 text-left transition-all hover:-translate-y-0.5 hover:border-amber-400 hover:bg-amber-50 hover:shadow-[0_4px_24px_-8px_rgba(245,158,11,0.4)] dark:border-amber-700/60 dark:bg-amber-950/20 dark:hover:border-amber-600"
+      className="group w-full rounded-2xl border-2 border-amber-300 bg-white p-4 text-left transition-all hover:-translate-y-0.5 hover:border-amber-400 hover:bg-white hover:shadow-[0_4px_24px_-8px_rgba(245,158,11,0.28)]"
     >
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 space-y-2">
@@ -133,10 +172,10 @@ function PendingCard({ appointment, onSelect }) {
           </div>
 
           <p className="text-sm font-semibold" style={{ color: 'hsl(var(--foreground))' }}>
-            {appointment.patientDisplay?.name || `Patient ${shortId(appointment.patientId)}`}
+            {getPatientName(appointment)}
           </p>
           <p className="text-xs" style={{ color: 'hsl(var(--muted-foreground))' }}>
-            {appointment.reasonForVisit || 'Consultation request'}
+            {getAppointmentReason(appointment)}
           </p>
         </div>
 
@@ -168,12 +207,15 @@ function UpcomingCard({ appointment, session, onSelect }) {
       onClick={() => onSelect(appointment.id)}
       className={`group w-full rounded-2xl border p-4 text-left transition-all hover:-translate-y-0.5 hover:shadow-md ${
         isLive
-          ? 'border-red-300 bg-red-50/60 hover:border-red-400 dark:border-red-700/60 dark:bg-red-950/20'
+          ? 'border-red-300 hover:border-red-400'
           : isWaiting
-            ? 'border-orange-300 bg-orange-50/60 hover:border-orange-400 dark:border-orange-700/60 dark:bg-orange-950/20'
+            ? 'border-orange-300 hover:border-orange-400'
             : 'hover:border-primary/30'
       }`}
-      style={!isLive && !isWaiting ? { borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--card))' } : {}}
+      style={{
+        backgroundColor: '#ffffff',
+        ...(!isLive && !isWaiting ? { borderColor: 'hsl(var(--border))' } : {}),
+      }}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 space-y-2">
@@ -188,7 +230,10 @@ function UpcomingCard({ appointment, session, onSelect }) {
             </span>
           </div>
           <p className="text-sm font-semibold" style={{ color: 'hsl(var(--foreground))' }}>
-            {appointment.patientDisplay?.name || `Patient ${shortId(appointment.patientId)}`}
+            {getPatientName(appointment)}
+          </p>
+          <p className="text-xs" style={{ color: 'hsl(var(--muted-foreground))' }}>
+            {getAppointmentReason(appointment)}
           </p>
           <p className="flex items-center gap-1.5 text-xs" style={{ color: 'hsl(var(--muted-foreground))' }}>
             <Video className="h-3 w-3" />
@@ -221,14 +266,17 @@ function RescheduledRow({ appointment, onSelect }) {
     <button
       type="button"
       onClick={() => onSelect(appointment.id)}
-      className="group flex w-full items-center justify-between gap-4 rounded-xl border px-4 py-3 text-left transition hover:bg-black/[0.02] dark:hover:bg-white/[0.04]"
-      style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--card))' }}
+      className="group flex w-full items-center justify-between gap-4 rounded-xl border px-4 py-3 text-left transition hover:bg-black/[0.02]"
+      style={{ borderColor: 'hsl(var(--border))', backgroundColor: '#ffffff' }}
     >
       <div className="flex items-center gap-3 flex-1 min-w-0">
         <StatusBadge status="RESCHEDULED" />
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold" style={{ color: 'hsl(var(--foreground))' }}>
-            {appointment.patientDisplay?.name || `Patient ${shortId(appointment.patientId)}`}
+            {getPatientName(appointment)}
+          </p>
+          <p className="text-xs" style={{ color: 'hsl(var(--muted-foreground))' }}>
+            {getAppointmentReason(appointment)}
           </p>
           <p className="text-xs" style={{ color: 'hsl(var(--muted-foreground))' }}>
             {formatDateTime(appointment.scheduledAt)}
