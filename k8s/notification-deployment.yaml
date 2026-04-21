@@ -36,6 +36,21 @@ spec:
                 secretKeyRef:
                   name: medicare-secrets
                   key: NOTIFICATION_INTERNAL_TOKEN
+            - name: NOTIFICATION_EMAIL_PROVIDER
+              valueFrom:
+                secretKeyRef:
+                  name: medicare-secrets
+                  key: NOTIFICATION_EMAIL_PROVIDER
+            - name: NOTIFICATION_EMAIL_FROM
+              valueFrom:
+                secretKeyRef:
+                  name: medicare-secrets
+                  key: NOTIFICATION_EMAIL_FROM
+            - name: SENDGRID_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: medicare-secrets
+                  key: SENDGRID_API_KEY
             - name: NOTIFICATION_SMS_ENABLED
               value: "false"
             - name: NOTIFICATION_PROFILE_LOOKUP_PATIENT_SERVICE_BASE_URL

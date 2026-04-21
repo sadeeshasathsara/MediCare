@@ -290,6 +290,15 @@ export default function AppRoutes() {
         path="/patient/symptom-checker"
         element={requireRole('PATIENT', <TopNavLayout navLinks={patientLinks}><SymptomCheckerPage /></TopNavLayout>)}
       />
+      <Route
+        path="/patient/notifications"
+        element={requireRole(
+          "PATIENT",
+          <TopNavLayout navLinks={patientLinks}>
+            <NotificationsPage />
+          </TopNavLayout>,
+        )}
+      />
 
       {/* Doctor Routes — wrapped in TopNavLayout */}
       <Route

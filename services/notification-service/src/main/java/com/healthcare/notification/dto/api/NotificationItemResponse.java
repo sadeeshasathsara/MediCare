@@ -25,6 +25,8 @@ public record NotificationItemResponse(
         Instant occurredAt,
         Instant createdAt,
         Instant sentAt,
+        Instant readAt,
+        boolean read,
         String lastError,
         Map<String, Object> templateData) {
 }

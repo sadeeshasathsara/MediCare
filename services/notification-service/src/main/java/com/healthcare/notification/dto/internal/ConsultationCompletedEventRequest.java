@@ -13,5 +13,6 @@ public record ConsultationCompletedEventRequest(
         @NotBlank String sourceService,
         @NotNull @Valid EventRecipient patient,
         @NotNull @Valid EventRecipient doctor,
+        String appointmentReason,
         @NotNull @Valid PrescriptionInfo prescription) {
 }

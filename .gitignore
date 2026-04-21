@@ -50,3 +50,4 @@ Thumbs.db
 # Local Binaries and Executables
 .bin/
 *.exe
+services/notification-service/.m2repo/

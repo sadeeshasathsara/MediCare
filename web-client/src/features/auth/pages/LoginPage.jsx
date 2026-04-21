@@ -23,9 +23,9 @@ export default function LoginPage() {
       const data = response.data
 
       const userProfile = {
-        id: data?.user?.id,
-        role: data?.user?.role,
-        doctorVerified: data?.user?.doctorVerified,
+        id: data?.user?.id || data?.userId || data?.id,
+        role: data?.user?.role || data?.role,
+        doctorVerified: data?.user?.doctorVerified ?? data?.doctorVerified,
         email,
         name: String(email || '').split('@')[0],
       }

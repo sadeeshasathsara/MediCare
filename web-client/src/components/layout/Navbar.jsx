@@ -2,18 +2,43 @@ import { useAuth } from '@/context/AuthContext'
 import { useTheme } from '@/context/ThemeContext'
 import { useMobile } from '@/hooks/useMobile'
 import { downloadPatientProfilePhoto } from '@/features/patients/services/patientApi'
-import { Sun, Moon, Menu, LogOut, User, ChevronDown, HeartPulse, X } from 'lucide-react'
-import { useState, useRef, useEffect, useMemo } from 'react'
-import { Link, NavLink } from 'react-router-dom'
+import {
+  emitNotificationsUpdated,
+  getUnreadCount,
+  listNotifications,
+  markAllNotificationsRead,
+  markNotificationRead,
+  NOTIFICATION_POLL_INTERVAL_MS,
+} from '@/features/notifications/services/notificationApi'
+import {
+  formatNotificationTime,
+  getAppointmentReason,
+  getEventLabel,
+  getNotificationTargetPath,
+  isNotificationRead,
+} from '@/features/notifications/services/notificationUtils'
+import { Sun, Moon, Menu, LogOut, User, ChevronDown, HeartPulse, X, Bell, CheckCheck } from 'lucide-react'
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
+import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
 
 export default function Navbar({ onMenuClick, showMenuButton = true, showLogo = false, navLinks = [] }) {
   const { theme, toggleTheme } = useTheme()
   const { user, logout } = useAuth()
+  const navigate = useNavigate()
+  const location = useLocation()
   const isMobile = useMobile()
   const [dropdownOpen, setDropdownOpen] = useState(false)
+  const [notificationOpen, setNotificationOpen] = useState(false)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [avatarUrl, setAvatarUrl] = useState('')
+  const [notificationLoading, setNotificationLoading] = useState(false)
+  const [notificationItems, setNotificationItems] = useState([])
+  const [unreadCount, setUnreadCount] = useState(0)
   const dropdownRef = useRef(null)
+  const notificationRef = useRef(null)
+
+  const notificationsEnabled = user?.role === 'DOCTOR' || user?.role === 'PATIENT'
+  const notificationsRoute = user?.role === 'DOCTOR' ? '/doctor/notifications' : '/patient/notifications'
 
   const profilePath = useMemo(() => {
     const role = user?.role
@@ -27,6 +52,9 @@ export default function Navbar({ onMenuClick, showMenuButton = true, showLogo = 
     function handleClickOutside(e) {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
         setDropdownOpen(false)
+      }
+      if (notificationRef.current && !notificationRef.current.contains(e.target)) {
+        setNotificationOpen(false)
       }
     }
     document.addEventListener('mousedown', handleClickOutside)
@@ -73,6 +101,113 @@ export default function Navbar({ onMenuClick, showMenuButton = true, showLogo = 
       if (objectUrlToRevoke) URL.revokeObjectURL(objectUrlToRevoke)
     }
   }, [user?.id, user?.role])
+
+  const loadUnreadCount = useCallback(async () => {
+    if (!notificationsEnabled) {
+      setUnreadCount(0)
+      return
+    }
+
+    try {
+      const count = await getUnreadCount()
+      setUnreadCount(count)
+    } catch {
+      // Keep previous count on transient failures.
+    }
+  }, [notificationsEnabled])
+
+  const loadNotificationPreview = useCallback(async () => {
+    if (!notificationsEnabled) {
+      setNotificationItems([])
+      return
+    }
+
+    setNotificationLoading(true)
+    try {
+      const result = await listNotifications({ page: 0, size: 5, readState: 'all' })
+      setNotificationItems(Array.isArray(result?.items) ? result.items : [])
+    } catch {
+      setNotificationItems([])
+    } finally {
+      setNotificationLoading(false)
+    }
+  }, [notificationsEnabled])
+
+  useEffect(() => {
+    if (!notificationsEnabled) return undefined
+
+    loadUnreadCount()
+    const id = window.setInterval(() => {
+      loadUnreadCount()
+    }, NOTIFICATION_POLL_INTERVAL_MS)
+
+    return () => window.clearInterval(id)
+  }, [loadUnreadCount, notificationsEnabled])
+
+  useEffect(() => {
+    if (!notificationsEnabled) return
+    loadUnreadCount()
+  }, [location.pathname, loadUnreadCount, notificationsEnabled])
+
+  useEffect(() => {
+    if (!notificationsEnabled) return undefined
+
+    function onFocus() {
+      loadUnreadCount()
+      if (notificationOpen) {
+        loadNotificationPreview()
+      }
+    }
+
+    function onNotificationsUpdated() {
+      loadUnreadCount()
+      if (notificationOpen) {
+        loadNotificationPreview()
+      }
+    }
+
+    window.addEventListener('focus', onFocus)
+    window.addEventListener('notifications-updated', onNotificationsUpdated)
+    return () => {
+      window.removeEventListener('focus', onFocus)
+      window.removeEventListener('notifications-updated', onNotificationsUpdated)
+    }
+  }, [loadNotificationPreview, loadUnreadCount, notificationOpen, notificationsEnabled])
+
+  const handleToggleNotifications = async () => {
+    const nextOpen = !notificationOpen
+    setNotificationOpen(nextOpen)
+    if (nextOpen) {
+      await loadNotificationPreview()
+    }
+  }
+
+  const handleOpenNotification = async (item) => {
+    if (!item) return
+
+    const read = isNotificationRead(item)
+    if (!read) {
+      try {
+        await markNotificationRead(item.id)
+      } catch {
+        // Non-blocking; navigation should still proceed.
+      }
+    }
+
+    emitNotificationsUpdated()
+    setNotificationOpen(false)
+    navigate(getNotificationTargetPath(item, user?.role))
+  }
+
+  const handleMarkAllRead = async () => {
+    try {
+      await markAllNotificationsRead()
+      emitNotificationsUpdated()
+      await loadNotificationPreview()
+    } catch {
+      // Non-blocking action.
+    }
+  }
 
   return (
     <header
@@ -134,6 +269,116 @@ export default function Navbar({ onMenuClick, showMenuButton = true, showLogo = 
           >
             {mobileNavOpen ? <X size={22} /> : <Menu size={22} />}
           </button>
+        )}
+
+        {notificationsEnabled && (
+          <div className="relative" ref={notificationRef}>
+            <button
+              type="button"
+              onClick={handleToggleNotifications}
+              className="relative p-2.5 rounded-lg transition-colors cursor-pointer"
+              style={{ color: 'hsl(var(--muted-foreground))' }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = 'hsl(var(--accent))'
+                e.currentTarget.style.color = 'hsl(var(--accent-foreground))'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'transparent'
+                e.currentTarget.style.color = 'hsl(var(--muted-foreground))'
+              }}
+              title="Notifications"
+            >
+              <Bell size={20} />
+              {unreadCount > 0 && (
+                <span
+                  className="absolute -top-0.5 -right-0.5 min-w-5 h-5 px-1 rounded-full text-[10px] font-bold flex items-center justify-center"
+                  style={{ backgroundColor: 'hsl(var(--destructive))', color: 'hsl(var(--destructive-foreground))' }}
+                >
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </span>
+              )}
+            </button>
+
+            {notificationOpen && (
+              <div
+                className="absolute right-0 top-full mt-2 w-80 rounded-lg border shadow-lg py-2 z-50"
+                style={{
+                  backgroundColor: 'hsl(var(--popover))',
+                  borderColor: 'hsl(var(--border))',
+                  color: 'hsl(var(--popover-foreground))',
+                }}
+              >
+                <div className="flex items-center justify-between px-3 pb-2">
+                  <p className="text-sm font-semibold">Notifications</p>
+                  <div className="flex items-center gap-2">
+                    {unreadCount > 0 && (
+                      <button
+                        type="button"
+                        onClick={handleMarkAllRead}
+                        className="inline-flex items-center gap-1 text-xs font-medium rounded-md px-2 py-1 transition hover:bg-black/[0.05]"
+                        style={{ color: 'hsl(var(--primary))' }}
+                      >
+                        <CheckCheck size={12} />
+                        Mark all
+                      </button>
+                    )}
+                    <Link
+                      to={notificationsRoute}
+                      onClick={() => setNotificationOpen(false)}
+                      className="text-xs font-medium"
+                      style={{ color: 'hsl(var(--primary))' }}
+                    >
+                      View all
+                    </Link>
+                  </div>
+                </div>
+
+                <div className="max-h-80 overflow-y-auto">
+                  {notificationLoading ? (
+                    <p className="px-3 py-6 text-xs text-center" style={{ color: 'hsl(var(--muted-foreground))' }}>
+                      Loading notifications...
+                    </p>
+                  ) : null}
+
+                  {!notificationLoading && notificationItems.length === 0 ? (
+                    <p className="px-3 py-6 text-xs text-center" style={{ color: 'hsl(var(--muted-foreground))' }}>
+                      No notifications yet.
+                    </p>
+                  ) : null}
+
+                  {!notificationLoading && notificationItems.map((item) => {
+                    const read = isNotificationRead(item)
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => handleOpenNotification(item)}
+                        className="w-full text-left px-3 py-2 transition hover:bg-black/[0.04]"
+                      >
+                        <div className="flex items-start gap-2">
+                          <span
+                            className="mt-1.5 h-2 w-2 rounded-full shrink-0"
+                            style={{ backgroundColor: read ? 'hsl(var(--muted))' : 'hsl(var(--primary))' }}
+                          />
+                          <div className="min-w-0 flex-1 space-y-0.5">
+                            <p className="text-xs font-semibold truncate" style={{ color: 'hsl(var(--foreground))' }}>
+                              {getEventLabel(item.eventType)}
+                            </p>
+                            <p className="text-xs truncate" style={{ color: 'hsl(var(--muted-foreground))' }}>
+                              {getAppointmentReason(item)}
+                            </p>
+                            <p className="text-[11px]" style={{ color: 'hsl(var(--muted-foreground))' }}>
+                              {formatNotificationTime(item.occurredAt || item.createdAt)}
+                            </p>
+                          </div>
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
         )}
 
         {/* Theme toggle */}

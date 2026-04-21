@@ -13,7 +13,9 @@ import java.util.Map;
 @Document(collection = "notification_deliveries")
 @CompoundIndexes({
         @CompoundIndex(name = "uq_event_recipient_channel_type", def = "{'eventId':1,'eventType':1,'recipientUserId':1,'channel':1,'smsType':1}", unique = true),
-        @CompoundIndex(name = "idx_recipient_created_at", def = "{'recipientUserId':1,'createdAt':-1}")
+        @CompoundIndex(name = "uq_event_recipient_channel_in_app", def = "{'eventId':1,'recipientUserId':1,'channel':1}", unique = true, partialFilter = "{'channel':'IN_APP'}"),
+        @CompoundIndex(name = "idx_recipient_created_at", def = "{'recipientUserId':1,'createdAt':-1}"),
+        @CompoundIndex(name = "idx_recipient_read_created_at", def = "{'recipientUserId':1,'readAt':1,'createdAt':-1}")
 })
 public class NotificationDelivery {
 
@@ -47,6 +49,7 @@ public class NotificationDelivery {
     private Instant nextAttemptAt;
     private String lastError;
     private Instant sentAt;
+    private Instant readAt;
 
     private Instant createdAt;
     private Instant updatedAt;
@@ -252,6 +255,14 @@ public class NotificationDelivery {
 
     public void setSentAt(Instant sentAt) {
         this.sentAt = sentAt;
+    }
+
+    public Instant getReadAt() {
+        return readAt;
+    }
+
+    public void setReadAt(Instant readAt) {
+        this.readAt = readAt;
     }
 
     public Instant getCreatedAt() {

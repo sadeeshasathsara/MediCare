@@ -1,6 +1,7 @@
 package com.healthcare.notification.controller;
 
 import com.healthcare.notification.dto.internal.AppointmentCancelledEventRequest;
+import com.healthcare.notification.dto.internal.AppointmentActivityEventRequest;
 import com.healthcare.notification.dto.internal.AppointmentConfirmedEventRequest;
 import com.healthcare.notification.dto.internal.ConsultationCompletedEventRequest;
 import com.healthcare.notification.dto.internal.TelemedicineAppointmentStatusEventRequest;
@@ -38,6 +39,14 @@ public class InternalEventController {
             @Valid @RequestBody AppointmentConfirmedEventRequest request) {
         notificationEventService.validateInternalToken(serviceToken);
         return ResponseEntity.accepted().body(notificationEventService.handleAppointmentConfirmed(request));
+    }
+
+    @PostMapping("/appointment-activity")
+    public ResponseEntity<TriggerAcceptedResponse> appointmentActivity(
+            @RequestHeader(value = SERVICE_TOKEN_HEADER, required = false) String serviceToken,
+            @Valid @RequestBody AppointmentActivityEventRequest request) {
+        notificationEventService.validateInternalToken(serviceToken);
+        return ResponseEntity.accepted().body(notificationEventService.handleAppointmentActivity(request));
     }
 
     @PostMapping("/appointment-cancelled")

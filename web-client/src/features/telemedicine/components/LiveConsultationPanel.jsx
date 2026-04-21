@@ -26,6 +26,7 @@ export default function LiveConsultationPanel({
   const containerRef = useRef(null)
   const apiRef = useRef(null)
   const [embedState, setEmbedState] = useState({ status: 'idle', message: '' })
+  const [participantCount, setParticipantCount] = useState(1)
   const [retryIndex, setRetryIndex] = useState(0)
 
   const jitsiDomain = joinInfo?.jitsiDomain
@@ -70,7 +71,7 @@ export default function LiveConsultationPanel({
           width: '100%',
           height: '100%',
           userInfo: {
-            displayName: currentUser?.name || 'Participant',
+            displayName: `${participantLabel === 'doctor' ? 'Doctor' : participantLabel === 'patient' ? 'Patient' : 'Participant'}: ${currentUser?.name || 'Guest'}`,
             email: currentUser?.email,
           },
           configOverwrite: {
@@ -80,6 +81,7 @@ export default function LiveConsultationPanel({
             },
             requireDisplayName: false,
             disableDeepLinking: true,
+            disableSelfView: false,
           },
           interfaceConfigOverwrite: {
             DISABLE_JOIN_LEAVE_NOTIFICATIONS: true,
@@ -93,17 +95,22 @@ export default function LiveConsultationPanel({
         const jitsiApi = new JitsiMeetExternalAPI(domain, jitsiOptions)
         const configHash = buildJitsiConfigHash()
         let layoutSyncTimeoutId = null
+        const syncParticipantCount = () => {
+          try {
+            const remoteCount = Number(jitsiApi.getNumberOfParticipants?.() || 0)
+            setParticipantCount(remoteCount + 1)
+          } catch {
+            setParticipantCount(1)
+          }
+        }
 
         jitsiApi.addListener('videoConferenceJoined', () => {
-          try {
-            jitsiApi.executeCommand('setTileView', true)
-          } catch {
-            // Ignore non-critical layout commands when the provider does not support them.
-          }
-
           window.clearTimeout(layoutSyncTimeoutId)
           layoutSyncTimeoutId = window.setTimeout(syncLargeVideoLayout, 250)
+          syncParticipantCount()
         })
+        jitsiApi.addListener('participantJoined', syncParticipantCount)
+        jitsiApi.addListener('participantLeft', syncParticipantCount)
 
         try {
           jitsiApi.executeCommand('overwriteConfig', {
@@ -136,6 +143,7 @@ export default function LiveConsultationPanel({
         teardown = () => {
           window.removeEventListener('resize', syncLargeVideoLayout)
           window.clearTimeout(layoutSyncTimeoutId)
+          setParticipantCount(1)
         }
       } catch (error) {
         if (cancelled) return
@@ -161,7 +169,7 @@ export default function LiveConsultationPanel({
       }
       containerNode.innerHTML = ''
     }
-  }, [allowEmbed, currentUser?.email, currentUser?.name, jitsiDomain, roomId, token, retryIndex])
+  }, [allowEmbed, currentUser?.email, currentUser?.name, jitsiDomain, participantLabel, roomId, token, retryIndex])
 
   if (fullscreen) {
     return (
@@ -329,7 +337,7 @@ export default function LiveConsultationPanel({
             <button
               type="button"
               onClick={() => setRetryIndex((index) => index + 1)}
-              className="mt-3 inline-flex items-center rounded-2xl border px-4 py-2 text-sm font-semibold transition hover:bg-black/[0.03] dark:hover:bg-white/[0.05]"
+                className="mt-3 inline-flex items-center rounded-2xl border px-4 py-2 text-sm font-semibold transition hover:bg-black/3 dark:hover:bg-white/5"
               style={{ borderColor: 'hsl(var(--border))', color: 'hsl(var(--foreground))' }}
             >
               Retry meeting load
@@ -339,7 +347,7 @@ export default function LiveConsultationPanel({
 
         {joinInfo && embedState.status === 'loading' ? (
           <div
-            className="flex min-h-[10rem] items-center justify-center rounded-[24px] border border-dashed"
+            className="flex min-h-40 items-center justify-center rounded-3xl border border-dashed"
             style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--background) / 0.5)' }}
           >
             <div className="flex items-center gap-3 text-sm font-medium" style={{ color: 'hsl(var(--muted-foreground))' }}>
@@ -360,11 +368,18 @@ export default function LiveConsultationPanel({
                 Inline consultation meeting
               </p>
             </div>
-            {joinInfo ? (
-              <span className="text-xs uppercase tracking-[0.18em]" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                Embedded via Jitsi External API
-              </span>
-            ) : null}
+            <div className="flex items-center gap-3">
+              {joinInfo ? (
+                <span className="text-xs uppercase tracking-[0.18em]" style={{ color: 'hsl(var(--muted-foreground))' }}>
+                  Embedded via Jitsi External API
+                </span>
+              ) : null}
+              {joinInfo ? (
+                <span className="rounded-full border px-2.5 py-1 text-xs font-semibold" style={{ borderColor: 'hsl(var(--border))', color: 'hsl(var(--foreground))' }}>
+                  Participants: {participantCount}
+                </span>
+              ) : null}
+            </div>
           </div>
 
           <div className="relative w-full">

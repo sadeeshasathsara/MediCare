@@ -2,14 +2,6 @@ export const APPOINTMENT_STATUSES = ['PENDING', 'ACCEPTED', 'RESCHEDULED', 'REJE
 export const SESSION_STATUSES = ['SCHEDULED', 'WAITING', 'LIVE', 'COMPLETED', 'MISSED', 'CANCELLED']
 export const PRESCRIPTION_STATUSES = ['DRAFT', 'ISSUED', 'DISPENSED', 'CANCELLED']
 export const READY_POLL_STATUSES = new Set(['SCHEDULED', 'WAITING', 'LIVE'])
-export const SEEDED_TELEMEDICINE_PATIENT = {
-  profileId: '69d1ec55acc43c5456fe30a2',
-  userId: '69cd4dc01d72c817c641a3e3',
-  name: 'Sadeesha Sathsara',
-  email: 'sadeesha.patient@gmail.com',
-  dob: '2003-06-21',
-  status: 'ACTIVE',
-}
 
 const PREFERRED_APPOINTMENT_ORDER = ['PENDING', 'ACCEPTED', 'RESCHEDULED']
 
@@ -258,16 +250,6 @@ export function getSessionStateCopy(sessionStatus) {
 }
 
 export function resolveTelemedicinePatient(patientId) {
-  if (
-    patientId === SEEDED_TELEMEDICINE_PATIENT.userId ||
-    patientId === SEEDED_TELEMEDICINE_PATIENT.profileId
-  ) {
-    return {
-      ...SEEDED_TELEMEDICINE_PATIENT,
-      knownPatient: true,
-    }
-  }
-
   return {
     userId: patientId || 'Unknown patient',
     name: patientId ? `Patient ${patientId}` : 'Unknown patient',
@@ -280,7 +262,6 @@ export function resolveTelemedicinePatient(patientId) {
 
 export function getTelemedicinePatientIdentifiers(user) {
   const identifiers = new Set()
-  const normalizedEmail = String(user?.email || '').toLowerCase()
   const addIdentifier = (value) => {
     if (value === undefined || value === null) return
     const normalized = String(value).trim()
@@ -307,20 +288,6 @@ export function getTelemedicinePatientIdentifiers(user) {
     user?.profile?._id,
   ]
   nestedCandidates.forEach(addIdentifier)
-
-  const isSeededPatientById = Array.from(identifiers).some((value) => (
-    value === SEEDED_TELEMEDICINE_PATIENT.userId ||
-    value === SEEDED_TELEMEDICINE_PATIENT.profileId
-  ))
-
-  const isSeededPatientByEmail =
-    normalizedEmail &&
-    normalizedEmail === String(SEEDED_TELEMEDICINE_PATIENT.email || '').toLowerCase()
-
-  if (isSeededPatientById || isSeededPatientByEmail) {
-    identifiers.add(SEEDED_TELEMEDICINE_PATIENT.userId)
-    identifiers.add(SEEDED_TELEMEDICINE_PATIENT.profileId)
-  }
 
   return Array.from(identifiers)
 }

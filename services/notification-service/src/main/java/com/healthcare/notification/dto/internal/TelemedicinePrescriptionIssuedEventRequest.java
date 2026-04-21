@@ -13,7 +13,10 @@ public record TelemedicinePrescriptionIssuedEventRequest(
         @NotBlank String prescriptionId,
         @NotBlank String consultationId,
         @NotBlank String patientUserId,
+        String patientName,
         @NotBlank String doctorUserId,
+        String doctorName,
+        String appointmentReason,
         @NotNull Instant issuedAt,
         Instant expiresAt) {
 }
