@@ -22,7 +22,6 @@ const navItems = [
   { label: 'Dashboard', icon: LayoutDashboard, path: '/' },
   { label: 'Book Consultation', icon: ClipboardList, path: '/patient/book', patientOnly: true },
   { label: 'My Appointments', icon: CalendarCheck, path: '/appointments' },
-  { label: 'Telemedicine', icon: Video, path: '/telemedicine', patientOnly: true },
   { label: 'Payments', icon: CreditCard, path: '/payments' },
   { label: 'Notifications', icon: Bell, path: '/notifications' },
   { label: 'AI Symptom', icon: BrainCircuit, path: '/symptom-checker' },
