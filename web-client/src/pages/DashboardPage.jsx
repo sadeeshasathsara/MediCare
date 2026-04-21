@@ -126,14 +126,14 @@ export default function DashboardPage() {
                       apt.status === 'Completed'
                         ? 'hsl(142 71% 45% / 0.1)'
                         : apt.status === 'In Progress'
-                        ? 'hsl(25 95% 53% / 0.1)'
-                        : 'hsl(var(--accent))',
+                          ? 'hsl(25 95% 53% / 0.1)'
+                          : 'hsl(var(--accent))',
                     color:
                       apt.status === 'Completed'
                         ? 'hsl(142 71% 45%)'
                         : apt.status === 'In Progress'
-                        ? 'hsl(25 95% 53%)'
-                        : 'hsl(var(--accent-foreground))',
+                          ? 'hsl(25 95% 53%)'
+                          : 'hsl(var(--accent-foreground))',
                   }}
                 >
                   {apt.status}
@@ -159,7 +159,6 @@ export default function DashboardPage() {
               { label: 'Book Appointment', path: '/appointments/book' },
               { label: 'Register Patient', path: '/patients/new' },
               { label: 'AI Symptom Check', path: '/symptom-checker' },
-              { label: 'Start Video Call', path: '/telemedicine' },
             ].map((action) => (
               <button
                 key={action.label}

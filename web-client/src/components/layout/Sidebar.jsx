@@ -22,7 +22,7 @@ const navItems = [
   { label: 'Dashboard', icon: LayoutDashboard, path: '/' },
   { label: 'Book Consultation', icon: ClipboardList, path: '/patient/book', patientOnly: true },
   { label: 'My Appointments', icon: CalendarCheck, path: '/appointments' },
-  { label: 'Telemedicine', icon: Video, path: '/telemedicine' },
+  { label: 'Telemedicine', icon: Video, path: '/telemedicine', patientOnly: true },
   { label: 'Payments', icon: CreditCard, path: '/payments' },
   { label: 'Notifications', icon: Bell, path: '/notifications' },
   { label: 'AI Symptom', icon: BrainCircuit, path: '/symptom-checker' },
@@ -118,7 +118,7 @@ function SidebarContent({ collapsed, onNavigate }) {
         if (n.adminOnly && !allowAdmin) continue
         if (n.doctorOnly && user?.role !== 'DOCTOR') continue
         if (n.patientOnly && user?.role !== 'PATIENT') continue
-        
+
         if (Array.isArray(n.children) && n.children.length > 0) {
           const next = { ...n, children: filterTree(n.children) }
           out.push(next)
