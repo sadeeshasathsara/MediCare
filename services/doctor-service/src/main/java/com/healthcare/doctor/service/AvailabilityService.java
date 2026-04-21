@@ -140,6 +140,19 @@ public class AvailabilityService {
         return toResponse(saved);
     }
 
+    public void deleteSlot(String doctorId, String slotId) {
+        doctorService.ensureDoctorExists(doctorId);
+
+        AvailabilitySlot slot = slotRepository.findById(slotId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Slot not found"));
+
+        if (!slot.getDoctorId().equals(doctorId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Slot does not belong to this doctor");
+        }
+
+        slotRepository.deleteById(slotId);
+    }
+
     private LocalTime parseTime(String timeStr, String fieldName) {
         try {
             return LocalTime.parse(timeStr.trim());
