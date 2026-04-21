@@ -62,7 +62,6 @@ const doctorLinks = [
   { label: "Dashboard", path: "/doctor/dashboard" },
   { label: "Appointments", path: "/doctor/appointments" },
   { label: "Availability", path: "/doctor/availability" },
-  { label: "Telemedicine", path: "/doctor/telemedicine" },
   { label: "Payments", path: "/doctor/payments" },
   { label: "Notifications", path: "/doctor/notifications" },
 ];
