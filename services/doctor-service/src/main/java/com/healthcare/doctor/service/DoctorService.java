@@ -41,8 +41,19 @@ public class DoctorService {
     }
 
     public void ensureDoctorExists(String doctorId) {
+        // In this system, doctorId is the auth-service userId.
+        // Create a minimal record on first touch so new doctors can manage availability
+        // before completing their profile.
         if (!doctorRepository.existsById(doctorId)) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Doctor not found");
+            Doctor stub = new Doctor();
+            stub.setId(doctorId);
+            stub.setUserId(doctorId);
+            // Default to true. In a real system, verification should be synced from auth-service.
+            stub.setVerified(true);
+            Instant now = Instant.now();
+            stub.setCreatedAt(now);
+            stub.setUpdatedAt(now);
+            doctorRepository.save(stub);
         }
     }
 

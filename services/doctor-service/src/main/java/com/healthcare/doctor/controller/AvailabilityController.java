@@ -60,4 +60,15 @@ public class AvailabilityController {
             @PathVariable String slotId) {
         return ResponseEntity.ok(availabilityService.incrementBookings(slotId));
     }
+
+    /**
+     * DELETE /doctors/:id/availability/:slotId – remove a slot
+     */
+    @DeleteMapping("/{slotId}")
+    public ResponseEntity<Void> deleteSlot(
+            @PathVariable String doctorId,
+            @PathVariable String slotId) {
+        availabilityService.deleteSlot(doctorId, slotId);
+        return ResponseEntity.noContent().build();
+    }
 }

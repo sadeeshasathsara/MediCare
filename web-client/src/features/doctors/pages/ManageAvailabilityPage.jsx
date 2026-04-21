@@ -22,6 +22,15 @@ export default function ManageAvailabilityPage() {
   const { user } = useAuth();
   const doctorId = user?.id;
 
+  const getErrorMessage = (err, fallback) => {
+    const status = err?.response?.status;
+    const message = err?.response?.data?.message || err?.response?.data?.error;
+
+    if (message && typeof message === 'string') return message;
+    if (status === 404) return "Doctor profile wasn't found yet. Try updating your profile first.";
+    return fallback;
+  };
+
   const [slots, setSlots] = useState([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -42,8 +51,13 @@ export default function ManageAvailabilityPage() {
     try {
       const data = await getDoctorAvailability(doctorId);
       setSlots(data);
-    } catch {
-      setError('Failed to load your availability schedule.');
+    } catch (err) {
+      // If the backend doesn't have any doctor profile data yet, treat it as an empty schedule.
+      if (err?.response?.status === 404) {
+        setSlots([]);
+      } else {
+        setError(getErrorMessage(err, 'Failed to load your availability schedule.'));
+      }
     } finally {
       setLoading(false);
     }
@@ -59,20 +73,33 @@ export default function ManageAvailabilityPage() {
     setError('');
     setSuccess('');
 
+    if (!newSlot.startTime || !newSlot.endTime) {
+      setError('Start time and end time are required.');
+      setSubmitting(false);
+      return;
+    }
+
+    // Works for HH:mm (and HH:mm:ss) values returned by <input type="time">.
+    if (String(newSlot.endTime) <= String(newSlot.startTime)) {
+      setError('End time must be after start time.');
+      setSubmitting(false);
+      return;
+    }
+
     try {
       const payload = {
         slots: [{
           dayOfWeek: newSlot.dayOfWeek,
           startTime: newSlot.startTime,
           endTime: newSlot.endTime,
-          maxCapacity: parseInt(newSlot.maxCapacity)
+          maxCapacity: Number.parseInt(String(newSlot.maxCapacity), 10)
         }]
       };
       await createDoctorAvailability(doctorId, payload);
       setSuccess('Successfully added new availability slot!');
       fetchSlots();
-    } catch {
-      setError('Failed to add slot. Ensure end time is after start time.');
+    } catch (err) {
+      setError(getErrorMessage(err, 'Failed to add slot.'));
     } finally {
       setSubmitting(false);
     }
