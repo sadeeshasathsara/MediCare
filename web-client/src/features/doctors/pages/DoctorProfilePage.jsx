@@ -1,14 +1,114 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { Camera, Mail, Phone, Stethoscope, User } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { getDoctorByUserId, updateDoctorProfile } from "../services/doctorApi";
 
 export default function DoctorProfilePage() {
   const { user } = useAuth();
+  const doctorId = user?.id;
+
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  const [form, setForm] = useState({
+    fullName: user?.fullName || "",
+    phone: user?.doctorProfile?.phone || "",
+    specialty: user?.doctorProfile?.specialty || "",
+    licenseNumber: user?.doctorProfile?.licenseNumber || "",
+    consultationFee: "",
+  });
 
   const initials = useMemo(() => {
     const base = (user?.fullName || user?.email || "D").trim();
     return base ? base.slice(0, 1).toUpperCase() : "D";
   }, [user?.email, user?.fullName]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      if (!doctorId) {
+        setLoading(false);
+        return;
+      }
+
+      setLoading(true);
+      setError("");
+      setSuccess("");
+
+      try {
+        const data = await getDoctorByUserId(doctorId);
+        if (cancelled) return;
+
+        setForm((prev) => ({
+          ...prev,
+          fullName: data?.fullName ?? prev.fullName,
+          phone: data?.phone ?? prev.phone,
+          specialty: data?.specialty ?? prev.specialty,
+          licenseNumber: data?.licenseNumber ?? prev.licenseNumber,
+          consultationFee:
+            data?.consultationFee != null &&
+            !Number.isNaN(Number(data.consultationFee))
+              ? String(data.consultationFee)
+              : prev.consultationFee,
+        }));
+      } catch {
+        // If the doctor record doesn't exist yet, the first Save will create it.
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [doctorId]);
+
+  const handleSave = async (e) => {
+    e.preventDefault();
+    if (!doctorId) return;
+
+    setSaving(true);
+    setError("");
+    setSuccess("");
+
+    try {
+      const payload = {
+        fullName: form.fullName,
+        phone: form.phone,
+        specialty: form.specialty,
+        licenseNumber: form.licenseNumber,
+      };
+
+      const feeTrimmed = String(form.consultationFee ?? "").trim();
+      if (feeTrimmed !== "") {
+        const feeNumber = Number(feeTrimmed);
+        if (Number.isNaN(feeNumber) || feeNumber < 0) {
+          setError("Consultation fee must be a number (0 or greater). ");
+          setSaving(false);
+          return;
+        }
+        payload.consultationFee = feeNumber;
+      }
+
+      await updateDoctorProfile(doctorId, payload);
+      setSuccess("Profile updated.");
+    } catch (err) {
+      const message =
+        err?.response?.data?.message || err?.response?.data?.error;
+      setError(
+        typeof message === "string" && message
+          ? message
+          : "Failed to update profile.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -38,65 +138,113 @@ export default function DoctorProfilePage() {
       </section>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <section className="rounded-xl border border-border bg-card p-5">
-          <div className="flex items-center gap-2">
-            <User size={16} className="text-muted-foreground" />
-            <h2 className="text-base font-semibold text-foreground">Account</h2>
+        <form onSubmit={handleSave} className="lg:col-span-2 space-y-4">
+          {error ? (
+            <div className="rounded-xl border border-border bg-muted/30 px-4 py-3 text-sm text-destructive">
+              {error}
+            </div>
+          ) : null}
+          {success ? (
+            <div className="rounded-xl border border-border bg-muted/30 px-4 py-3 text-sm text-primary">
+              {success}
+            </div>
+          ) : null}
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <section className="rounded-xl border border-border bg-card p-5">
+              <div className="flex items-center gap-2">
+                <User size={16} className="text-muted-foreground" />
+                <h2 className="text-base font-semibold text-foreground">
+                  Account
+                </h2>
+              </div>
+
+              <div className="mt-4 grid grid-cols-1 gap-3">
+                <Field
+                  icon={Mail}
+                  label="Email"
+                  value={user?.email || ""}
+                  disabled={true}
+                  helper="Email is managed by the authentication service."
+                />
+                <Field
+                  icon={User}
+                  label="Name"
+                  value={form.fullName}
+                  onChange={(v) => setForm((s) => ({ ...s, fullName: v }))}
+                  disabled={loading || saving}
+                  placeholder="Full name"
+                />
+                <Field
+                  icon={Phone}
+                  label="Phone"
+                  value={form.phone}
+                  onChange={(v) => setForm((s) => ({ ...s, phone: v }))}
+                  disabled={loading || saving}
+                  placeholder="Phone"
+                />
+              </div>
+            </section>
+
+            <section className="rounded-xl border border-border bg-card p-5">
+              <div className="flex items-center gap-2">
+                <Stethoscope size={16} className="text-muted-foreground" />
+                <h2 className="text-base font-semibold text-foreground">
+                  Professional
+                </h2>
+              </div>
+
+              <div className="mt-4 grid grid-cols-1 gap-3">
+                <Field
+                  label="License"
+                  value={form.licenseNumber}
+                  onChange={(v) => setForm((s) => ({ ...s, licenseNumber: v }))}
+                  placeholder="License number"
+                  disabled={loading || saving}
+                />
+                <Field
+                  label="Specialty"
+                  value={form.specialty}
+                  onChange={(v) => setForm((s) => ({ ...s, specialty: v }))}
+                  placeholder="Specialty"
+                  disabled={loading || saving}
+                />
+                <Field
+                  label="Consultation Fee"
+                  value={form.consultationFee}
+                  onChange={(v) =>
+                    setForm((s) => ({ ...s, consultationFee: v }))
+                  }
+                  placeholder="0"
+                  disabled={loading || saving}
+                  helper="This is the price patients pay for a consultation."
+                  inputMode="decimal"
+                />
+              </div>
+            </section>
           </div>
 
-          <div className="mt-4 grid grid-cols-1 gap-3">
-            <Field
-              icon={Mail}
-              label="Email"
-              value={user?.email || ""}
-              disabled={true}
-              helper="Email is managed by the authentication service."
-            />
-            <Field
-              icon={User}
-              label="Name"
-              value={user?.fullName || ""}
-              disabled={true}
-            />
-            <Field
-              icon={Phone}
-              label="Phone"
-              value={""}
-              placeholder="Not set"
-              disabled={true}
-            />
+          <div className="flex justify-end">
+            <Button type="submit" disabled={loading || saving || !doctorId}>
+              {saving ? "Saving..." : "Save Changes"}
+            </Button>
           </div>
-        </section>
-
-        <section className="rounded-xl border border-border bg-card p-5">
-          <div className="flex items-center gap-2">
-            <Stethoscope size={16} className="text-muted-foreground" />
-            <h2 className="text-base font-semibold text-foreground">
-              Professional
-            </h2>
-          </div>
-
-          <div className="mt-4 grid grid-cols-1 gap-3">
-            <Field
-              label="License"
-              value={""}
-              placeholder="Not set"
-              disabled={true}
-            />
-            <Field
-              label="Specialty"
-              value={""}
-              placeholder="Not set"
-              disabled={true}
-            />
-          </div>
-        </section>
+        </form>
       </div>
     </div>
   );
 }
 
-function Field({ label, value, disabled, placeholder, helper, icon: Icon }) {
+function Field({
+  label,
+  value,
+  disabled,
+  placeholder,
+  helper,
+  icon: Icon,
+  onChange,
+  inputMode,
+}) {
   return (
     <label className="space-y-1">
       <span className="text-xs font-medium text-muted-foreground">{label}</span>
@@ -110,7 +258,9 @@ function Field({ label, value, disabled, placeholder, helper, icon: Icon }) {
           value={value}
           disabled={disabled}
           placeholder={placeholder}
-          readOnly={true}
+          readOnly={!onChange}
+          onChange={onChange ? (e) => onChange(e.target.value) : undefined}
+          inputMode={inputMode}
           className={
             `w-full rounded-lg border border-border bg-input px-3 py-2.5 text-sm text-foreground outline-none ` +
             `placeholder:text-muted-foreground/70 disabled:opacity-60 ` +

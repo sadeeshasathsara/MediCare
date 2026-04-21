@@ -15,6 +15,11 @@ export const getDoctorByUserId = async (id) => {
   return data
 }
 
+export const updateDoctorProfile = async (doctorId, payload) => {
+  const { data } = await api.put(`/doctors/${doctorId}`, payload)
+  return data
+}
+
 export const getDoctorAvailability = async (doctorId) => {
   const { data } = await api.get(`/doctors/${doctorId}/availability`)
   return data
