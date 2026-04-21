@@ -6,7 +6,6 @@ import {
   Users,
   Stethoscope,
   CalendarCheck,
-  Video,
   CreditCard,
   ChevronLeft,
   ChevronRight,
